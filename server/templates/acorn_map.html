@@ -152,8 +152,11 @@
     //initialize empty marker and circle arrays
     var robotMarkerStore = {};
     var arrowMarkerStore = {};
-    let googleMarkers = [];
-    let displayed_path = [];
+    var savedPathMarkers = [];
+    var livePathMarkers = [];
+    var livePathLength = 0;
+    var displayed_path = [];
+    var displayed_path_name = "";
     var path_start = -1;
     var path_end = -1;
     var path_point_to_remove = -1;
@@ -198,13 +201,21 @@
                         ${robot.name}
                       </div>
                       <ul class="list-group list-group-flush">
-                        <li class="list-group-item">Voltage: ${robot.voltage}</li>
+                        <li class="list-group-item">Voltage: ${robot.voltage.toFixed(2)}</li>
                         <li class="list-group-item">Speed: ${robot.speed}</li>
                         <li class="list-group-item">State: ${robot.state}</li>
-                      <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-button">Activate</button></li>
+                        <li class="list-group-item">Loaded Path Name: ${robot.loaded_path_name}</li>
+                      <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-load-button">Load Path</button></li>
+                    <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-activate-button">Activate</button></li>
                       </ul>
                     </div>
                     `;
+
+                    if(robot.live_path_data.length != livePathLength)
+                    {
+                      renderPathLive(robot.live_path_data);
+                      livePathLength = robot.live_path_data.length;
+                    }
 
                     let div_id = `${robot.name}-cardview`;
                     const row = `
@@ -219,6 +230,15 @@
                     {
                       $('#robot_detail').append(row)
                     }
+
+                    $("[id*=-load-button]").on('click', function (event) {
+
+                          console.log("You clicked the load button ", event.target.innerText)
+
+                          let vehicle_name = $(this).attr("id").replace('-load-button','');
+                          updateVehiclePath(displayed_path_name, vehicle_name);
+
+                        });
 
 
 
@@ -242,8 +262,10 @@
                         scale: scale,
                         strokeColor: '#63d5a7',
                         strokeWeight: 2,
-                        rotation: data[i].turn_intent + data[i].heading
+                        rotation: data[i].turn_intent_degrees + data[i].heading
                     };
+
+                    //console.log("Turn intent degrees: ", data[i].turn_intent_degrees)
                     //check robotMarkerStore array if we have marker already
                     if (robotMarkerStore.hasOwnProperty(data[i].id)) {
                         //if we do, set new position attribute to existing marker
@@ -302,7 +324,10 @@
                 path_start = 0;
                 path_end = displayed_path.length-1;
                 path_point_to_remove =  displayed_path.length;
+
+                console.log("pathData Length: ", pathData.length)
                 renderPath(displayed_path);
+                displayed_path_name = pathname
 
             })
             //catch any errors
@@ -311,8 +336,6 @@
             });
 
     }
-
-
 
 
     function updateServerPath(pathname, pathData) {
@@ -336,18 +359,30 @@
     }
 
 
+      function updateVehiclePath(pathname, vehicle_name) {
+          //push path to server with the specified name
+          fetch('http://' + ipAddress + ':5000/api/set_vehicle_path/' + pathname + '/' + vehicle_name )
+              .then(function (reply) {
+                  //check data from server in console
+                  console.log(reply);
 
-
+              })
+              //catch any errors
+              .catch(function (error) {
+                  console.log(error);
+              });
+      }
 
 
     function renderPath(pathData) {
                 //check data from server in console
-                console.log(pathData);
+                //console.log(pathData);
                 //reset array of google circles
-                for (let i = 0; i < googleMarkers.length; i++) {
-                    googleMarkers[i].setMap(null);
+                //console.log("Markers Length: ", markers.length)
+                for (let i = 0; i < savedPathMarkers.length; i++) {
+                    savedPathMarkers[i].setMap(null);
                 }
-                googleMarkers = [];
+                savedPathMarkers = [];
                 //loop through circle data
                 for (var i = 0, len = pathData.length; i < len; i++) {
                     //draw circles on map
@@ -357,7 +392,7 @@
                     {
                       color = '#F006FF';
                     }
-                    if (i==path_point_to_remove)
+                    if (i == path_point_to_remove)
                     {
                       color = '#FF0000';
                     }
@@ -367,7 +402,7 @@
                         map: map,
                         radius: 0.5, // in meters
                         fillColor: color,
-                        fillOpacity: 100.0,
+                        fillOpacity: 0.3,
                         strokeColor: "#FFF",
                         strokeWeight: 1,
                         editable: false,
@@ -375,10 +410,50 @@
                         geodesic: true
                     });
                     //add each circle to array of google circles
-                    googleMarkers.push(marker);
+                    savedPathMarkers.push(marker);
                 }
 
     }
+
+
+
+  function renderPathLive(pathData) {
+              //check data from server in console
+              //console.log(pathData);
+              //reset array of google circles
+              for (let i = 0; i < livePathMarkers.length; i++) {
+                  livePathMarkers[i].setMap(null);
+              }
+              livePathMarkers = [];
+              //loop through circle data
+              for (var i = 0, len = pathData.length; i < len; i++) {
+                  //draw circles on map
+
+                  var color = '#FFFF00';
+
+                  var offset = 0.000005 ;
+
+                  var triangleCoords = [
+                    {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset},
+                    {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon},
+                    {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon + offset},
+                    {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset}
+                  ];
+
+                  var marker = new google.maps.Polygon({
+                    paths: triangleCoords,
+                    map: map,
+                    strokeColor: '#FF00FF',
+                    strokeOpacity: 0.0,
+                    strokeWeight: 2,
+                    fillColor: '#00FF00',
+                    fillOpacity: 1.0
+                  });
+                  //add each circle to array of google circles
+                  livePathMarkers.push(marker);
+              }
+
+  }
 
    $('#dropdown-container').on('show.bs.dropdown', function () {
      loadPathList();
@@ -440,6 +515,12 @@
       modifyDisplayedPath();
 
     });
+
+
+
+
+
+
 
 
 

@@ -11,7 +11,7 @@ import redis
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
 
-from master_process import Robot, _CMD_WRITE
+from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY
 
 
 def tprint(msg):
@@ -61,23 +61,45 @@ class ServerWorker(threading.Thread):
             ident, command, key, msg = worker.recv_multipart()
             # msg = pickle.loads(msg)
             tprint('Command: {} {} from {}'.format(command, key, ident))
-            reply = handle_command(r, ident, command, key, msg)
-            worker.send_multipart([ident, reply])
+            return_command, reply = handle_command(r, ident, command, key, msg)
+            worker.send_multipart([ident, return_command, reply])
 
         worker.close()
 
 def handle_command(r, ident, command, key, msg):
-    if command == _CMD_WRITE:
+    command_reply = _CMD_ACK
+    if command == _CMD_WRITE_KEY:
         #tprint(key)
         r.set(key, msg)
+        message = bytes("ok", encoding='ascii')
+    elif command == _CMD_READ_KEY:
+
+        tprint("**************")
+        tprint(str(key))
+        tprint("**************")
+        message = pickle.dumps((key, r.get(key)))
+        command_reply = _CMD_READ_KEY_REPLY
+    elif command == _CMD_UPDATE_ROBOT:
+        #tprint(key)
+        r.set(key, msg)
+        command_key = get_robot_command_key(key)
+        #print(command_key)
+        #message = bytes("ok", encoding='ascii')
+        message = r.get(command_key)
+        command_reply = _CMD_ROBOT_COMMAND
     else:
         tprint("NOPE")
-        #print(type(command))
+        tprint(command)
+        message = bytes("BAD_COMMAND", encoding='ascii')
+    return command_reply, message
+
+def get_robot_command_key(robot_key):
+
+    return bytes(str(robot_key)[2:-1].replace(":key", ":command:key"), encoding='ascii')
 
 
-    message = bytes("ok", encoding='ascii')
-    return message
 
+#bytes(str(robot_key).replace(":key", ":command:key"), encoding='ascii')
 
 
 def main():

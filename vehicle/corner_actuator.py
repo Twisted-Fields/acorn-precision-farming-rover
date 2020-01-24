@@ -13,8 +13,8 @@ import math
 import sys
 import fibre
 
-_ADC_PORT_STEERING_POT = 1
-_ADC_PORT_STEERING_HOME = 2
+_ADC_PORT_STEERING_POT = 4
+_ADC_PORT_STEERING_HOME = 3
 _VCC = 3.3
 _VOLTAGE_MIDPOINT = _VCC/2
 _POT_VOLTAGE_LOW = _VCC/6
@@ -26,7 +26,7 @@ _HOMING_POT_DEADBAND_VOLTS = 0.2
 _HOMING_POT_HALF_DEADBAND_V = _HOMING_POT_DEADBAND_VOLTS/2
 _FAST_POLLING_SLEEP_S = 0.01
 _SLOW_POLLING_SLEEP_S = 0.5
-_ODRIVE_CONNECT_TIMEOUT = 15
+_ODRIVE_CONNECT_TIMEOUT = 75
 
 COMMAND_VALUE_MINIMUM = 0.001
 
@@ -35,10 +35,12 @@ COUNTS_PER_REVOLUTION = 9797.0
 
 class CornerActuator:
 
-    def __init__(self, serial_number=None, name=None):
+    def __init__(self, serial_number=None, name=None, path=None):
         if serial_number and not isinstance(serial_number, str):
             raise ValueError("serial_number must be of type str but got type: {}".format(type(porserial_numbert)))
-        if not serial_number:
+        if path:
+            self.odrv0 = odrive.find_any(path=path, timeout=_ODRIVE_CONNECT_TIMEOUT)
+        elif not serial_number:
             self.odrv0 = odrive.find_any(timeout=_ODRIVE_CONNECT_TIMEOUT)
         else:
             self.odrv0 = odrive.find_any(serial_number=serial_number, timeout=_ODRIVE_CONNECT_TIMEOUT)
@@ -70,7 +72,7 @@ class CornerActuator:
         if rotation_sensor_val < _POT_VOLTAGE_LOW or rotation_sensor_val > _POT_VOLTAGE_HIGH:
             raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
             sys.exit()
-        self.odrv0.axis0.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
+        self.odrv0.axis0.encoder.config.use_index=False
         self.odrv0.axis0.motor.config.direction = 1
         self.odrv0.axis0.motor.config.motor_type = 4 # MOTOR_TYPE_BRUSHED_VOLTAGE
         self.odrv0.axis0.motor.config.current_lim = 18.0
@@ -78,7 +80,9 @@ class CornerActuator:
         self.odrv0.axis0.controller.config.pos_gain = -5
         self.odrv0.axis0.encoder.config.cpr = 2000
         self.odrv0.axis0.encoder.config.mode = ENCODER_MODE_INCREMENTAL
+        self.odrv0.axis0.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
 
+        self.odrv0.axis0.encoder.config.use_index=False
         self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
         self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
         self.steering_flipped = steering_flipped
@@ -132,7 +136,9 @@ class CornerActuator:
                 if rotation_sensor_val < _POT_VOLTAGE_LOW_WARN or rotation_sensor_val > _POT_VOLTAGE_HIGH_WARN:
                   self.stop_actuator()
                   raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
-                if steering_midpoint and len(transitions) >= 2:
+                if len(transitions) >= 2:
+                    if not steering_midpoint:
+                        steering_midpoint = self.odrv0.axis0.encoder.shadow_count
                     break
 
             print(transitions)
@@ -150,17 +156,32 @@ class CornerActuator:
         err_count = 0
         while True:
             self.odrv0.axis0.requested_state = AXIS_STATE_IDLE
+            time.sleep(_SLOW_POLLING_SLEEP_S)
             self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
             self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
             time.sleep(_SLOW_POLLING_SLEEP_S)
             errors = self.odrv0.axis0.error
             if errors == 0:
                 break
+            if not self.odrv0.axis0.encoder.is_ready:
+                raise RuntimeError("Could not initialize steering. Encoder is not ready.")
+
+            # print("axis0.current_state: {}".format(self.odrv0.axis0.current_state))
+            # self.odrv0.axis0.controller.vel_integrator_current = 0
+            # self.odrv0.axis1.controller.vel_integrator_current = 0
+            # self.odrv0.axis0.controller.vel_setpoint = 0
+            # self.odrv0.axis1.controller.vel_setpoint = 0
             err_count += 1
             error_message = dump_errors(self.odrv0,True)
             if err_count > 3:
                 raise RuntimeError("Could not initialize steering. Error was: {}".format(error_message))
-            time.sleep(2)
+            time.sleep(5)
+
+    def check_errors(self):
+        if self.odrv0.axis0.error == 0:
+            return
+        dump_errors(self.odrv0)
+        raise RuntimeError("odrive error state detected.")
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
         #print("Update {}".format(self.name))
@@ -173,6 +194,7 @@ class CornerActuator:
         self.odrv0.axis0.controller.pos_setpoint = pos_counts
         self.odrv0.axis1.controller.vel_integrator_current = 0
         self.odrv0.axis1.controller.vel_setpoint = self.velocity
+        self.check_errors()
 
     def slow_actuator(self, fraction):
         self.position = fraction * self.position

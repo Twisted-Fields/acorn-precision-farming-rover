@@ -35,19 +35,20 @@ odrive_devices = {
 
 context = zmq.Context()
 command_socket = context.socket(zmq.PULL)
-command_socket.bind("tcp://*:5555")
+command_socket.bind("tcp://*:5590")
 
 print(odrive_devices)
 
-front_right = corner_actuator.CornerActuator(serial_number=odrive_devices['front_right'], name='front_right')
-front_left = corner_actuator.CornerActuator(serial_number=odrive_devices['front_left'], name='front_left')
-rear_right = corner_actuator.CornerActuator(serial_number=odrive_devices['rear_right'], name='rear_right')
-rear_left = corner_actuator.CornerActuator(serial_number=odrive_devices['rear_left'], name='rear_left')
+front_right = corner_actuator.CornerActuator(serial_number=odrive_devices['front_right'], name='front_right', path="serial:/dev/motor4")
+front_left = corner_actuator.CornerActuator(serial_number=odrive_devices['front_left'], name='front_left', path="serial:/dev/motor2")
+rear_right = corner_actuator.CornerActuator(serial_number=odrive_devices['rear_right'], name='rear_right', path="serial:/dev/motor3")
+rear_left = corner_actuator.CornerActuator(serial_number=odrive_devices['rear_left'], name='rear_left', path="serial:/dev/motor1")
 
 odrives = [front_left, front_right, rear_right, rear_left]
 #odrives = [rear_left]
 
 skip_homing = True
+
 
 for drive in odrives:
     drive.print_errors(clear_errors=True)
@@ -60,13 +61,6 @@ for drive in odrives:
     drive.update_actuator(steering, 0.0)
 for drive in odrives:
     drive.initialize_traction()
-
-
-
-def adjust_steering():
-    if input('Adjust Steering? y/n:') == 'y':
-        while True:
-            print(nput("press key"))
 
 
 

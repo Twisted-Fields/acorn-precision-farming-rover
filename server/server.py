@@ -9,7 +9,7 @@ import pickle
 
 sys.path.append('../vehicle')
 
-from master_process import Robot
+from master_process import Robot, RobotCommand
 
 
 app = Flask(__name__, template_folder="templates")
@@ -44,26 +44,27 @@ def send_herd_data():
     robots = robots_to_json(keys)
     return jsonify(robots)
 
-
 def get_robot_keys():
     robot_keys = []
     for key in redis_client.scan_iter():
         if ':robot:' in str(key):
-            robot_keys.append(key)
+            if ':command:' not in str(key):
+                robot_keys.append(key)
     return robot_keys
-
 
 def robots_to_json(keys):
     robots_list = []
     for key in keys:
         robot = pickle.loads(redis_client.get(key))
+        live_path_data_json = robot.live_path_data
         robot_entry = { 'name': robot.name, 'lat': robot.location.lat, 'lon':
         robot.location.lon, 'heading': robot.location.azimuth_degrees,
-        'speed': robot.speed, 'turn_intent': robot.turn_intent_degrees,
-        'voltage': robot.voltage, 'state': robot.state}
+        'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
+        'voltage': robot.voltage, 'state': robot.state,
+        'loaded_path_name': robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
+        'live_path_data' : live_path_data_json}
         robots_list.append(robot_entry)
     return robots_list
-
 
 @app.route('/api/save_path', methods = ['POST'])
 @app.route('/api/save_path/<pathname>', methods = ['POST'])
@@ -80,6 +81,19 @@ def save_current_path(pathname=None):
     redis_client.set(key, pickle.dumps(pathdata))
     return "Saved Path {}".format(key)
 
+@app.route('/api/set_vehicle_path/<pathname>/<vehicle_name>')
+def set_vehicle_path(pathname=None, vehicle_name=None):
+    if not vehicle_name or not pathname:
+        return "Missing something. No vehicle path set."
+    vehicle_command_key = "{}:robot:{}:command:key".format(active_site, vehicle_name)
+    if redis_client.exists(vehicle_command_key):
+        robot_command = pickle.loads(redis_client.get(vehicle_command_key))
+    else:
+        robot_command = RobotCommand()
+    robot_command.load_path = get_path_key(pathname)
+    print(vehicle_command_key)
+    redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
+    return "Set vehicle {} path to {}".format(vehicle_command_key, robot_command.load_path)
 
 def get_path_key(pathname):
     print(active_site)
