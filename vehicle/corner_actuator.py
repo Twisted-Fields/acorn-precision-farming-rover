@@ -52,7 +52,7 @@ class CornerActuator:
             time.sleep(0.1)
 
     def print_errors(self, clear_errors=False):
-        print(dump_errors(self.odrv0, clear_errors))
+        dump_errors(self.odrv0, clear_errors)
         if clear_errors:
             self.position = 0
             self.velocity = 0
@@ -67,11 +67,15 @@ class CornerActuator:
         self.odrv0.axis1.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
         self.odrv0.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
 
+    def recover_from_estop(self):
+        self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
+        self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+        self.initialize_traction()
+
     def initialize_steering(self, steering_flipped=False, skip_homing=False):
         rotation_sensor_val = self.odrv0.get_adc_voltage(_ADC_PORT_STEERING_POT)
         if rotation_sensor_val < _POT_VOLTAGE_LOW or rotation_sensor_val > _POT_VOLTAGE_HIGH:
             raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
-            sys.exit()
         self.odrv0.axis0.encoder.config.use_index=False
         self.odrv0.axis0.motor.config.direction = 1
         self.odrv0.axis0.motor.config.motor_type = 4 # MOTOR_TYPE_BRUSHED_VOLTAGE
@@ -178,10 +182,9 @@ class CornerActuator:
             time.sleep(5)
 
     def check_errors(self):
-        if self.odrv0.axis0.error == 0:
-            return
-        dump_errors(self.odrv0)
-        raise RuntimeError("odrive error state detected.")
+        if self.odrv0.axis0.error or self.odrv0.axis1.error:
+            dump_errors(self.odrv0)
+            raise RuntimeError("odrive error state detected.")
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
         #print("Update {}".format(self.name))
@@ -192,6 +195,8 @@ class CornerActuator:
         else:
             pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
         self.odrv0.axis0.controller.pos_setpoint = pos_counts
+        # TODO: Setting vel_integrator_current to zero every time we update
+        # means we just don't get integrator control. But that would be nice.
         self.odrv0.axis1.controller.vel_integrator_current = 0
         self.odrv0.axis1.controller.vel_setpoint = self.velocity
         self.check_errors()
