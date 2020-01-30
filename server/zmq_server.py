@@ -11,7 +11,7 @@ import redis
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
 
-from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY
+from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY
 
 
 def tprint(msg):
@@ -79,10 +79,22 @@ def handle_command(r, ident, command, key, msg):
         tprint("**************")
         message = pickle.dumps((key, r.get(key)))
         command_reply = _CMD_READ_KEY_REPLY
+    elif command == _CMD_READ_PATH_KEY:
+
+        # Got the path request. Remove the path command from the command object
+        # and send the path.
+        command_key = get_robot_command_key(msg)
+        command_object = pickle.loads(r.get(command_key))
+        command_object.load_path = ""
+        r.set(command_key, pickle.dumps(command_object))
+        message = pickle.dumps((key, r.get(key)))
+        command_reply = _CMD_READ_KEY_REPLY
     elif command == _CMD_UPDATE_ROBOT:
         #tprint(key)
         r.set(key, msg)
         command_key = get_robot_command_key(key)
+        command_object = pickle.loads(r.get(command_key))
+        #print(dir(command_object))
         #print(command_key)
         #message = bytes("ok", encoding='ascii')
         message = r.get(command_key)
@@ -96,6 +108,8 @@ def handle_command(r, ident, command, key, msg):
 def get_robot_command_key(robot_key):
 
     return bytes(str(robot_key)[2:-1].replace(":key", ":command:key"), encoding='ascii')
+
+
 
 
 

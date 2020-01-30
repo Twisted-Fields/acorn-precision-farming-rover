@@ -82,6 +82,8 @@ def launch_rtk_sub_procs(master_conn):
                 latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data.status, data2.status), (data.num_sats, data2.num_sats), azimuth, data.time_stamp)
                 print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}".format(latest_sample.lat, latest_sample.lon, azimuth, d, data.status, data2.status))
                 master_conn.send(latest_sample)
+            else:
+                print("Bap")
         except Exception as e:
             print(e)
         # else:

@@ -17,7 +17,9 @@
               <h1>Acorn control</h1>
             </div>
             <div class="col-sm">
+
                 <div class="input-group" id=dropdown-container>
+                <button type="button" class="btn btn-danger mr-1" id="btn-delete" data-toggle="modal" data-target="#deleteModal">Delete Path</button>
                 <button class="btn btn-secondary dropdown-toggle mr-1" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   Select a path
                 </button>
@@ -26,7 +28,8 @@
 
               <button type="button" class="btn btn-primary mr-1" id="save-as">Save as</button>
 
-            <input type="text" class="form-control mr-1" placeholder="Path name" id=path-name aria-label="Path name" aria-describedby="basic-addon2">
+            <input type="text" class="form-control mr-1" placeholder="Path name" id=path-name aria-label="Path name" aria-describedby="basic-addon2" autocomplete='off'>
+            <button type="button" class="btn btn-primary mr-1" id="save-gps-as">Save GPS path as</button>
             </div>
             </div>
             <div class="col-sm">
@@ -71,6 +74,26 @@
             </div>
           </div>
 
+        </div>
+
+        <div class="modal" id="deleteModal" tabindex="-1" role="dialog">
+          <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Confirm delete path</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <p>Are you sure you want to delete the selected path?</p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="deletePath();" data-dismiss="modal">Permanently Delete</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+              </div>
+            </div>
+          </div>
         </div>
 
 
@@ -123,6 +146,13 @@
     var map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
     console.log(map)
     google.maps.event.addListenerOnce(map, 'tilesloaded', getRobotData);
+    google.maps.event.addListener(map, 'idle', function(event) {
+    var cnt = map.getCenter();
+    cnt.e+=0.000001;
+    map.panTo(cnt);
+    cnt.e-=0.000001;
+    map.panTo(cnt);
+});
 
     let robot_path;
 
@@ -155,6 +185,9 @@
     var savedPathMarkers = [];
     var livePathMarkers = [];
     var livePathLength = 0;
+    var gpsPathMarkers = [];
+    var gpsPathLength = 0;
+    var gps_path = [];
     var displayed_path = [];
     var displayed_path_name = "";
     var path_start = -1;
@@ -178,15 +211,6 @@
             .then(function (data) {
                 //console.log(data);
 
-                // if(!robot_path)
-                // {
-                //   return;
-                // }
-
-
-
-
-
                 var current_zoom = map.getZoom();
                 var scale = 1000 / zoom_scales[current_zoom] * 0.5;
 
@@ -200,21 +224,50 @@
                       <div class="card-header">
                         ${robot.name}
                       </div>
-                      <ul class="list-group list-group-flush">
-                        <li class="list-group-item">Voltage: ${robot.voltage.toFixed(2)}</li>
-                        <li class="list-group-item">Speed: ${robot.speed}</li>
-                        <li class="list-group-item">State: ${robot.state}</li>
-                        <li class="list-group-item">Loaded Path Name: ${robot.loaded_path_name}</li>
+                      <ul class="list-group list-group-flush" id="${robot.name}-detail-view">
+                        <li class="list-group-item" id="${robot.name}-detail-voltage">Voltage: ${robot.voltage.toFixed(2)}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-speed">Speed: ${robot.speed}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-control-state">Control State: ${robot.control_state}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-motor-state">Motor State: ${robot.motor_state}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-path-name">Loaded Path Name: ${robot.loaded_path_name}</li>
                       <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-load-button">Load Path</button></li>
-                    <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-activate-button">Activate</button></li>
+                      <li class="list-group-item">
+                        <div class="btn-group" role="group" aria-label="Autonomy Velocity">
+                          <button type="button" class="btn btn-success" id="${robot.name}-vel-1">0.1</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-2">0.5</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-3">1.0</button>
+                        </div>
+                      </li>
+                      <li class="list-group-item">
+                        <div class="btn-group" role="group" aria-label="Autonomy Enable">
+                          <button type="button" class="btn btn-success" id="${robot.name}-active-off-button">Deactivate</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-active-on-button">Activate</button>
+                        </div>
+                      </li>
+                      <li class="list-group-item">
+                        <div class="btn-group" role="group" aria-label="GPS Recording">
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-gps-record-button">Record</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-gps-pause-button">Pause</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-gps-clear-button">Clear</button>
+                        </div>
+                      </li>
+
                       </ul>
                     </div>
                     `;
+
 
                     if(robot.live_path_data.length != livePathLength)
                     {
                       renderPathLive(robot.live_path_data);
                       livePathLength = robot.live_path_data.length;
+                    }
+
+                    if(robot.gps_path_data.length != gpsPathLength)
+                    {
+                      gps_path = robot.gps_path_data
+                      renderPathGPS(robot.gps_path_data);
+                      gpsPathLength = robot.gps_path_data.length;
                     }
 
                     let div_id = `${robot.name}-cardview`;
@@ -225,20 +278,71 @@
                     `;
 
                     if ( $( `#${div_id}` ).length ) {
-                        $(`#${div_id}`).html(markup);
+                        $(`#${robot.name}-detail-voltage`).text(`Voltage: ${robot.voltage.toFixed(2)}`);
+                        $(`#${robot.name}-detail-speed`).html(`Speed: ${robot.speed}`);
+
                     } else
                     {
                       $('#robot_detail').append(row)
-                    }
+                      $("[id*=-load-button]").on('click', function (event) {
 
-                    $("[id*=-load-button]").on('click', function (event) {
+                            console.log("You clicked the load button ", event.target.innerText)
+                            updateVehiclePath(displayed_path_name, `${robot.name}`);
 
-                          console.log("You clicked the load button ", event.target.innerText)
+                          });
 
-                          let vehicle_name = $(this).attr("id").replace('-load-button','');
-                          updateVehiclePath(displayed_path_name, vehicle_name);
+
+                    $(`[id^=${robot.name}-vel-]`).on('click', function (event) {
+
+                          $( `[id^=${robot.name}-vel-]`).each(function() {
+                            $( this ).removeClass('btn-success')
+                            $( this ).addClass('btn-secondary')
+                          });
+
+                          let active = $(`[id^=${robot.name}-active-][class*=btn-success]`).text()
+
+                          $(event.target).removeClass('btn-secondary')
+                          $(event.target).addClass('btn-success')
+
+                          console.log(active + " "+ event.target.innerText)
+                          active = active === "Activate"
+
+                          let speed = event.target.innerText
+
+                          updateVehicleAutonomy(`${robot.name}`, speed, active);
 
                         });
+
+
+                        $(`[id^=${robot.name}-active-]`).on('click', function (event) {
+
+                          $( `[id^=${robot.name}-active-]`).each(function() {
+                            $( this ).removeClass('btn-success')
+                            $( this ).addClass('btn-secondary')
+                          });
+
+                          $(event.target).removeClass('btn-secondary')
+                          $(event.target).addClass('btn-success')
+
+                          let speed = $(`[id^=${robot.name}-vel-][class*=btn-success]`).text()
+
+                          console.log(event.target.innerText + " "+ speed)
+                          let active = event.target.innerText === "Activate"
+
+                          updateVehicleAutonomy(`${robot.name}`, speed, active);
+
+                      });
+
+
+                      $(`[id^=${robot.name}-gps-]`).on('click', function (event) {
+                        console.log(event.target.innerText)
+                        updateGpsRecordCommand(`${robot.name}`, event.target.innerText);
+
+                    });
+
+                    }
+
+
 
 
 
@@ -359,9 +463,55 @@
     }
 
 
+    function deletePath() {
+      let pathname = $("#path-name").val()
+        //push path to server with the specified name
+        fetch('http://' + ipAddress + ':5000/api/delete_path/' + pathname)
+            .then(function (reply) {
+                //check data from server in console
+                console.log(reply);
+
+            })
+            //catch any errors
+            .catch(function (error) {
+                console.log(error);
+            });
+    }
+
+
       function updateVehiclePath(pathname, vehicle_name) {
           //push path to server with the specified name
           fetch('http://' + ipAddress + ':5000/api/set_vehicle_path/' + pathname + '/' + vehicle_name )
+              .then(function (reply) {
+                  //check data from server in console
+                  console.log(reply);
+
+              })
+              //catch any errors
+              .catch(function (error) {
+                  console.log(error);
+              });
+      }
+
+
+        function updateVehicleAutonomy(vehicle_name, speed, enabled) {
+            //push path to server with the specified name
+            fetch('http://' + ipAddress + ':5000/api/set_vehicle_autonomy/' + vehicle_name + '/' + speed + '/' + enabled )
+                .then(function (reply) {
+                    //check data from server in console
+                    console.log(reply);
+
+                })
+                //catch any errors
+                .catch(function (error) {
+                    console.log(error);
+                });
+        }
+
+
+      function updateGpsRecordCommand(vehicle_name, record_gps_command) {
+          //push path to server with the specified name
+          fetch('http://' + ipAddress + ':5000/api/set_gps_recording/' + vehicle_name + '/' + record_gps_command)
               .then(function (reply) {
                   //check data from server in console
                   console.log(reply);
@@ -400,7 +550,7 @@
                     var marker = new google.maps.Circle({
                         center: new google.maps.LatLng(pathData[i].lat, pathData[i].lon),
                         map: map,
-                        radius: 0.5, // in meters
+                        radius: 0.6, // in meters
                         fillColor: color,
                         fillOpacity: 0.3,
                         strokeColor: "#FFF",
@@ -417,54 +567,100 @@
 
 
 
-  function renderPathLive(pathData) {
-              //check data from server in console
-              //console.log(pathData);
-              //reset array of google circles
-              for (let i = 0; i < livePathMarkers.length; i++) {
-                  livePathMarkers[i].setMap(null);
-              }
-              livePathMarkers = [];
-              //loop through circle data
-              for (var i = 0, len = pathData.length; i < len; i++) {
-                  //draw circles on map
+      function renderPathLive(pathData) {
+                  //check data from server in console
+                  //console.log(pathData);
+                  //reset array of google circles
+                  for (let i = 0; i < livePathMarkers.length; i++) {
+                      livePathMarkers[i].setMap(null);
+                  }
+                  livePathMarkers = [];
+                  //loop through circle data
+                  for (var i = 0, len = pathData.length; i < len; i++) {
+                      //draw circles on map
 
-                  var color = '#FFFF00';
+                      var color = '#FFFF00';
 
-                  var offset = 0.000005 ;
+                      var offset = 0.000005 ;
 
-                  var triangleCoords = [
-                    {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset},
-                    {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon},
-                    {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon + offset},
-                    {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset}
-                  ];
+                      var triangleCoords = [
+                        {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset},
+                        {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon},
+                        {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon + offset},
+                        {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset}
+                      ];
 
-                  var marker = new google.maps.Polygon({
-                    paths: triangleCoords,
-                    map: map,
-                    strokeColor: '#FF00FF',
-                    strokeOpacity: 0.0,
-                    strokeWeight: 2,
-                    fillColor: '#00FF00',
-                    fillOpacity: 1.0
-                  });
-                  //add each circle to array of google circles
-                  livePathMarkers.push(marker);
-              }
+                      var marker = new google.maps.Polygon({
+                        paths: triangleCoords,
+                        map: map,
+                        strokeColor: '#FF00FF',
+                        strokeOpacity: 0.0,
+                        strokeWeight: 2,
+                        fillColor: '#00FF00',
+                        fillOpacity: 1.0
+                      });
+                      //add each circle to array of google circles
+                      livePathMarkers.push(marker);
+                  }
 
-  }
+      }
+
+
+    function renderPathGPS(pathData) {
+                //check data from server in console
+                //console.log(pathData);
+                //reset array of google circles
+                for (let i = 0; i < gpsPathMarkers.length; i++) {
+                    gpsPathMarkers[i].setMap(null);
+                }
+                gpsPathMarkers = [];
+                //loop through circle data
+                for (var i = 0, len = pathData.length; i < len; i++) {
+                    //draw circles on map
+
+                    var color = '#FFFF00';
+
+                    var offset = 0.000005 ;
+
+                    var triangleCoords = [
+                      {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon - offset},
+                      {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon},
+                      {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon + offset},
+                      {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon - offset}
+                    ];
+
+                    var marker = new google.maps.Polygon({
+                      paths: triangleCoords,
+                      map: map,
+                      strokeColor: '#FF00FF',
+                      strokeOpacity: 0.0,
+                      strokeWeight: 2,
+                      fillColor: '#FFA500 ',
+                      fillOpacity: 1.0
+                    });
+                    //add each circle to array of google circles
+                    gpsPathMarkers.push(marker);
+                }
+
+    }
 
    $('#dropdown-container').on('show.bs.dropdown', function () {
      loadPathList();
    });
 
-    $("#save-as").on('click', function () {
-     //console.log("You clicked the drop downs ", event.target.innerText)
-     updateServerPath($("#path-name").val(), displayed_path)
-     console.log(displayed_path)
+       $("#save-as").on('click', function () {
+        //console.log("You clicked the drop downs ", event.target.innerText)
+        updateServerPath($("#path-name").val(), displayed_path)
+        console.log(displayed_path)
 
-    });
+       });
+
+     $("#save-gps-as").on('click', function () {
+      //console.log("You clicked the drop downs ", event.target.innerText)
+      updateServerPath($("#path-name").val(), gps_path)
+      console.log(gps_path)
+
+     });
     $("#start-minus").on('click', function () {
        if (path_start > 0)
        {

@@ -56,13 +56,16 @@ def robots_to_json(keys):
     robots_list = []
     for key in keys:
         robot = pickle.loads(redis_client.get(key))
-        live_path_data_json = robot.live_path_data
+        live_path_data = robot.live_path_data
+        gps_path_data = robot.gps_path_data
         robot_entry = { 'name': robot.name, 'lat': robot.location.lat, 'lon':
         robot.location.lon, 'heading': robot.location.azimuth_degrees,
         'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
-        'voltage': robot.voltage, 'state': robot.state,
-        'loaded_path_name': robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
-        'live_path_data' : live_path_data_json}
+        'voltage': robot.voltage, 'control_state': robot.control_state,
+        'motor_state': robot.motor_state,
+        'loaded_path_name': "" if not robot.loaded_path_name else robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
+        'live_path_data' : live_path_data,
+        'gps_path_data' : gps_path_data}
         robots_list.append(robot_entry)
     return robots_list
 
@@ -81,6 +84,13 @@ def save_current_path(pathname=None):
     redis_client.set(key, pickle.dumps(pathdata))
     return "Saved Path {}".format(key)
 
+@app.route('/api/delete_path/<pathname>')
+def delete_path(pathname=None):
+    if not pathname:
+        return "Missing something. No path deleted."
+    redis_client.delete(get_path_key(pathname))
+    return "Deleted path {}".format(pathname)
+
 @app.route('/api/set_vehicle_path/<pathname>/<vehicle_name>')
 def set_vehicle_path(pathname=None, vehicle_name=None):
     if not vehicle_name or not pathname:
@@ -94,6 +104,38 @@ def set_vehicle_path(pathname=None, vehicle_name=None):
     print(vehicle_command_key)
     redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
     return "Set vehicle {} path to {}".format(vehicle_command_key, robot_command.load_path)
+
+@app.route('/api/set_gps_recording/<vehicle_name>/<record_gps_path>')
+def set_gps_recording(vehicle_name=None, record_gps_path=None):
+    if not vehicle_name or not record_gps_path:
+        return "Missing something. No gps command set."
+    if len(active_site) == 0:
+        return "Active site not set. Please load a path."
+    vehicle_command_key = "{}:robot:{}:command:key".format(active_site, vehicle_name)
+    if redis_client.exists(vehicle_command_key):
+        robot_command = pickle.loads(redis_client.get(vehicle_command_key))
+    else:
+        robot_command = RobotCommand()
+    robot_command.record_gps_path = record_gps_path
+    print(robot_command.record_gps_path)
+    redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
+    return "Set vehicle {} record gps command to {}".format(vehicle_command_key, record_gps_path)
+
+@app.route('/api/set_vehicle_autonomy/<vehicle_name>/<speed>/<enable>')
+def set_vehicle_autonomy(vehicle_name=None, speed=None, enable=None):
+    if not all((vehicle_name, speed, enable)):
+        return "Missing something. No vehicle autonomy set."
+    if len(active_site) == 0:
+        return "Active site not set. Please load a path."
+    vehicle_command_key = "{}:robot:{}:command:key".format(active_site, vehicle_name)
+    if redis_client.exists(vehicle_command_key):
+        robot_command = pickle.loads(redis_client.get(vehicle_command_key))
+    else:
+        robot_command = RobotCommand()
+    robot_command.activate_autonomy = enable=="true"
+    robot_command.autonomy_velocity = float(speed)
+    redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
+    return "Set vehicle {} autonomy to {}".format(vehicle_command_key, (speed, enable))
 
 def get_path_key(pathname):
     print(active_site)

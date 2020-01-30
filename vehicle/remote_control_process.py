@@ -12,6 +12,7 @@ import pickle
 import gps_tools
 from collections import namedtuple
 
+
 COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
 
 ACCELERATION_COUNTS_SEC = 0.5
@@ -93,6 +94,7 @@ class RemoteControl():
         last_vel_cmd = 0
         tick_time = time.time()
         self.nav_path = []
+        self.gps_path = []
         load_path_time = time.time()
         auto_throttle = 0
         self.loaded_path_name = ""
@@ -171,7 +173,8 @@ class RemoteControl():
                 try:
                     self.motor_socket.send_pyobj(pickle.dumps(calc), flags=zmq.NOBLOCK)
                 except zmq.ZMQError:
-                    print("Warning: Motor Control pipe full, or other ZMQ error raised.")
+                    pass
+                    #print("Warning: Motor Control pipe full, or other ZMQ error raised.")
                 time.sleep(0.1)
         except KeyboardInterrupt:
             pass
