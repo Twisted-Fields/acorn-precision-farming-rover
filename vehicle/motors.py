@@ -119,13 +119,19 @@ class AcornMotorInterface():
                 return True
         return False
 
+    def try_to_send_state(self, state):
+            try:
+                self.command_socket.send_string(state)
+            except zmq.error.ZMQError as e:
+                pass
+
     def run_main(self):
         motor_error = False
         tick_time = time.time()
         try:
             while True:
                 if not self.odrives_connected:
-                    self.command_socket.send_string(_STATE_DISCONNECTED)
+                    self.try_to_send_state(_STATE_DISCONNECTED)
                     self.connect_to_motors()
                 elif not self.motors_initialized:
                     try:
@@ -137,7 +143,8 @@ class AcornMotorInterface():
                         print("Motor problem while initializing steering.")
                 elif not self.steering_adjusted:
                     try:
-                        self.ask_if_adjust_steering()
+                        self.steering_adjusted = True
+                        #self.ask_if_adjust_steering()
                         print("Initialized Steering")
                     except RuntimeError as e:
                         print("Motor problem while adjusting steering.")
@@ -150,7 +157,7 @@ class AcornMotorInterface():
                         drive.print_errors(clear_errors=True)
                     print("ERROR DETECTED IN ODRIVES.")
                     time.sleep(_ERROR_RECOVERY_DELAY_S)
-                    self.command_socket.send_string(_STATE_DISABLED)
+                    self.try_to_send_state(_STATE_DISABLED)
                     # Consume command messages.
                     while self.command_socket.poll(timeout=0):
                         self.command_socket.recv_pyobj()
@@ -161,21 +168,23 @@ class AcornMotorInterface():
                         if not self.check_errors():
                             print("Recovered from e-stop.")
                             motor_error = False
+                    calc = None
+                    # Loop here to consume any buffered messages.
                     while self.command_socket.poll(timeout=0):
                         calc = pickle.loads(self.command_socket.recv_pyobj())
-                        self.command_socket.send_string(_STATE_ENABLED)
                         tick_time = time.time()
-                        if calc:
-                            for drive in self.odrives:
-                                this_pos, this_vel_cmd = calc[drive.name]
-                                this_pos = math.degrees(this_pos)
-                                try:
-                                    drive.update_actuator(this_pos, this_vel_cmd * 1000)
-                                except RuntimeError as e:
-                                    print("Error updating actuator.")
-                                    print(e)
-                                    break
-                                time.sleep(0.02)
+                    if calc:
+                        self.try_to_send_state(_STATE_ENABLED)
+                        for drive in self.odrives:
+                            this_pos, this_vel_cmd = calc[drive.name]
+                            this_pos = math.degrees(this_pos)
+                            try:
+                                drive.update_actuator(this_pos, this_vel_cmd * 1000)
+                            except RuntimeError as e:
+                                print("Error updating actuator.")
+                                print(e)
+                                break
+                            time.sleep(0.02)
 
                     if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
                         print("COMMS LOST SLOWING ACTUATOR.")

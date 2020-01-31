@@ -57,6 +57,8 @@ class Robot:
         self.live_path_data = []
         self.gps_path_data = []
         self.record_gps_command = _GPS_RECORDING_CLEAR
+        self.activate_autonomy = False
+        self.autonomy_velocity = 0
 
     def __repr__(self):
         return 'Robot'
@@ -166,11 +168,11 @@ class MasterProcess():
                             updated_object = True
                             #print(path)
 
-                    if robot_command.activate_autonomy:
-                        print("WOOO AUTONOMY AT {} SPEED".format(robot_command.autonomy_velocity))
                     if robot_command.record_gps_path:
                         acorn.record_gps_command = robot_command.record_gps_path
                         #print(robot_command.record_gps_path)
+                    acorn.activate_autonomy = robot_command.activate_autonomy
+                    acorn.autonomy_velocity = robot_command.autonomy_velocity
 
 
         self.remote_server_socket.close()

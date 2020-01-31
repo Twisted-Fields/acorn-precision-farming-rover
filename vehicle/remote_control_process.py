@@ -18,8 +18,6 @@ COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
 ACCELERATION_COUNTS_SEC = 0.5
 
 
-_USE_GPS=False
-
 def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
     if math.fabs(unfiltered_vel-last_vel) < ACCELERATION_COUNTS_SEC * period_s:
         increment = unfiltered_vel-last_vel
@@ -65,6 +63,8 @@ class RemoteControl():
         self.master_conn = master_conn
         self.robot_object = None
         self.turn_intent_degrees = -180
+        self.activate_autonomy = False
+        self.autonomy_velocity = 0
 
     def run_setup(self):
         self.connect_to_motors()
@@ -98,6 +98,7 @@ class RemoteControl():
         load_path_time = time.time()
         auto_throttle = 0
         self.loaded_path_name = ""
+        self.autonomy_disabled = False
         try:
             while True:
                 # Consume the incoming messages.
@@ -108,6 +109,12 @@ class RemoteControl():
                     if len(self.nav_path) == 0 or self.loaded_path_name != self.robot_object.loaded_path_name:
                         self.nav_path=self.robot_object.loaded_path
                         load_path_time = time.time()
+                        self.loaded_path_name = self.robot_object.loaded_path_name
+                    if self.robot_object.activate_autonomy and not self.autonomy_disabled:
+                        self.activate_autonomy = self.robot_object.activate_autonomy
+                        self.autonomy_velocity = self.robot_object.autonomy_velocity
+                    if not self.robot_object.activate_autonomy:
+                        self.autonomy_disabled = False
 
                 #if self.robot_object:
                 #    print("REMOTE CONTROL READS AZIMUTH AS {} degrees".format(self.robot_object.location.azimuth_degrees))
@@ -140,15 +147,15 @@ class RemoteControl():
                     #print(type(Robot()))
                 # Get joystick value
                 joy_steer, joy_throttle = get_joystick(self.joy, joy_steer, joy_throttle)
-                #print("joy_throttle {}, joy_steer {}".format(joy_throttle, joy_steer))
-                vel_cmd = joy_throttle
-                period = time.time() - tick_time
-                # Perform acceleration on joystick value
-                vel_cmd = get_profiled_velocity(last_vel_cmd, vel_cmd, period)
-                last_vel_cmd = vel_cmd
-                tick_time = time.time()
+                #print(joy_throttle)
+                if abs(joy_steer) > 0.1 or abs(joy_throttle) > 0.1:
+                    print("DISABLED AUTONOMY Steer: {}, Joy {}".format(joy_steer, joy_throttle))
+                    self.autonomy_disabled = True
+                    self.activate_autonomy = False
 
-                if self.turn_intent_degrees != -180:
+
+
+                if self.turn_intent_degrees != -180 and self.activate_autonomy:
                     if -90 < self.turn_intent_degrees <= 0:
                         steering_angle = max(self.turn_intent_degrees * 2, -45)
                         direction = 1
@@ -161,15 +168,24 @@ class RemoteControl():
                     if  90 < self.turn_intent_degrees <= 180:
                         steering_angle = min((self.turn_intent_degrees-180) * -2, 45)
                         direction = -1
-                    if _USE_GPS:
-                        if vel_cmd > auto_throttle:
-                            auto_throttle = vel_cmd
-                        joy_steer = steering_angle/45.0
-                        vel_cmd = auto_throttle * direction
-                        print("Steer: {}, Throttle: {}".format(steering_angle, direction))
-                        if time.time() - load_path_time < 5:
-                            vel_cmd = 0
-                calc = calculate_steering(joy_steer, vel_cmd)
+                    steer_cmd = steering_angle/45.0
+                    vel_cmd = self.autonomy_velocity*direction
+                    joy_steer = 0.0 # ensures that vel goes to zero when autonomy disabled
+                    #print("Steer: {}, Throttle: {}".format(steer_cmd, vel_cmd))
+                    if time.time() - load_path_time < 5:
+                        vel_cmd = 0
+                        print("ARRRRRRR")
+                else:
+                    vel_cmd = joy_throttle
+                    steer_cmd = joy_steer
+                #print(self.activate_autonomy)
+                period = time.time() - tick_time
+                # Perform acceleration on vel_cmd value
+                vel_cmd = get_profiled_velocity(last_vel_cmd, vel_cmd, period)
+                last_vel_cmd = vel_cmd
+                tick_time = time.time()
+                #print("Final values: Steer {}, Vel {}".format(steer_cmd, vel_cmd))
+                calc = calculate_steering(steer_cmd, vel_cmd)
                 try:
                     self.motor_socket.send_pyobj(pickle.dumps(calc), flags=zmq.NOBLOCK)
                 except zmq.ZMQError:
