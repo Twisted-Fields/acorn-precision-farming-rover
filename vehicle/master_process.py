@@ -10,6 +10,7 @@ import remote_control_process
 import voltage_monitor_process
 import gps_tools
 from motors import _STATE_DISCONNECTED
+from datetime import datetime
 
 _USE_FAKE_GPS = False
 
@@ -59,6 +60,8 @@ class Robot:
         self.record_gps_command = _GPS_RECORDING_CLEAR
         self.activate_autonomy = False
         self.autonomy_velocity = 0
+        self.time_stamp = datetime.now()
+        self.debug_points = None
 
     def __repr__(self):
         return 'Robot'
@@ -115,11 +118,15 @@ class MasterProcess():
         reqs = 0
         robot_id = bytes(acorn.name, encoding='ascii')
         updated_object = False
+        gps_count = 0
         while True:
 
             if gps_parent_conn.poll():
-                acorn.location = gps_parent_conn.recv()
-                updated_object = True
+                while gps_parent_conn.poll():
+                    acorn.location = gps_parent_conn.recv()
+                gps_count += 1
+                if gps_count % 10 == 0:
+                    updated_object = True
                 if acorn.record_gps_command == _GPS_RECORDING_PAUSE:
                     pass
                 if acorn.record_gps_command == _GPS_RECORDING_ACTIVATE:
@@ -127,6 +134,13 @@ class MasterProcess():
                     print("APPEND GPS")
                 if acorn.record_gps_command == _GPS_RECORDING_CLEAR:
                     acorn.gps_path_data = []
+
+            #print("MAIN READS AZIMUTH AS {} degrees".format(acorn.location.azimuth_degrees))
+            #if updated_object:
+                # Clear read buffer.
+            while remote_control_parent_conn.poll():
+                remote_control_parent_conn.recv()
+            remote_control_parent_conn.send(acorn)
 
             if voltage_monitor_parent_conn.poll():
                 cell1, cell2, cell3, total = voltage_monitor_parent_conn.recv()
@@ -136,19 +150,15 @@ class MasterProcess():
                 acorn.cell3 = cell3
                 updated_object = True
 
-            #print("MAIN READS AZIMUTH AS {} degrees".format(acorn.location.azimuth_degrees))
-            if len(acorn.loaded_path) > 0:
-                # Clear read buffer.
-                while remote_control_parent_conn.poll():
-                    remote_control_parent_conn.recv()
-                remote_control_parent_conn.send(acorn)
+
 
             if remote_control_parent_conn.poll(0.5):
-                acorn.live_path_data, acorn.turn_intent_degrees = remote_control_parent_conn.recv()
+                acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points = remote_control_parent_conn.recv()
                 updated_object = True
 
             if updated_object:
                 #print(acorn.location)
+                acorn.time_stamp = datetime.now()
                 self.remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)])
                 updated_object = False
 

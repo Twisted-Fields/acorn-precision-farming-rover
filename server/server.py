@@ -6,6 +6,8 @@ import sys
 from svgpathtools import svg2paths, paths2svg
 import re
 import pickle
+import json
+import datetime
 
 sys.path.append('../vehicle')
 
@@ -38,6 +40,13 @@ def map_canvas_flask():
         'acorn_map.html'
     )
 
+
+date_handler = lambda obj: (
+    obj.isoformat()
+    if isinstance(obj, (datetime.datetime, datetime.date))
+    else None
+)
+
 @app.route('/api/get_herd_data')
 def send_herd_data():
     keys = get_robot_keys()
@@ -56,16 +65,29 @@ def robots_to_json(keys):
     robots_list = []
     for key in keys:
         robot = pickle.loads(redis_client.get(key))
+        time_stamp = json.dumps(robot.time_stamp, default=date_handler)
         live_path_data = robot.live_path_data
         gps_path_data = robot.gps_path_data
+        debug_points = robot.debug_points
+        #print(debug_points)
         robot_entry = { 'name': robot.name, 'lat': robot.location.lat, 'lon':
         robot.location.lon, 'heading': robot.location.azimuth_degrees,
         'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
         'voltage': robot.voltage, 'control_state': robot.control_state,
-        'motor_state': robot.motor_state,
+        'motor_state': robot.motor_state, 'time_stamp': time_stamp,
         'loaded_path_name': "" if not robot.loaded_path_name else robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
         'live_path_data' : live_path_data,
-        'gps_path_data' : gps_path_data}
+        'gps_path_data' : gps_path_data,
+        'debug_points' : debug_points
+        # 'front_lat': debug_points[0].lat,
+        # 'front_lon': debug_points[0].lat,
+        # 'rear_lat': debug_points[1].lat,
+        # 'rear_lon': debug_points[1].lat,
+        # 'front_close_lat': debug_points[2].lat,
+        # 'front_close_lon': debug_points[2].lat,
+        # 'rear_close_lat': debug_points[3].lat,
+        # 'rear_close_lon': debug_points[3].lat,
+        }
         robots_list.append(robot_entry)
     return robots_list
 

@@ -71,7 +71,7 @@ class AcornMotorInterface():
             elif c == _UP_KEYCODE:
                 print("UP")
                 index += 1
-                if index >= len(odrives):
+                if index >= len(self.odrives):
                     index = 0
             elif c == _LEFT_KEYCODE:
                 drive.home_position -= 10
@@ -83,7 +83,7 @@ class AcornMotorInterface():
                 print("DOWN")
                 index -= 1
                 if index < 0:
-                   index = len(odrives) - 1
+                   index = len(self.odrives) - 1
             else:
                 print(repr(c))
 
@@ -144,7 +144,7 @@ class AcornMotorInterface():
                 elif not self.steering_adjusted:
                     try:
                         self.steering_adjusted = True
-                        #self.ask_if_adjust_steering()
+                        self.ask_if_adjust_steering()
                         print("Initialized Steering")
                     except RuntimeError as e:
                         print("Motor problem while adjusting steering.")
@@ -183,7 +183,11 @@ class AcornMotorInterface():
                             except RuntimeError as e:
                                 print("Error updating actuator.")
                                 print(e)
-                                break
+                            except AttributeError as e:
+                                print("Attribute Error while updating actuator.")
+                                print(e)
+                                print("self.motors_initialized {}".format(self.motors_initialized))
+                                print("self {}".format(self))
                             time.sleep(0.02)
 
                     if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:

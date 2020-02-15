@@ -8,7 +8,7 @@ M_PI_2 = math.pi/2.0
 
 
 # Both should be from 0-1.
-def calculate_steering(steer, throttle):
+def calculate_steering_old(steer, throttle):
 
     throttle_cmd = throttle
     angle_cmd = steer * math.radians(45)
@@ -77,5 +77,59 @@ def calculate_steering(steer, throttle):
     #   front_right_steering = math.copysign(M_PI_2, angle_cmd)
     #   rear_left_steering = math.copysign(M_PI_2, -angle_cmd)
     #   rear_right_steering = math.copysign(M_PI_2, -angle_cmd)
+
+    return {"front_left":(front_left_steering, vel_left_front), "front_right": (front_right_steering, vel_right_front), "rear_left":(rear_left_steering, vel_left_rear), "rear_right": (rear_right_steering, vel_right_rear)}
+def normalize_values(angle, throttle):
+    if angle > 90:
+        angle -= 180
+        throttle *= -1
+    if angle < -90:
+        angle += 180
+        throttle *= -1
+    return angle, throttle
+
+def calculate_steering(steer, throttle, strafe):
+
+    L = wheel_base_
+    W = steering_track
+    R = math.sqrt(L * L + W * W);
+
+    steer = steer * throttle
+
+    throttle_factor = 2.5
+
+    RCW = steer
+    FWD = throttle
+    STR = strafe
+
+    A = STR - RCW * (L/R)
+    B = STR + RCW * (L/R)
+    C = FWD - RCW * (W/R)
+    D = FWD + RCW * (W/R)
+
+
+    ws1 = math.sqrt(B * B + C * C) * throttle_factor
+    ws2 = math.sqrt(B * B + D * D) * throttle_factor
+    ws3 = math.sqrt(A * A + D * D) * throttle_factor
+    ws4 = math.sqrt(A * A + C * C) * throttle_factor
+
+    wa1 = math.atan2(B,C)*180.0/math.pi
+    wa2 = math.atan2(B,D)*180.0/math.pi
+    wa3 = math.atan2(A,D)*180.0/math.pi
+    wa4 = math.atan2(A,C)*180.0/math.pi
+
+    wa1, ws1 = normalize_values(wa1, ws1)
+    wa2, ws2 = normalize_values(wa2, ws2)
+    wa3, ws3 = normalize_values(wa3, ws3)
+    wa4, ws4 = normalize_values(wa4, ws4)
+
+    front_left_steering = math.radians(wa2)
+    front_right_steering = math.radians(wa1)
+    rear_right_steering = math.radians(wa4)
+    rear_left_steering = math.radians(wa3)
+    vel_left_front = ws2
+    vel_right_front = ws1
+    vel_right_rear = ws4
+    vel_left_rear = ws3
 
     return {"front_left":(front_left_steering, vel_left_front), "front_right": (front_right_steering, vel_right_front), "rear_left":(rear_left_steering, vel_left_rear), "rear_right": (rear_right_steering, vel_right_rear)}

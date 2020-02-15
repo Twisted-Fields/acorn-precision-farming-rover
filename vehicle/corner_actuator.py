@@ -46,6 +46,10 @@ class CornerActuator:
             self.odrv0 = odrive.find_any(serial_number=serial_number, timeout=_ODRIVE_CONNECT_TIMEOUT)
             #self.odrv0 = odrive.find_any(path="usb:1-1.1.3.4", timeout=_ODRIVE_CONNECT_TIMEOUT)
         self.name = name
+        self.steering_initialized = False
+        self.traction_initialized = False
+        self.position = 0.0
+        self.velocity = 0.0
 
     def idle_wait(self):
         while self.odrv0.axis1.current_state != AXIS_STATE_IDLE:
@@ -66,6 +70,7 @@ class CornerActuator:
     def initialize_traction(self):
         self.odrv0.axis1.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
         self.odrv0.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+        self.traction_initialized = True
 
     def recover_from_estop(self):
         self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
@@ -90,6 +95,7 @@ class CornerActuator:
         self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
         self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
         self.steering_flipped = steering_flipped
+        self.steering_initialized = True
 
 
         home_position = None
@@ -202,6 +208,8 @@ class CornerActuator:
         self.check_errors()
 
     def slow_actuator(self, fraction):
+        if not (self.steering_initialized and self.traction_initialized):
+            return
         self.position = fraction * self.position
         self.velocity = fraction * self.velocity
         if math.fabs(self.position) < COMMAND_VALUE_MINIMUM:

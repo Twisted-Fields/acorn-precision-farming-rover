@@ -3,6 +3,11 @@ from geopy.distance import distance
 from geographiclib.geodesic import Geodesic
 import math
 from collections import namedtuple
+import numpy as np
+from scipy.interpolate import splprep, splev
+
+_SMOOTH_MULTIPLIER = 0.00000000001
+_GPS_DISTANCE_SCALAR = 100000
 
 GpsSample = namedtuple('GpsSample', 'lat lon height_m status num_sats azimuth_degrees time_stamp')
 
@@ -28,7 +33,7 @@ def get_closest_point(point, point_list):
         d = get_distance(point_list[idx], point)
         if d < min_distance:
             min_distance = d
-            closest_point = point_list[idx]
+            closest_point = check_point(point_list[idx])
             closest_index = idx
     return closest_point, closest_index
 
@@ -38,9 +43,51 @@ def get_heading(start_pt, second_pt):
     g = geod.Inverse(start_pt.lat, start_pt.lon, second_pt.lat, second_pt.lon)
     return float(g['azi1'])
 
-def project_point(point, heading):
-    """This is some junk code. Not real math!"""
+def project_point(point, bearing, distance_meters):
     point = check_point(point)
-    new_lat = point.lat + (math.sin(math.radians(heading)) * 0.00004)
-    new_lon = point.lon + (math.cos(math.radians(heading)) * 0.00004)
-    return GpsSample(new_lat, new_lon, 0, "", 0, 0)
+    # Convert to geopy point for calculation.
+    point = geopy.Point(point.lat, point.lon)
+
+    d = geopy.distance.VincentyDistance(kilometers = distance_meters/1000.0)
+
+    # Use the `destination` method with a bearing of bearing degrees
+    geo_point = d.destination(point=point, bearing=bearing)
+
+    return GpsPoint(geo_point.latitude, geo_point.longitude)
+
+
+def get_closest_points_at_distance(point_index, distance_meters, path):
+    """Finds points some distance from a known point on the path"""
+    min_err_up = math.inf
+    best_index_up = point_index
+    min_err_down = math.inf
+    best_index_down = point_index
+    index_down = point_index
+    index_up = point_index
+    while True:
+        if index_down > 0:
+            index_down -=1
+        if index_up < len(path)-1:
+            index_up +=1
+        dist_up = get_distance(path[point_index], path[index_up])
+        this_err_up = math.fabs(distance_meters - dist_up)
+        if  this_err_up < min_err_up:
+            best_index_up = index_up
+            min_err_up = this_err_up
+        dist_down = get_distance(path[point_index], path[index_down])
+        this_err_down = math.fabs(distance_meters - dist_down)
+        if math.fabs(distance_meters - dist_down) < min_err_down:
+            best_index_down = index_down
+            min_err_down = this_err_down
+        if index_down == 0 and index_up == len(path)-1:
+            return path[best_index_up], path[best_index_down]
+
+def get_approx_distance_point_from_line(point, line_pt1, line_pt2):
+    """Note that this is not the real distance in meters but a relative measure."""
+    p1 = np.asarray((line_pt1.lat, line_pt1.lon))
+    p2 = np.asarray((line_pt2.lat, line_pt2.lon))
+    p3 = np.asarray((point.lat, point.lon))
+
+    # https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points#
+    d1 = np.cross(p2-p1, p1-p3) / np.linalg.norm(p2-p1) * -1
+    return d1 * _GPS_DISTANCE_SCALAR

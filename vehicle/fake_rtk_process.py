@@ -27,14 +27,14 @@ def start_gps(master_conn):
             lon = -122.333349927 #+ random() * 0.0001
             height_m = 80 + random() * 10
             azimuth_degrees = -22 + deg #random() * 360.0
-            deg += 10
+            deg += 1
             if deg > 400:
                 deg = -200
             latest_sample = gps_tools.GpsSample(lat, lon, height_m, ("fix", "fix"), (21, 23), azimuth_degrees, time.time())
             #print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}".format(latest_sample.lat, latest_sample.lon, azimuth, 0, "fix","fix"))
             master_conn.send(latest_sample)
-            print("UPDATED AZIMUTH TO {} degrees".format(azimuth_degrees))
-            time.sleep(1)
+            #print("UPDATED AZIMUTH TO {} degrees".format(azimuth_degrees))
+            time.sleep(0.1)
 
 if __name__=="__main__":
     pass

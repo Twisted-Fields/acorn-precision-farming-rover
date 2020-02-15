@@ -27,6 +27,7 @@ pipe given when this code was launched.
 
 def digest_data(data):
     data = str(data.splitlines()[0])
+    #print(data)
     data = data.split(' ')
     data = [a for a in data if a]
 
@@ -67,20 +68,29 @@ def launch_rtk_sub_procs(master_conn):
         attempts += 1
         if attempts > 5:
             raise RuntimeError("Could not connect to rtkrcv TCP socket.")
+    tick_time = time.time()
+    print_gps_counter = 0
     while True:
         data = tcp_sock.recv(BUFFER_SIZE)
         data2 = tcp_sock2.recv(BUFFER_SIZE)
+
+        period = time.time() - tick_time
+        #print("{} sec sample period".format(period))
+        tick_time = time.time()
         try:
             if data and data2:
                 data = digest_data(data)
                 data2 = digest_data(data2)
-                azimuth = gps_tools.get_heading(data, data2) + VEHICLE_AZIMUTH_OFFSET_DEG
+                azimuth_degrees = gps_tools.get_heading(data, data2) + VEHICLE_AZIMUTH_OFFSET_DEG
                 d = gps_tools.get_distance(data,data2)
                 lat = (data.lat + data2.lat) / 2.0
                 lon = (data.lon + data2.lon) / 2.0
                 height_m = (data.height_m + data2.height_m) / 2.0
-                latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data.status, data2.status), (data.num_sats, data2.num_sats), azimuth, data.time_stamp)
-                print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}".format(latest_sample.lat, latest_sample.lon, azimuth, d, data.status, data2.status))
+                latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data.status, data2.status), (data.num_sats, data2.num_sats), azimuth_degrees, data.time_stamp)
+                print_gps_counter += 1
+                if print_gps_counter%10 == 0:
+                    print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}, Period: {}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, data.status, data2.status, period))
+
                 master_conn.send(latest_sample)
             else:
                 print("Bap")
