@@ -45,9 +45,9 @@ def digest_data(data):
 
 def launch_rtk_sub_procs(master_conn):
     # Launch rtklib process.
-    cmd = 'rtkrcv -s -d /dev/null -o /home/ubuntu/vehicle/twisted.conf'
+    cmd = 'rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted.conf'
     proc1 = subprocess.Popen(cmd, shell=True)
-    cmd2 = 'rtkrcv -s -d /dev/null -o /home/ubuntu/vehicle/twisted2.conf'
+    cmd2 = 'rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted2.conf'
     proc2 = subprocess.Popen(cmd2, shell=True)
 
     tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -75,7 +75,7 @@ def launch_rtk_sub_procs(master_conn):
         data2 = tcp_sock2.recv(BUFFER_SIZE)
 
         period = time.time() - tick_time
-        #print("{} sec sample period".format(period))
+        # print("{} sec gps sample period".format(period))
         tick_time = time.time()
         try:
             if data and data2:
@@ -93,7 +93,7 @@ def launch_rtk_sub_procs(master_conn):
 
                 master_conn.send(latest_sample)
             else:
-                print("Bap")
+                print("Missing GPS Data")
         except Exception as e:
             print(e)
         # else:

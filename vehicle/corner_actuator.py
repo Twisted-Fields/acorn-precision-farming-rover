@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Example usage of the ODrive python library to monitor and control ODrive devices
+Control one corner of the Acorn robot via the Odrive motor controller.
 """
 
 from __future__ import print_function
 
-import odrive
+import odrive_manager
 from odrive.enums import *
 from odrive.utils import dump_errors
 import time
@@ -33,18 +33,23 @@ COMMAND_VALUE_MINIMUM = 0.001
 COUNTS_PER_REVOLUTION = 9797.0
 
 
+# od = OdriveManager(path='/dev/ttySC3', serial_number='336B31643536').find_odrive()
+
 class CornerActuator:
 
     def __init__(self, serial_number=None, name=None, path=None):
         if serial_number and not isinstance(serial_number, str):
-            raise ValueError("serial_number must be of type str but got type: {}".format(type(porserial_numbert)))
-        if path:
-            self.odrv0 = odrive.find_any(path=path, timeout=_ODRIVE_CONNECT_TIMEOUT)
-        elif not serial_number:
-            self.odrv0 = odrive.find_any(timeout=_ODRIVE_CONNECT_TIMEOUT)
-        else:
-            self.odrv0 = odrive.find_any(serial_number=serial_number, timeout=_ODRIVE_CONNECT_TIMEOUT)
-            #self.odrv0 = odrive.find_any(path="usb:1-1.1.3.4", timeout=_ODRIVE_CONNECT_TIMEOUT)
+            raise ValueError("serial_number must be of type str but got type: {}".format(type(serial_number)))
+
+        self.odrv0 = odrive_manager.OdriveManager(path=path, serial_number=serial_number).find_odrive()
+
+        # if path:
+        #     self.odrv0 = odrive.find_any(path=path, timeout=_ODRIVE_CONNECT_TIMEOUT)
+        # elif not serial_number:
+        #     self.odrv0 = odrive.find_any(timeout=_ODRIVE_CONNECT_TIMEOUT)
+        # else:
+        #     self.odrv0 = odrive.find_any(serial_number=serial_number, timeout=_ODRIVE_CONNECT_TIMEOUT)
+        #     #self.odrv0 = odrive.find_any(path="usb:1-1.1.3.4", timeout=_ODRIVE_CONNECT_TIMEOUT)
         self.name = name
         self.steering_initialized = False
         self.traction_initialized = False

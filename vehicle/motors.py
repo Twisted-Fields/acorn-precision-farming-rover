@@ -12,7 +12,15 @@ import zmq
 import pickle
 import click
 import argparse
+from multiprocessing import Process
+import os
+import fibre
 
+if "arm" in os.uname().machine:
+    import RPi.GPIO as GPIO
+
+ESTOP_PIN = 6
+VOLT_OUT_PIN = 5
 
 _UP_KEYCODE = '\x1b[A'
 _LEFT_KEYCODE = '\x1b[D'
@@ -49,6 +57,10 @@ class AcornMotorInterface():
         self.motors_initialized = False
         self.steering_adjusted = False
         self.skip_homing=skip_homing
+
+        self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
+        self.square_wave.start()
+        #p.join()
 
 
 
@@ -90,13 +102,18 @@ class AcornMotorInterface():
             drive.update_actuator(0.0, 0.0)
 
     def connect_to_motors(self):
-        front_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_right'], name='front_right', path="serial:/dev/motor4")
-        front_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_left'], name='front_left', path="serial:/dev/motor2")
-        rear_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_right'], name='rear_right', path="serial:/dev/motor3")
-        rear_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_left'], name='rear_left', path="serial:/dev/motor1")
+        front_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_right'], name='front_right', path="/dev/ttySC1")
+        front_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_left'], name='front_left', path="/dev/ttySC0")
+        rear_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_right'], name='rear_right', path="/dev/ttySC2")
+        rear_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_left'], name='rear_left', path="/dev/ttySC3")
 
+        #front_right = corner_actuator.CornerActuator(serial_number='336B31643536', name='front_right', path='/dev/ttySC0')
+
+        #self.odrives = [front_right]
         self.odrives = [front_left, front_right, rear_right, rear_left]
         self.odrives_connected = True
+
+        #path='/dev/ttySC3', serial_number='336B31643536'
 
 
     def initialize_motors(self):
@@ -115,8 +132,12 @@ class AcornMotorInterface():
 
     def check_errors(self):
         for drive in self.odrives:
-            if drive.odrv0.axis0.error or drive.odrv0.axis1.error:
-                return True
+            try:
+                if drive.odrv0.axis0.error or drive.odrv0.axis1.error:
+                    return True
+            except fibre.protocol.ChannelBrokenException as e:
+                print("Exception in {} odrive.".format(drive.name))
+                raise e
         return False
 
     def try_to_send_state(self, state):
@@ -203,6 +224,27 @@ class AcornMotorInterface():
         except KeyboardInterrupt:
             for drive in self.odrives:
                 drive.stop_actuator()
+
+def e_stop_square_wave(GPIO):
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
+    time.sleep(5)
+
+    for _ in range(100):
+        time.sleep(0.001)
+        GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
+        time.sleep(0.001)
+        GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
+
+    delay = 0.005
+    while True:
+        # ESTOP approx 1kHz square wave.
+        time.sleep(delay)
+        GPIO.output(ESTOP_PIN, GPIO.LOW)
+        time.sleep(delay)
+        GPIO.output(ESTOP_PIN, GPIO.HIGH)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the Acorn motors process.')

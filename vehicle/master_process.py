@@ -19,8 +19,8 @@ if _USE_FAKE_GPS:
 else:
     import rtk_process
 
-#_YAML_NAME="/home/pi/vehicle/server_config.yaml"
-_YAML_NAME="/home/ubuntu/vehicle/server_config.yaml"
+_YAML_NAME="/home/pi/vehicle/server_config.yaml"
+#_YAML_NAME="/home/ubuntu/vehicle/server_config.yaml"
 
 _CMD_WRITE_KEY = bytes('w', encoding='ascii')
 _CMD_READ_KEY = bytes('readkey', encoding='ascii')
@@ -127,11 +127,11 @@ class MasterProcess():
                 gps_count += 1
                 if gps_count % 10 == 0:
                     updated_object = True
+                    if acorn.record_gps_command == _GPS_RECORDING_ACTIVATE:
+                        acorn.gps_path_data.append(acorn.location)
+                        print("APPEND GPS")
                 if acorn.record_gps_command == _GPS_RECORDING_PAUSE:
                     pass
-                if acorn.record_gps_command == _GPS_RECORDING_ACTIVATE:
-                    acorn.gps_path_data.append(acorn.location)
-                    print("APPEND GPS")
                 if acorn.record_gps_command == _GPS_RECORDING_CLEAR:
                     acorn.gps_path_data = []
 

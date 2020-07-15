@@ -13,11 +13,12 @@ import Adafruit_ADS1x15
 
 GAIN = 1
 
-factor1 = 47.89/24954.0
-factor2 = 12.20/10047.0
-factor3 = 12.2/18763.0
+high_voltage_factor = (100.0 + 6.49)/6.49  # High Voltage
+mid_voltage_factor = (100.0 + 10.2)/10.2  # Mid Voltage
+low_voltage_factor = (44.2 + 10.2)/10.2  # Low Voltage
 
-
+SYS_VOLTAGE = 3.3
+MAX_VAL = 2^16
 
 
 class VoltageSampler():
@@ -27,7 +28,7 @@ class VoltageSampler():
         self.master_conn = master_conn
 
     def read_loop(self):
-        self.adc = Adafruit_ADS1x15.ADS1115()
+        self.adc = Adafruit_ADS1x15.ADS1115(address=0x48)
         while True:
             # Read all the ADC channel values in a list.
             values = [0]*4
@@ -41,18 +42,30 @@ class VoltageSampler():
                 #values[i] = adc.read_adc(i, gain=GAIN, data_rate=128)
                 # Each value will be a 12 or 16 bit signed integer value depending on the
                 # ADC (ADS1015 = 12-bit, ADS1115 = 16-bit).
-            low_voltage = values[1] * factor3
-            mid_voltage = values[2] * factor2
-            high_voltage = values[3] * factor1
+            #print(values)
+            low_voltage = values[0] * low_voltage_factor * SYS_VOLTAGE/MAX_VAL * 0.001
+            mid_voltage = values[1] * mid_voltage_factor * SYS_VOLTAGE/MAX_VAL * 0.001
+            high_voltage = values[2] * high_voltage_factor * SYS_VOLTAGE/MAX_VAL * 0.001
+
+
+
             cell1 = low_voltage
             cell2 = mid_voltage - low_voltage
             cell3 = high_voltage - mid_voltage
             total = high_voltage
 
-            self.master_conn.send((cell1, cell2, cell3, total),)
+            input_voltages = [val * high_voltage_factor * SYS_VOLTAGE/MAX_VAL * 0.001 for val in values]
 
-            #print("{:0.2f} V | {:0.2f} V | {:0.2f} V | total: {:0.2f} V".format(cell1, cell2, cell3, total))
-            #print('| {0:>6} | {1:>6} | {2:>6} | {3:>6} |'.format(*values))
+
+            if self.master_conn is not None:
+                self.master_conn.send((cell1, cell2, cell3, total),)
+            else:
+                #print(input_voltages)
+                print("{}, {}, {}".format(low_voltage, mid_voltage, high_voltage))
+                # If run standalone, print values.
+                print("{:0.2f} V | {:0.2f} V | {:0.2f} V | total: {:0.2f} V".format(cell1, cell2, cell3, total))
+                print(' Input Voltage Values: | {0:>6} | {1:>6} | {2:>6} | {3:>6} |'.format(*input_voltages))
+                #print(' Raw Values: | {0:>6} | {1:>6} | {2:>6} | {3:>6} |'.format(*values))
             # Pause for half a second.
             time.sleep(0.5)
 
@@ -61,4 +74,4 @@ def sampler_loop(master_conn):
     sampler.read_loop()
 
 if __name__=="__main__":
-    sampler_loop()
+    sampler_loop(None)

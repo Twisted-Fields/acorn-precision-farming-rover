@@ -73,12 +73,30 @@ class GpsSpline():
 		return coord
 
 	def closestUOnSpline(self, point):
-		#print("POINT {}".format(point))
+		return self.closestUOnSplinePoints(point)
+		# #print("POINT {}".format(point))
+		# point = gps_tools.check_point(point)
+		# point = (point.lat, point.lon)
+		# #https://stackoverflow.com/questions/52077459/python-pass-extra-arguments-to-callable
+		# dist_partial = functools.partial(distToP, tck=self.tck, p=point)
+		# # THIS IS NOT WORKING. BUG IN MINIMIZE function
+		# # https://github.com/scipy/scipy/issues/4240
+		# retval = so.minimize_scalar(dist_partial, method='bounded', bounds=[0.0,1.00]).x
+		# return retval
+
+	def closestUOnSplinePoints(self, point):
 		point = gps_tools.check_point(point)
-		point = (point.lat, point.lon)
-		#https://stackoverflow.com/questions/52077459/python-pass-extra-arguments-to-callable
-		dist_partial = functools.partial(distToP, tck=self.tck, p=point)
-		return so.minimize_scalar(dist_partial, method='bounded', bounds=[0.0,1.0]).x
+		min_distance = math.inf
+		min_dist_index = -1
+		for idx in range(len(self.points)):
+			p = self.points[idx]
+			# Using naive x-y distance calculation as it was found to be ~100x
+			# faster than gps distance calc.
+			dist = math.sqrt(math.pow(p.lat - point.lat, 2) + math.pow(p.lon - point.lon, 2))
+			if dist < min_distance:
+				min_dist_index = idx
+				min_distance = dist
+		return min_dist_index/len(self.points)
 
 	def closest_point_on_spline(self, point):
 		return self.coordAtU(self.closestUOnSpline(point))

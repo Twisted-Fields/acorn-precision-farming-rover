@@ -261,22 +261,6 @@ class RemoteControl():
 
 
                         self.next_point_heading = calculated_rotation
-                        # # if self.next_point_heading > 180:
-                        # #     self.next_point_heading -= 360
-                        # # if self.next_point_heading < -180:
-                        # #     self.next_point_heading += 360
-                        # if -90 < self.next_point_heading <= 0:
-                        #     #steering_angle = max(self.turn_intent_degrees * 2, -45)
-                        #     direction = 1
-                        # if -180 < self.next_point_heading <= -90:
-                        #     #steering_angle = max((180+self.turn_intent_degrees) * -2, -45)
-                        #     direction = -1
-                        # if  0 < self.next_point_heading <= 90:
-                        #     #steering_angle = min(self.turn_intent_degrees * 2, 45)
-                        #     direction = 1
-                        # if  90 < self.next_point_heading <= 180:
-                        #     #steering_angle = min((self.turn_intent_degrees-180) * -2, 45)
-                        #     direction = -1
 
 
 
@@ -302,18 +286,6 @@ class RemoteControl():
 
 
                 if self.next_point_heading != -180 and self.activate_autonomy:
-                    # if -90 < self.next_point_heading <= 0:
-                    #     #steering_angle = max(self.turn_intent_degrees * 2, -45)
-                    #     direction = 1
-                    # if -180 < self.next_point_heading <= -90:
-                    #     #steering_angle = max((180+self.turn_intent_degrees) * -2, -45)
-                    #     direction = -1
-                    # if  0 < self.next_point_heading <= 90:
-                    #     #steering_angle = min(self.turn_intent_degrees * 2, 45)
-                    #     direction = 1
-                    # if  90 < self.next_point_heading <= 180:
-                    #     #steering_angle = min((self.turn_intent_degrees-180) * -2, 45)
-                    #     direction = -1
 
                     direction = direction * self.nav_direction
 
@@ -332,10 +304,9 @@ class RemoteControl():
                             strafe = calculated_strafe/2.0
                         strafe *= -0.5 * direction * self.nav_direction
 
-                    # steer_cmd = steering_angle/45.0
+
                     vel_cmd = self.autonomy_velocity * direction# * self.nav_direction
                     joy_steer = 0.0 # ensures that vel goes to zero when autonomy disabled
-                    #strafe = 0
                     print("calc rotation: {}, calc strafe: {}, steer: {}, strafe: {}, vel_cmd: {}".format(calculated_rotation, calculated_strafe, steer_cmd, strafe, vel_cmd))
                     #print("Steer: {}, Throttle: {}".format(steer_cmd, vel_cmd))
                     if time.time() - load_path_time < 5:

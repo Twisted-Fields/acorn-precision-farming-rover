@@ -93,6 +93,8 @@ def handle_command(r, ident, command, key, msg):
         #tprint(key)
         r.set(key, msg)
         command_key = get_robot_command_key(key)
+        # if not command_key:
+        #     print("Error. Command key is none. Key was:")
         command_object = pickle.loads(r.get(command_key))
         #print(dir(command_object))
         #print(command_key)

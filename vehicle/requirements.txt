@@ -1,0 +1,9 @@
+svgpathtools
+zmq
+odrive
+evdev
+geopy
+Adafruit_ADS1x15
+pyyaml
+scipy
+click
