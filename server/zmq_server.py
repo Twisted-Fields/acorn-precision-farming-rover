@@ -57,16 +57,18 @@ class ServerWorker(threading.Thread):
             host='localhost',
             port=6379)
         tprint('Worker started')
+        _BACKOFF_DELAY = 0.1
         while True:
             ident, command, key, msg = worker.recv_multipart()
             # msg = pickle.loads(msg)
             tprint('Command: {} {} from {}'.format(command, key, ident))
-            return_command, reply = handle_command(r, ident, command, key, msg)
+            return_command, reply = handle_command(r, ident, command, key, msg, _BACKOFF_DELAY)
+            #_BACKOFF_DELAY = _BACKOFF_DELAY * 1.06
             worker.send_multipart([ident, return_command, reply])
 
         worker.close()
 
-def handle_command(r, ident, command, key, msg):
+def handle_command(r, ident, command, key, msg, delay):
     command_reply = _CMD_ACK
     if command == _CMD_WRITE_KEY:
         #tprint(key)
@@ -105,6 +107,8 @@ def handle_command(r, ident, command, key, msg):
         tprint("NOPE")
         tprint(command)
         message = bytes("BAD_COMMAND", encoding='ascii')
+    #print(delay)
+    #time.sleep(delay)
     return command_reply, message
 
 def get_robot_command_key(robot_key):
@@ -120,6 +124,7 @@ def get_robot_command_key(robot_key):
 
 def main():
     """main function"""
+    _BACKOFF_DELAY = 0.1
     server = ServerTask()
     server.start()
     server.join()

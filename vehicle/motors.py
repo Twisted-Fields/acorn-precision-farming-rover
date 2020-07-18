@@ -212,7 +212,7 @@ class AcornMotorInterface():
                             time.sleep(0.02)
 
                     if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
-                        print("COMMS LOST SLOWING ACTUATOR.")
+                        print("COMMS LOST SLOWING ACTUATOR. ~~ {}".format(time.time()))
                         for drive in self.odrives:
                             try:
                                 drive.slow_actuator(0.95)

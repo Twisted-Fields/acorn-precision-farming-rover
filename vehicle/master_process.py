@@ -115,6 +115,8 @@ class MasterProcess():
         self.remote_server_socket.identity = bytes(acorn.name, encoding='ascii')
         self.remote_server_socket.connect('tcp://{}:5570'.format(acorn.server))
 
+        self.message_tracker = []
+
         reqs = 0
         robot_id = bytes(acorn.name, encoding='ascii')
         updated_object = False
@@ -137,10 +139,13 @@ class MasterProcess():
 
             #print("MAIN READS AZIMUTH AS {} degrees".format(acorn.location.azimuth_degrees))
             #if updated_object:
-                # Clear read buffer.
+
+            # Clear read buffer.
             while remote_control_parent_conn.poll():
                 remote_control_parent_conn.recv()
             remote_control_parent_conn.send(acorn)
+
+            print("4444")
 
             if voltage_monitor_parent_conn.poll():
                 cell1, cell2, cell3, total = voltage_monitor_parent_conn.recv()
@@ -150,27 +155,53 @@ class MasterProcess():
                 acorn.cell3 = cell3
                 updated_object = True
 
-
+            print("5555")
 
             if remote_control_parent_conn.poll(0.5):
                 acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points = remote_control_parent_conn.recv()
                 updated_object = True
 
+
+            print("6666")
+
             if updated_object:
                 #print(acorn.location)
                 acorn.time_stamp = datetime.now()
-                self.remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)])
+                start = time.time()
+                #print("Server high water mark: {}".format(self.remote_server_socket.hwm))
+
+                # for x in self.message_tracker:
+                #      #print(dir(x))
+                #      print(x.done, x.events, x.peers, x.wait)
+                # #self.message_tracker = [msg for msg in self.message_tracker if not msg.done]
+                # print("Message tracker length: {}".format(len(self.message_tracker)))
+                # #print(self.message_tracker)
+                try:
+                    self.remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)],flags=zmq.DONTWAIT)
+                except zmq.error.Again as e:
+                    print("Remote server unreachable.")
+                # for x in self.message_tracker:
+                #      #print(dir(x))
+                #      x.wait(1)
+
+                #print("Server RTT: {} seconds".format(time.time() - start))
                 updated_object = False
+
+
+            print("$$$$$$")
 
             while self.remote_server_socket.poll(timeout=0):
                 command, msg = self.remote_server_socket.recv_multipart()
                 #print('Client received command {} with message {}'.format(command, msg))
+
+                #print("7777")
                 if command == _CMD_ROBOT_COMMAND:
                     robot_command = pickle.loads(msg)
                     if robot_command.load_path != acorn.loaded_path_name and len(robot_command.load_path)>0:
                         print("GETTING PATH DATA")
                         self.consume_messages()
                         path = self.get_path(robot_command.load_path, acorn)
+                        #print("8888")
                         if path:
                             acorn.loaded_path_name = robot_command.load_path
                             acorn.loaded_path = path
@@ -183,6 +214,8 @@ class MasterProcess():
                         #print(robot_command.record_gps_path)
                     acorn.activate_autonomy = robot_command.activate_autonomy
                     acorn.autonomy_velocity = robot_command.autonomy_velocity
+
+            print(time.time())
 
 
         self.remote_server_socket.close()
