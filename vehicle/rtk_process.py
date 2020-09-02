@@ -13,7 +13,7 @@ TCP_IP = "127.0.0.1"
 TCP_PORT = 10001
 TCP_PORT2 = 10002
 BUFFER_SIZE = 1024
-VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 40.0
+VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 35.0
 _FAST_POLLING_DELAY_S = 0.05
 
 
@@ -87,6 +87,7 @@ def launch_rtk_sub_procs(master_conn):
                 lon = (data.lon + data2.lon) / 2.0
                 height_m = (data.height_m + data2.height_m) / 2.0
                 latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data.status, data2.status), (data.num_sats, data2.num_sats), azimuth_degrees, data.time_stamp)
+                #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
                 print_gps_counter += 1
                 if print_gps_counter%10 == 0:
                     print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}, Period: {}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, data.status, data2.status, period))

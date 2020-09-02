@@ -16,10 +16,10 @@ from multiprocessing import Process
 import os
 import fibre
 
+# This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
     import RPi.GPIO as GPIO
 
-ESTOP_PIN = 6
 VOLT_OUT_PIN = 5
 
 _UP_KEYCODE = '\x1b[A'
@@ -37,7 +37,6 @@ _ERROR_RECOVERY_DELAY_S = 5
 _ACCELERATION_COUNTS_SEC = 0.5
 
 _USE_JOYSTICK = True
-
 
 
 class AcornMotorInterface():
@@ -58,18 +57,23 @@ class AcornMotorInterface():
         self.steering_adjusted = False
         self.skip_homing=skip_homing
 
-        self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
-        self.square_wave.start()
+
+        self.setup_GPIO(GPIO)
+        # self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
+        # self.square_wave.start()
         #p.join()
 
 
 
     def ask_if_adjust_steering(self):
+        self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
+        self.square_wave.start()
         click.echo('Adjust Steering? [y/n] ', nl=False)
         c = click.getchar()
         click.echo()
         if c != 'y':
             return
+            self.square_wave.terminate()
         index = 0
         while True:
             drive = self.odrives[index]
@@ -102,19 +106,13 @@ class AcornMotorInterface():
             drive.update_actuator(0.0, 0.0)
 
     def connect_to_motors(self):
-        front_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_right'], name='front_right', path="/dev/ttySC1")
-        front_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_left'], name='front_left', path="/dev/ttySC0")
-        rear_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_right'], name='rear_right', path="/dev/ttySC2")
-        rear_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_left'], name='rear_left', path="/dev/ttySC3")
+        front_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_right'], name='front_right', path="/dev/ttySC1", GPIO=GPIO)
+        front_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_left'], name='front_left', path="/dev/ttySC0", GPIO=GPIO)
+        rear_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_right'], name='rear_right', path="/dev/ttySC2", GPIO=GPIO)
+        rear_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_left'], name='rear_left', path="/dev/ttySC3", GPIO=GPIO)
 
-        #front_right = corner_actuator.CornerActuator(serial_number='336B31643536', name='front_right', path='/dev/ttySC0')
-
-        #self.odrives = [front_right]
         self.odrives = [front_left, front_right, rear_right, rear_left]
         self.odrives_connected = True
-
-        #path='/dev/ttySC3', serial_number='336B31643536'
-
 
     def initialize_motors(self):
         for drive in self.odrives:
@@ -149,6 +147,7 @@ class AcornMotorInterface():
     def run_main(self):
         motor_error = False
         tick_time = time.time()
+        print("RUN_MAIN_MOTORS")
         try:
             while True:
                 if not self.odrives_connected:
@@ -175,13 +174,17 @@ class AcornMotorInterface():
                     print("ERROR DETECTED IN ODRIVES.")
                     for drive in self.odrives:
                         print("Drive: {}:".format(drive.name))
+                        start = time.time()
                         drive.print_errors(clear_errors=True)
+                        print("clear_errors_duration {}".format(start - time.time()))
                     print("ERROR DETECTED IN ODRIVES.")
-                    time.sleep(_ERROR_RECOVERY_DELAY_S)
+                    corner_actuator.toggling_sleep(GPIO, _ERROR_RECOVERY_DELAY_S)
+                    #time.sleep(_ERROR_RECOVERY_DELAY_S)
                     self.try_to_send_state(_STATE_DISABLED)
                     # Consume command messages.
                     while self.command_socket.poll(timeout=0):
                         self.command_socket.recv_pyobj()
+                        corner_actuator.gpio_toggle(GPIO)
                 else:
                     if motor_error:
                         for odrive in self.odrives:
@@ -192,8 +195,10 @@ class AcornMotorInterface():
                     calc = None
                     # Loop here to consume any buffered messages.
                     while self.command_socket.poll(timeout=0):
+                        corner_actuator.gpio_toggle(GPIO)
                         calc = pickle.loads(self.command_socket.recv_pyobj())
                         tick_time = time.time()
+                        corner_actuator.gpio_toggle(GPIO)
                     if calc:
                         self.try_to_send_state(_STATE_ENABLED)
                         for drive in self.odrives:
@@ -209,7 +214,8 @@ class AcornMotorInterface():
                                 print(e)
                                 print("self.motors_initialized {}".format(self.motors_initialized))
                                 print("self {}".format(self))
-                            time.sleep(0.02)
+                            #time.sleep(0.02)
+                            corner_actuator.toggling_sleep(GPIO, 0.02)
 
                     if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
                         print("COMMS LOST SLOWING ACTUATOR. ~~ {}".format(time.time()))
@@ -219,32 +225,38 @@ class AcornMotorInterface():
                             except RuntimeError as e:
                                 print("Error updating actuator.")
                                 print(e)
-                        time.sleep(0.05)
+                        #time.sleep(0.05)
+                        corner_actuator.toggling_sleep(GPIO, 0.05)
 
         except KeyboardInterrupt:
             for drive in self.odrives:
                 drive.stop_actuator()
 
-def e_stop_square_wave(GPIO):
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
-    GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
-    GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
-    time.sleep(5)
-
-    for _ in range(100):
-        time.sleep(0.001)
+    def setup_GPIO(self, GPIO):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(corner_actuator.ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
+        GPIO.estop_state = GPIO.LOW
+        GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
         GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
-        time.sleep(0.001)
-        GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
+        time.sleep(5)
 
-    delay = 0.005
+        for _ in range(100):
+            time.sleep(0.001)
+            GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
+            time.sleep(0.001)
+            GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
+
+
+
+def e_stop_square_wave(GPIO):
+    delay = 0.01
     while True:
         # ESTOP approx 1kHz square wave.
         time.sleep(delay)
-        GPIO.output(ESTOP_PIN, GPIO.LOW)
+        GPIO.output(corner_actuator.ESTOP_PIN, GPIO.LOW)
         time.sleep(delay)
-        GPIO.output(ESTOP_PIN, GPIO.HIGH)
+        GPIO.output(corner_actuator.ESTOP_PIN, GPIO.HIGH)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the Acorn motors process.')

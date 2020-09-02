@@ -184,9 +184,17 @@ class RemoteControl():
                 debug_points = (None, None, None, None)
                 calculated_rotation = None
                 calculated_strafe = None
+                gps_fix = False
                 if self.robot_object:
                     front = gps_tools.project_point(self.robot_object.location, self.robot_object.location.azimuth_degrees, 1.0)
                     rear = gps_tools.project_point(self.robot_object.location, self.robot_object.location.azimuth_degrees, -1.0)
+                    #print("GPS DEBUG: FIX reads... : {}".format(self.robot_object.location.status))
+                    if len(self.robot_object.location.status) == 2:
+                        if self.robot_object.location.status[0] == 'fix' and self.robot_object.location.status[1] == 'fix':
+                            #print("WE HAVE A FIX")
+                            gps_fix = True
+                        #else:
+                            #print("NO GPS FIX")
                     closest_front = gps_tools.GpsPoint(0, 0)
                     closest_rear = gps_tools.GpsPoint(0, 0)
                     if(len(self.nav_path)>0):
@@ -322,6 +330,11 @@ class RemoteControl():
                         strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
                 #print(self.activate_autonomy)
                 period = time.time() - tick_time
+
+                if gps_fix == False:
+                    vel_cmd = 0.0
+                    steer_cmd = 0.0
+
                 # Perform acceleration on vel_cmd value
                 vel_cmd = get_profiled_velocity(last_vel_cmd, vel_cmd, period)
                 last_vel_cmd = vel_cmd

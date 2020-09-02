@@ -1,2 +1,3 @@
 install tmux on acorn setup script
 and i2c-tools
+install wavemon

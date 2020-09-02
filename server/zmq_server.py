@@ -25,46 +25,73 @@ class ServerTask(threading.Thread):
         threading.Thread.__init__ (self)
 
     def run(self):
-        context = zmq.Context()
-        frontend = context.socket(zmq.ROUTER)
-        frontend.bind('tcp://*:5570')
+        while True:
 
-        backend = context.socket(zmq.DEALER)
-        backend.bind('inproc://backend')
+            try:
+                context = zmq.Context()
+                frontend = context.socket(zmq.ROUTER)
+                frontend.bind('tcp://*:5570')
 
-        workers = []
-        for i in range(5):
-            worker = ServerWorker(context)
-            worker.start()
-            workers.append(worker)
+                backend = context.socket(zmq.DEALER)
+                backend.bind('inproc://backend')
+            except zmq.error.ZMQError:
+                print("ZMQ error when setting up sockets.")
+                time.sleep(5)
 
-        zmq.proxy(frontend, backend)
+            workers = []
+            for i in range(3):
+                worker = ServerWorker(context)
+                worker.start()
+                workers.append(worker)
 
-        frontend.close()
-        backend.close()
-        context.term()
+            # while True:
+            #     print(dir(frontend))
+            #     time.sleep(0.5)
+            try:
+                zmq.proxy(frontend, backend)
+            except Exception as e:
+                print(e)
+                print("Proxy Crashed. Restarting.")
+                # cleanup if needed
+            frontend.close()
+            backend.close()
+            #context.term()
+
 
 class ServerWorker(threading.Thread):
     """ServerWorker"""
     def __init__(self, context):
         threading.Thread.__init__ (self)
         self.context = context
+        self.last_active_time = time.time()
 
     def run(self):
+        _POLL_MILLISECONDS = 50
+        connection_active = False
         worker = self.context.socket(zmq.DEALER)
         worker.connect('inproc://backend')
         r = redis.Redis(
             host='localhost',
             port=6379)
         tprint('Worker started')
-        _BACKOFF_DELAY = 0.1
         while True:
-            ident, command, key, msg = worker.recv_multipart()
-            # msg = pickle.loads(msg)
-            tprint('Command: {} {} from {}'.format(command, key, ident))
-            return_command, reply = handle_command(r, ident, command, key, msg, _BACKOFF_DELAY)
-            #_BACKOFF_DELAY = _BACKOFF_DELAY * 1.06
-            worker.send_multipart([ident, return_command, reply])
+            if connection_active and time.time() - self.last_active_time > 10:
+                self.context.destroy()
+                break
+            #print(type(worker))
+            try:
+                if not self.context.closed and worker.poll(_POLL_MILLISECONDS):
+                    ident, command, key, msg = worker.recv_multipart()
+                    connection_active = True
+                    self.last_active_time = time.time()
+                    # msg = pickle.loads(msg)
+                    tprint('Command: {} {} from {}'.format(command, key, ident))
+                    _BACKOFF_DELAY = 0.0  # TODO: this was debug code and this delay could be removed.
+                    return_command, reply = handle_command(r, ident, command, key, msg, _BACKOFF_DELAY)
+                    worker.send_multipart([ident, return_command, reply])
+            except zmq.error.ZMQError:
+                print("Socket Error. Closing.")
+                break
 
         worker.close()
 

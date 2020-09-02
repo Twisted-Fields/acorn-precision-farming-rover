@@ -107,7 +107,6 @@ def calculate_steering(steer, throttle, strafe):
     C = FWD - RCW * (W/R)
     D = FWD + RCW * (W/R)
 
-
     ws1 = math.sqrt(B * B + C * C) * throttle_factor
     ws2 = math.sqrt(B * B + D * D) * throttle_factor
     ws3 = math.sqrt(A * A + D * D) * throttle_factor

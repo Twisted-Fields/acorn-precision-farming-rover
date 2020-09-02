@@ -11,6 +11,8 @@ import voltage_monitor_process
 import gps_tools
 from motors import _STATE_DISCONNECTED
 from datetime import datetime
+import wifi
+import os
 
 _USE_FAKE_GPS = False
 
@@ -30,12 +32,13 @@ _CMD_UPDATE_ROBOT = bytes('ur', encoding='ascii')
 _CMD_ROBOT_COMMAND = bytes('rc', encoding='ascii')
 _CMD_ACK = bytes('a', encoding='ascii')
 
-
 _CONTROL_STARTUP = "Startup"
 
 _GPS_RECORDING_ACTIVATE = "Record"
 _GPS_RECORDING_PAUSE = "Pause"
 _GPS_RECORDING_CLEAR = "Clear"
+
+_UPDATE_PERIOD = 2.0
 
 
 class Robot:
@@ -62,6 +65,7 @@ class Robot:
         self.autonomy_velocity = 0
         self.time_stamp = datetime.now()
         self.debug_points = None
+        self.wifi_strength = None
 
     def __repr__(self):
         return 'Robot'
@@ -107,13 +111,39 @@ class MasterProcess():
         voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn,))
         voltage_proc.start()
 
+        wifi_parent_conn, wifi_child_conn = mp.Pipe()
+        wifi_proc = mp.Process(target=wifi.wifi_process, args=(wifi_child_conn,))
+        wifi_proc.start()
+
         acorn = Robot()
         acorn.setup()
+        connected = False
 
-        context = zmq.Context()
-        self.remote_server_socket = context.socket(zmq.DEALER)
-        self.remote_server_socket.identity = bytes(acorn.name, encoding='ascii')
-        self.remote_server_socket.connect('tcp://{}:5570'.format(acorn.server))
+        while True:
+            if os.system("ping -c 1 " + acorn.server) == 0:
+                break
+            print("trying to ping server...")
+        while not connected:
+            context = zmq.Context()
+            print("creating socket")
+            self.remote_server_socket = context.socket(zmq.DEALER)
+            self.remote_server_socket.identity = bytes(acorn.name, encoding='ascii')
+            self.remote_server_socket.connect('tcp://{}:5570'.format(acorn.server))
+            try:
+                self.remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)],flags=zmq.DONTWAIT)
+            except zmq.error.Again as e:
+                print("Remote server unreachable.")
+            timeout_milliseconds = 100
+            print("Poll socket.")
+            while self.remote_server_socket.poll(timeout=timeout_milliseconds):
+                print("reading socket.")
+                command, msg = self.remote_server_socket.recv_multipart()
+                connected = True
+            print("connection_failed")
+            if not connected:
+                print("destroy")
+                context.destroy(linger=0)
+                print("destroyed")
 
         self.message_tracker = []
 
@@ -145,7 +175,7 @@ class MasterProcess():
                 remote_control_parent_conn.recv()
             remote_control_parent_conn.send(acorn)
 
-            print("4444")
+            #print("4444")
 
             if voltage_monitor_parent_conn.poll():
                 cell1, cell2, cell3, total = voltage_monitor_parent_conn.recv()
@@ -155,40 +185,29 @@ class MasterProcess():
                 acorn.cell3 = cell3
                 updated_object = True
 
-            print("5555")
+            if wifi_parent_conn.poll():
+                while wifi_parent_conn.poll():
+                    acorn.wifi_strength = wifi_parent_conn.recv()
+
+            #print("5555")
 
             if remote_control_parent_conn.poll(0.5):
                 acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points = remote_control_parent_conn.recv()
                 updated_object = True
 
 
-            print("6666")
-
-            if updated_object:
-                #print(acorn.location)
+            #print("6666")
+            seconds_since_update = (datetime.now() - acorn.time_stamp).total_seconds()
+            if updated_object and seconds_since_update > _UPDATE_PERIOD:
                 acorn.time_stamp = datetime.now()
-                start = time.time()
-                #print("Server high water mark: {}".format(self.remote_server_socket.hwm))
-
-                # for x in self.message_tracker:
-                #      #print(dir(x))
-                #      print(x.done, x.events, x.peers, x.wait)
-                # #self.message_tracker = [msg for msg in self.message_tracker if not msg.done]
-                # print("Message tracker length: {}".format(len(self.message_tracker)))
-                # #print(self.message_tracker)
                 try:
                     self.remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)],flags=zmq.DONTWAIT)
                 except zmq.error.Again as e:
                     print("Remote server unreachable.")
-                # for x in self.message_tracker:
-                #      #print(dir(x))
-                #      x.wait(1)
-
-                #print("Server RTT: {} seconds".format(time.time() - start))
                 updated_object = False
 
 
-            print("$$$$$$")
+            #print("$$$$$$")
 
             while self.remote_server_socket.poll(timeout=0):
                 command, msg = self.remote_server_socket.recv_multipart()
@@ -215,7 +234,7 @@ class MasterProcess():
                     acorn.activate_autonomy = robot_command.activate_autonomy
                     acorn.autonomy_velocity = robot_command.autonomy_velocity
 
-            print(time.time())
+            #print(time.time())
 
 
         self.remote_server_socket.close()
