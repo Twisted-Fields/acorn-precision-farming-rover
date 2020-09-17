@@ -112,10 +112,10 @@ def handle_command(r, ident, command, key, msg, delay):
 
         # Got the path request. Remove the path command from the command object
         # and send the path.
-        command_key = get_robot_command_key(msg)
-        command_object = pickle.loads(r.get(command_key))
-        command_object.load_path = ""
-        r.set(command_key, pickle.dumps(command_object))
+        # command_key = get_robot_command_key(msg)
+        # command_object = pickle.loads(r.get(command_key))
+        # command_object.load_path = ""
+        # r.set(command_key, pickle.dumps(command_object))
         message = pickle.dumps((key, r.get(key)))
         command_reply = _CMD_READ_KEY_REPLY
     elif command == _CMD_UPDATE_ROBOT:
