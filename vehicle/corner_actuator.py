@@ -28,6 +28,7 @@ _HOMING_POT_HALF_DEADBAND_V = _HOMING_POT_DEADBAND_VOLTS/2
 _FAST_POLLING_SLEEP_S = 0.01
 _SLOW_POLLING_SLEEP_S = 0.5
 _ODRIVE_CONNECT_TIMEOUT = 75
+_MAX_HOMING_ATTEMPTS = 10
 
 COMMAND_VALUE_MINIMUM = 0.001
 
@@ -95,120 +96,126 @@ class CornerActuator:
         rotation_sensor_val = self.odrv0.get_adc_voltage(_ADC_PORT_STEERING_POT)
         if rotation_sensor_val < _POT_VOLTAGE_LOW or rotation_sensor_val > _POT_VOLTAGE_HIGH:
             raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
+        self.enable_steering_control()
+
+        self.steering_flipped = steering_flipped
+
+        self.home_position = self.odrv0.axis0.encoder.shadow_count
+        home_position = None
+        if not skip_homing:
+            last_home_sensor_val = self.sample_home_sensor()
+            rotation_sensor_val = self.sample_steering_pot()
+            print("Rotation sensor voltage: {}".format(rotation_sensor_val))
+            gpio_toggle(self.GPIO)
+
+            _HOMING_DISPLACEMENT_DEGREES = 25.0
+            _HOMING_DISPLACEMENT_RADIANS = math.radians(_HOMING_DISPLACEMENT_DEGREES)
+
+            #positions = [_HOMING_DISPLACEMENT_DEGREES, -_HOMING_DISPLACEMENT_DEGREES]
+            position = _HOMING_DISPLACEMENT_DEGREES
+
+            tick_time_s = 3
+            last_tick_time = 0
+            transitions = []
+            attempts = 0
+            while True:
+                gpio_toggle(self.GPIO)
+                time.sleep(_FAST_POLLING_SLEEP_S)
+                gpio_toggle(self.GPIO)
+                home_sensor_val = self.sample_home_sensor()
+                if home_sensor_val == True:
+                    self.home_position = self.odrv0.axis0.encoder.shadow_count
+                    break
+                if home_sensor_val != last_home_sensor_val:
+                    transitions.append(self.odrv0.axis0.encoder.shadow_count)
+                    print(transitions)
+                    attempts += 1
+                rotation_sensor_val = self.sample_steering_pot()
+                #print(rotation_sensor_val)
+
+                #print(home_sensor_val)
+
+                if time.time() - last_tick_time > tick_time_s:
+                    last_tick_time = time.time()
+                    position *= -1
+                    pos_counts = self.home_position + position * COUNTS_PER_REVOLUTION / 360.0
+                    self.odrv0.axis0.controller.move_to_pos(pos_counts)
+                    #self.odrv0.axis0.controller.pos_setpoint = pos_counts
+
+                if len(transitions) > 4:
+                    self.home_position = sum(transitions)/len(transitions)
+                    break
+
+                if attempts > _MAX_HOMING_ATTEMPTS:
+                    raise RuntimeError("Exceeded max homing attempts.")
+                try:
+                    self.check_errors()
+                except RuntimeError:
+                    raise RuntimeError("ODrive threw error during homing.")
+
+                last_home_sensor_val = home_sensor_val
+                if rotation_sensor_val < _POT_VOLTAGE_LOW_WARN or rotation_sensor_val > _POT_VOLTAGE_HIGH_WARN:
+                  self.stop_actuator()
+                  raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
+
+
+            # Save values.
+            #self.home_position = (transitions[0] + transitions[1])/2
+        else:
+            self.home_position = self.odrv0.axis0.encoder.shadow_count
+        self.odrv0.axis0.controller.move_to_pos(self.home_position)
+        self.odrv0.axis0.trap_traj.config.vel_limit = 12000
+
+        self.steering_initialized = True
+
+
+    def enable_steering_control(self):
         self.odrv0.axis0.encoder.config.use_index=False
         self.odrv0.axis0.motor.config.direction = 1
         self.odrv0.axis0.motor.config.motor_type = 4 # MOTOR_TYPE_BRUSHED_VOLTAGE
-        self.odrv0.axis0.motor.config.current_lim = 18.0
+        self.odrv0.axis0.motor.config.current_lim = 35.0
         gpio_toggle(self.GPIO)
         self.odrv0.axis0.controller.config.vel_gain = 0.005
-        self.odrv0.axis0.controller.config.pos_gain = -5
+        self.odrv0.axis0.controller.config.pos_gain = -10
         self.odrv0.axis0.encoder.config.cpr = 2000
         self.odrv0.axis0.encoder.config.mode = ENCODER_MODE_INCREMENTAL
         self.odrv0.axis0.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
 
         gpio_toggle(self.GPIO)
         self.odrv0.axis0.encoder.config.use_index=False
-        self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
-        self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-        self.steering_flipped = steering_flipped
-        self.steering_initialized = True
-
-
-        home_position = None
-        steering_midpoint = None
-        if not skip_homing:
-            last_home_sensor_val = self.sample_home_sensor()
-            if last_home_sensor_val:
-                print("STARTED ON HOME SENSOR")
-            ignore_first_transition = last_home_sensor_val
-            transitions = []
-            print("START HOME")
-
-            rotation_sensor_val = self.sample_steering_pot()
-            print(rotation_sensor_val)
-            gpio_toggle(self.GPIO)
-            if rotation_sensor_val < _VOLTAGE_MIDPOINT:
-                self.odrv0.axis0.controller.vel_integrator_current = 0
-                self.odrv0.axis0.controller.vel_setpoint = _HOMING_VELOCITY_STEERING_COUNTS
-            else:
-                self.odrv0.axis0.controller.vel_integrator_current = 0
-                self.odrv0.axis0.controller.vel_setpoint = -_HOMING_VELOCITY_STEERING_COUNTS
-
-            while True:
-                gpio_toggle(self.GPIO)
-                time.sleep(_FAST_POLLING_SLEEP_S)
-                gpio_toggle(self.GPIO)
-                home_sensor_val = self.sample_home_sensor()
-                rotation_sensor_val = self.sample_steering_pot()
-                #print(rotation_sensor_val)
-                if self.odrv0.axis0.error or self.odrv0.axis1.error:
-                    print("Error on {}".format(self.name))
-                    gpio_toggle(self.GPIO)
-                    self.dump_errors()
-                    gpio_toggle(self.GPIO)
-                    self.stop_actuator()
-                    raise RuntimeError("ODrive threw error during homing.")
-
-                if home_sensor_val != last_home_sensor_val:
-                  if ignore_first_transition:
-                      # Skip if it started activated.
-                      ignore_first_transition = False
-                  else:
-                      print("TRANSITION")
-                      if not steering_midpoint and len(transitions) >= 2:
-                          # If we got another transition but havent hit steering
-                          # midpoint, empty the transitions. This ensures we home
-                          # near the steering midpoint.
-                          transitions = []
-                      transitions.append(self.odrv0.axis0.encoder.shadow_count)
-                last_home_sensor_val = home_sensor_val
-                if _VOLTAGE_MIDPOINT-_HOMING_POT_HALF_DEADBAND_V < rotation_sensor_val < _VOLTAGE_MIDPOINT + _HOMING_POT_HALF_DEADBAND_V:
-                    steering_midpoint = self.odrv0.axis0.encoder.shadow_count
-                if rotation_sensor_val < _POT_VOLTAGE_LOW_WARN or rotation_sensor_val > _POT_VOLTAGE_HIGH_WARN:
-                  self.stop_actuator()
-                  gpio_toggle(self.GPIO)
-                  raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
-                if len(transitions) >= 2:
-                    if not steering_midpoint:
-                        steering_midpoint = self.odrv0.axis0.encoder.shadow_count
-                    break
-
-            print(transitions)
-            # Save values.
-            self.steering_midpoint = steering_midpoint
-            self.home_position = (transitions[0] + transitions[1])/2
-        else:
-            # if self.steering_flipped:
-            #     self.home_position = self.odrv0.axis0.encoder.shadow_count - COUNTS_PER_REVOLUTION / 2.0
-            # else:
-            self.home_position = self.odrv0.axis0.encoder.shadow_count
-            self.steering_midpoint = self.odrv0.axis0.encoder.shadow_count
-
-
         err_count = 0
         while True:
-            self.odrv0.axis0.requested_state = AXIS_STATE_IDLE
-            toggling_sleep(self.GPIO, _SLOW_POLLING_SLEEP_S)
-            self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
-            self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-            toggling_sleep(self.GPIO, _SLOW_POLLING_SLEEP_S)
-            errors = self.odrv0.axis0.error
-            if errors == 0:
-                break
-            if not self.odrv0.axis0.encoder.is_ready:
-                raise RuntimeError("Could not initialize steering. Encoder is not ready.")
+                self.odrv0.axis0.requested_state = AXIS_STATE_IDLE
+                toggling_sleep(self.GPIO, _SLOW_POLLING_SLEEP_S)
+                self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
+                self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+                self.odrv0.axis0.controller.vel_ramp_enable = True
+                self.odrv0.axis0.controller.config.vel_ramp_rate = 10
 
-            # print("axis0.current_state: {}".format(self.odrv0.axis0.current_state))
-            # self.odrv0.axis0.controller.vel_integrator_current = 0
-            # self.odrv0.axis1.controller.vel_integrator_current = 0
-            # self.odrv0.axis0.controller.vel_setpoint = 0
-            # self.odrv0.axis1.controller.vel_setpoint = 0
-            err_count += 1
-            error_message = self.dump_errors(True)
-            gpio_toggle(self.GPIO)
-            if err_count > 3:
-                raise RuntimeError("Could not initialize steering. Error was: {}".format(error_message))
-            toggling_sleep(self.GPIO, 5)  # TODO: Is this sleep time reasonable? Should also make it a variable.
+                # self.odrv0.axis0.controller.config.vel_limit_tolerance = 2.5
+                self.odrv0.axis0.trap_traj.config.vel_limit = 4000
+                self.odrv0.axis0.trap_traj.config.accel_limit = 1500
+                self.odrv0.axis0.trap_traj.config.decel_limit = 1500
+                self.odrv0.axis0.trap_traj.config.A_per_css = 0
+
+                toggling_sleep(self.GPIO, _SLOW_POLLING_SLEEP_S)
+                errors = self.odrv0.axis0.error
+                if errors == 0:
+                    break
+                if not self.odrv0.axis0.encoder.is_ready:
+                    raise RuntimeError("Could not initialize steering. Encoder is not ready.")
+
+                # print("axis0.current_state: {}".format(self.odrv0.axis0.current_state))
+                # self.odrv0.axis0.controller.vel_integrator_current = 0
+                # self.odrv0.axis1.controller.vel_integrator_current = 0
+                # self.odrv0.axis0.controller.vel_setpoint = 0
+                # self.odrv0.axis1.controller.vel_setpoint = 0
+                err_count += 1
+                error_message = self.dump_errors(True)
+                gpio_toggle(self.GPIO)
+                if err_count > 3:
+                    raise RuntimeError("Could not initialize steering. Error was: {}".format(error_message))
+                toggling_sleep(self.GPIO, 5)  # TODO: Is this sleep time reasonable? Should also make it a variable.
 
     def check_errors(self):
         gpio_toggle(self.GPIO)
@@ -216,17 +223,6 @@ class CornerActuator:
             gpio_toggle(self.GPIO)
             self.dump_errors()
             raise RuntimeError("odrive error state detected.")
-
-    # def zero_steering(self):
-    #     max_offset = 400
-    #     offset = 0
-    #     for increment in [-1, 1]:
-    #         while math.abs(offset) < max_offset:
-    #             self.update_actuator(offset, 0)
-    #             toggling_sleep(self.GPIO, _SLOW_POLLING_SLEEP_S)
-    #             home_sensor_val = self.sample_home_sensor()
-    #             print("Home Sensor Val: {}, offset {}".format(home_sensor_val, offset))
-    #             offset += increment
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
         #print("Update {}".format(self.name))
@@ -239,7 +235,8 @@ class CornerActuator:
         #     pos_counts = self.home_position + (180 + steering_pos_deg) * COUNTS_PER_REVOLUTION / 360.0
         # else:
         pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
-        self.odrv0.axis0.controller.pos_setpoint = pos_counts
+        #self.odrv0.axis0.controller.pos_setpoint = pos_counts
+        self.odrv0.axis0.controller.move_to_pos(pos_counts)
         # TODO: Setting vel_integrator_current to zero every time we update
         # means we just don't get integrator control. But that would be nice.
         self.odrv0.axis1.controller.vel_integrator_current = 0

@@ -13,7 +13,7 @@ TCP_IP = "127.0.0.1"
 TCP_PORT = 10001
 TCP_PORT2 = 10002
 BUFFER_SIZE = 1024
-VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 35.0
+VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 39.0
 _FAST_POLLING_DELAY_S = 0.05
 
 
@@ -34,11 +34,11 @@ def digest_data(data):
     if len(data) > 13:
         lat = float(data[2])
         lon = float(data[3])
-        height_m = float(data[4])
+        height_m = float(data[4].replace('\'',''))
         status = "fix" if data[5] is "1" else "no fix"
         num_sats = data[6]
-        #age = data[13]
-        return gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time())
+        base_rtk_age = float(data[13])
+        return gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
     else:
         return None
 
@@ -73,6 +73,7 @@ def launch_rtk_sub_procs(master_conn):
     while True:
         data = tcp_sock.recv(BUFFER_SIZE)
         data2 = tcp_sock2.recv(BUFFER_SIZE)
+        #print(data)
 
         period = time.time() - tick_time
         # print("{} sec gps sample period".format(period))
@@ -86,10 +87,11 @@ def launch_rtk_sub_procs(master_conn):
                 lat = (data.lat + data2.lat) / 2.0
                 lon = (data.lon + data2.lon) / 2.0
                 height_m = (data.height_m + data2.height_m) / 2.0
-                latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data.status, data2.status), (data.num_sats, data2.num_sats), azimuth_degrees, data.time_stamp)
+                rtk_age = max([data.rtk_age, data2.rtk_age])
+                latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data.status, data2.status), (data.num_sats, data2.num_sats), azimuth_degrees, data.time_stamp, rtk_age)
                 #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
                 print_gps_counter += 1
-                if print_gps_counter%10 == 0:
+                if print_gps_counter % 40 == 0:
                     print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}, Period: {}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, data.status, data2.status, period))
 
                 master_conn.send(latest_sample)

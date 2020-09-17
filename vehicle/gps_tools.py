@@ -9,7 +9,7 @@ from scipy.interpolate import splprep, splev
 _SMOOTH_MULTIPLIER = 0.00000000001
 _GPS_DISTANCE_SCALAR = 100000
 
-GpsSample = namedtuple('GpsSample', 'lat lon height_m status num_sats azimuth_degrees time_stamp')
+GpsSample = namedtuple('GpsSample', 'lat lon height_m status num_sats azimuth_degrees time_stamp rtk_age')
 
 GpsPoint = namedtuple('GpsPoint', 'lat lon')
 

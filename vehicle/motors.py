@@ -27,9 +27,9 @@ _LEFT_KEYCODE = '\x1b[D'
 _RIGHT_KEYCODE = '\x1b[C'
 _DOWN_KEYCODE = '\x1b[B'
 
-_STATE_DISCONNECTED = "Not connected."
-_STATE_DISABLED = "Running, motors disabled."
-_STATE_ENABLED = "Motors enabled"
+STATE_DISCONNECTED = "Not connected."
+_STATE_DISABLED = "Motor error."
+_STATE_ENABLED = "Motors enabled."
 
 
 _SHUT_DOWN_MOTORS_COMMS_DELAY_S = 1.0
@@ -50,7 +50,7 @@ class AcornMotorInterface():
         }
 
         context = zmq.Context()
-        self.command_socket = context.socket(zmq.PULL)
+        self.command_socket = context.socket(zmq.PAIR)
         self.command_socket.bind("tcp://*:5590")
         self.odrives_connected = False
         self.motors_initialized = False
@@ -72,8 +72,8 @@ class AcornMotorInterface():
         c = click.getchar()
         click.echo()
         if c != 'y':
-            return
             self.square_wave.terminate()
+            return
         index = 0
         while True:
             drive = self.odrives[index]
@@ -139,10 +139,13 @@ class AcornMotorInterface():
         return False
 
     def try_to_send_state(self, state):
-            try:
-                self.command_socket.send_string(state)
-            except zmq.error.ZMQError as e:
-                pass
+        print("TRYING TO SEND STATE: {}".format(state))
+        try:
+            self.command_socket.send_string(state)
+        except zmq.error.ZMQError as e:
+            print("Error sending motor state: {}".format(e))
+            raise e
+            pass
 
     def run_main(self):
         motor_error = False
@@ -151,7 +154,7 @@ class AcornMotorInterface():
         try:
             while True:
                 if not self.odrives_connected:
-                    self.try_to_send_state(_STATE_DISCONNECTED)
+                    self.try_to_send_state(STATE_DISCONNECTED)
                     self.connect_to_motors()
                 elif not self.motors_initialized:
                     try:
@@ -164,7 +167,7 @@ class AcornMotorInterface():
                 elif not self.steering_adjusted:
                     try:
                         self.steering_adjusted = True
-                        self.ask_if_adjust_steering()
+                        #self.ask_if_adjust_steering()
                         print("Initialized Steering")
                     except RuntimeError as e:
                         print("Motor problem while adjusting steering.")
@@ -182,9 +185,13 @@ class AcornMotorInterface():
                     #time.sleep(_ERROR_RECOVERY_DELAY_S)
                     self.try_to_send_state(_STATE_DISABLED)
                     # Consume command messages.
+                    recv = None
                     while self.command_socket.poll(timeout=0):
-                        self.command_socket.recv_pyobj()
+                        recv = pickle.loads(self.command_socket.recv_pyobj())
                         corner_actuator.gpio_toggle(GPIO)
+                    if recv:
+                        print("Got motor command but motors are in error state.")
+                        print("Motor command was {}".format(recv))
                 else:
                     if motor_error:
                         for odrive in self.odrives:
@@ -259,8 +266,10 @@ def e_stop_square_wave(GPIO):
 
 
 if __name__ == '__main__':
+    #import sys
+    #sys.exit()
     parser = argparse.ArgumentParser(description='Run the Acorn motors process.')
-    parser.add_argument('--home', dest='skip_homing', default=True, action='store_false')
+    parser.add_argument('--home', dest='skip_homing', default=False, action='store_false')
     args = parser.parse_args()
     control = AcornMotorInterface(args.skip_homing)
     control.run_main()
