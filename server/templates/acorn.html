@@ -153,6 +153,9 @@
                         <li class="list-group-item" id="${robot.name}-detail-motor-state">Motor State: ${robot.motor_state}</li>
                         <li class="list-group-item" id="${robot.name}-detail-path-name">Loaded Path Name: ${robot.loaded_path_name}</li>
                         <li class="list-group-item" id="${robot.name}-detail-autonomy-allowed">Autonomy Allowed: ${autonomy_allowed}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-autonomy-active">Autonomy Active: ${robot.activate_autonomy}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-access-point">Access Point: ${robot.access_point_name}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-wifi-signal">Wifi Signal: ${robot.wifi_signal} dBm</li>
                       <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-load-button">Load Path</button></li>
                       <li class="list-group-item">
                         <div class="btn-group" role="group" aria-label="Autonomy Velocity">
@@ -177,6 +180,24 @@
                     `;
 
 
+                    if(robot.loaded_path_name != livePathName)
+                    {
+                      renderPathLive(robot.live_path_data);
+                      livePathName = robot.loaded_path_name;
+                    }
+
+                    if(robot.debug_points)
+                    {
+                      renderPathDebug(robot.debug_points);
+                      debugPointsLength = robot.debug_points.length;
+                    }
+
+                    if(robot.gps_path_data.length != gpsPathLength)
+                    {
+                      gps_path = robot.gps_path_data
+                      renderPathGPS(robot.gps_path_data);
+                      gpsPathLength = robot.gps_path_data.length;
+                    }
 
                     let div_id = `${robot.name}-cardview`;
                     const row = `
@@ -193,7 +214,9 @@
                         $(`#${robot.name}-detail-control-state`).html(`Control State: ${robot.control_state}`);
                         $(`#${robot.name}-detail-motor-state`).html(`Motor State: ${robot.motor_state}`);
                         $(`#${robot.name}-detail-autonomy-allowed`).html(`Autonomy Allowed: ${autonomy_allowed}`);
-                        $(`#${robot.name}-detail-autonomy-active`).html(`Autonomy Allowed: ${autonomy_allowed}`);
+                        $(`#${robot.name}-detail-autonomy-active`).html(`Autonomy Active: ${robot.activate_autonomy}`);
+                        $(`#${robot.name}-detail-access-point`).html(`Access Point: ${robot.access_point_name}`);
+                        $(`#${robot.name}-detail-wifi-signal`).html(`Wifi Signal: ${robot.wifi_signal}`);
 
                         console.log(robot.activate_autonomy);
 

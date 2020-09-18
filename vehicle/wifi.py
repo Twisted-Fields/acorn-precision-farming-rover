@@ -25,9 +25,10 @@ access_points = {
 '78:8a:20:71:cd:e5':'Top of Hill',
 '78:8a:20:72:cd:e5':'Top of Hill',
 '18:e8:29:a4:ee:7d':'Upstairs Bath',
-'1a:e8:29:a5:ee:7d':'Upstairs Bath'
+'1a:e8:29:a5:ee:7d':'Upstairs Bath',
+'e0:63:da:15:1e:74':'Big Field HP',
+'e2:63:da:16:1e:74':'Big Field HP'
 }
-
 
 def wifi_process(master_conn):
     interfaces = netifaces.interfaces()
@@ -63,7 +64,7 @@ def wifi_process(master_conn):
                 else:
                     station_name = station_mac
                 if master_conn:
-                    master_conn.send(signal, station_name)
+                    master_conn.send((signal, station_name))
                 else:
                     print(station_name)
                     print("Wifi RSSI: {} dBm".format(signal))

@@ -33,6 +33,8 @@ _CMD_UPDATE_ROBOT = bytes('ur', encoding='ascii')
 _CMD_ROBOT_COMMAND = bytes('rc', encoding='ascii')
 _CMD_ACK = bytes('a', encoding='ascii')
 
+_MAX_GPS_DISTANCES = 1000
+
 _GPS_RECORDING_ACTIVATE = "Record"
 _GPS_RECORDING_PAUSE = "Pause"
 _GPS_RECORDING_CLEAR = "Clear"
@@ -69,8 +71,10 @@ class Robot:
         self.last_server_communication_stamp = 0
         self.autonomy_hold = True
         self.clear_autonomy_hold = False
-        self.gps_distance = 0
-        self.gps_angle = 0
+        self.gps_distances = []
+        self.gps_angles = []
+        self.gps_path_lateral_error_rates = []
+        self.gps_path_angular_error_rates = []
 
     def __repr__(self):
         return 'Robot'
@@ -99,6 +103,15 @@ class RobotCommand:
         self.clear_autonomy_hold = False
         self.autonomy_velocity = 0
         self.record_gps_path = _GPS_RECORDING_CLEAR
+
+
+
+def AppendFIFO(list, value, max_values):
+    list.append(value)
+    while len(list) > max_values:
+        list.pop(0)
+    return list
+
 
 
 class MasterProcess():
@@ -204,7 +217,11 @@ class MasterProcess():
             #print("5555")
 
             if remote_control_parent_conn.poll(0.5):
-                acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, acorn.gps_distance, acorn.gps_angle = remote_control_parent_conn.recv()
+                acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate = remote_control_parent_conn.recv()
+                acorn.gps_distances = AppendFIFO(acorn.gps_distances, gps_distance, _MAX_GPS_DISTANCES)
+                acorn.gps_angles = AppendFIFO(acorn.gps_angles, gps_angle, _MAX_GPS_DISTANCES)
+                acorn.gps_path_lateral_error_rates = AppendFIFO(acorn.gps_path_lateral_error_rates, gps_lateral_rate, _MAX_GPS_DISTANCES)
+                acorn.gps_path_angular_error_rates = AppendFIFO(acorn.gps_path_angular_error_rates, gps_angular_rate, _MAX_GPS_DISTANCES)
                 #print(acorn.motor_state)
                 updated_object = True
 

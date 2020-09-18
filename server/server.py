@@ -97,7 +97,11 @@ def robots_to_json(keys):
         'gps_path_data' : gps_path_data,
         'debug_points' : debug_points,
         'autonomy_hold' : robot.autonomy_hold,
-        'activate_autonomy' : robot.activate_autonomy
+        'activate_autonomy' : robot.activate_autonomy,
+        'access_point_name' : robot.wifi_ap_name,
+        'wifi_signal' : robot.wifi_strength,
+        'gps_distances' : robot.gps_distances,
+        'gps_angles' : robot.gps_angles
         # 'front_lat': debug_points[0].lat,
         # 'front_lon': debug_points[0].lat,
         # 'rear_lat': debug_points[1].lat,

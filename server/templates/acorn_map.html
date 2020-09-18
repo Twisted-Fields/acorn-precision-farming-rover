@@ -71,6 +71,12 @@
           </div>
           <div class="row">
             <div class="col-lg">
+              <div id="plot_div" style="width:100%;height:1500px;"></div>
+
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-lg">
               <div id="map_canvas" style="width:100%;height:1500px;"></div>
             </div>
             <div id="robot_detail_desktop" class="col-lg-2">
@@ -106,6 +112,7 @@
 </html>
 <script src="{{ url_for('static', filename='js/jquery-3.4.1.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plotly-latest.min.js') }}"></script>
 
 
 <script>
@@ -265,6 +272,22 @@
 
                     var autonomy_allowed = robot.autonomy_hold?"False":"True"
 
+                    console.log(robot.gps_distances)
+
+                    var trace1 = {
+                        y: robot.gps_distances,
+                        type: 'scatter'
+                      };
+
+                      var trace2 = {
+                          y: robot.gps_angles,
+                          type: 'scatter'
+                        };
+
+                      var data = [trace1, trace2];
+
+                      Plotly.newPlot('plot_div', data);
+
 
                     const markup = `
                     <div class="card" style="width: 18rem;">
@@ -279,6 +302,9 @@
                         <li class="list-group-item" id="${robot.name}-detail-motor-state">Motor State: ${robot.motor_state}</li>
                         <li class="list-group-item" id="${robot.name}-detail-path-name">Loaded Path Name: ${robot.loaded_path_name}</li>
                         <li class="list-group-item" id="${robot.name}-detail-autonomy-allowed">Autonomy Allowed: ${autonomy_allowed}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-autonomy-active">Autonomy Active: ${robot.activate_autonomy}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-access-point">Access Point: ${robot.access_point_name}</li>
+                        <li class="list-group-item" id="${robot.name}-detail-wifi-signal">Wifi Signal: ${robot.wifi_signal} dBm</li>
                       <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-load-button">Load Path</button></li>
                       <li class="list-group-item">
                         <div class="btn-group" role="group" aria-label="Autonomy Velocity">
@@ -337,7 +363,9 @@
                         $(`#${robot.name}-detail-control-state`).html(`Control State: ${robot.control_state}`);
                         $(`#${robot.name}-detail-motor-state`).html(`Motor State: ${robot.motor_state}`);
                         $(`#${robot.name}-detail-autonomy-allowed`).html(`Autonomy Allowed: ${autonomy_allowed}`);
-                        $(`#${robot.name}-detail-autonomy-active`).html(`Autonomy Allowed: ${autonomy_allowed}`);
+                        $(`#${robot.name}-detail-autonomy-active`).html(`Autonomy Active: ${robot.activate_autonomy}`);
+                        $(`#${robot.name}-detail-access-point`).html(`Access Point: ${robot.access_point_name}`);
+                        $(`#${robot.name}-detail-wifi-signal`).html(`Wifi Signal: ${robot.wifi_signal}`);
 
                         console.log(robot.activate_autonomy);
 
