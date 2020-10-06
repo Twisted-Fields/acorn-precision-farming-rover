@@ -50,7 +50,9 @@
 
 <script>
 
-
+$(document).ready(function(){
+    modifyAutonomyHold(`${robot.name}`, false);
+});
 
   var zoom_scales = [ 0,
                       591657550.500000,
@@ -100,6 +102,7 @@
     var path_start = -1;
     var path_end = -1;
     var path_point_to_remove = -1;
+    have_cleared_autonomy = false;
 
     //time between api refreshes
     var INTERVAL = 1000;
@@ -127,6 +130,12 @@
                     //console.log(JSON.parse(robot.time_stamp))
                     let date = new Date(JSON.parse(robot.time_stamp));
                     let data_age_sec = (datenow-date)/1000.0
+
+                    if (have_cleared_autonomy == false)
+                    {
+                      have_cleared_autonomy = true;
+                      modifyAutonomyHold(`${robot.name}`, false);
+                    }
 
                     if(robot.autonomy_hold)
                     {
@@ -179,25 +188,6 @@
                     </div>
                     `;
 
-
-                    if(robot.loaded_path_name != livePathName)
-                    {
-                      renderPathLive(robot.live_path_data);
-                      livePathName = robot.loaded_path_name;
-                    }
-
-                    if(robot.debug_points)
-                    {
-                      renderPathDebug(robot.debug_points);
-                      debugPointsLength = robot.debug_points.length;
-                    }
-
-                    if(robot.gps_path_data.length != gpsPathLength)
-                    {
-                      gps_path = robot.gps_path_data
-                      renderPathGPS(robot.gps_path_data);
-                      gpsPathLength = robot.gps_path_data.length;
-                    }
 
                     let div_id = `${robot.name}-cardview`;
                     const row = `

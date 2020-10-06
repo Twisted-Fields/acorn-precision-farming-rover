@@ -59,6 +59,7 @@ class CornerActuator:
         self.traction_initialized = False
         self.position = 0.0
         self.velocity = 0.0
+        self.voltage = 0.0
 
     def idle_wait(self):
         while self.odrv0.axis1.current_state != AXIS_STATE_IDLE:
@@ -131,7 +132,7 @@ class CornerActuator:
                     print(transitions)
                     attempts += 1
                 rotation_sensor_val = self.sample_steering_pot()
-                #print(rotation_sensor_val)
+                print(rotation_sensor_val)
 
                 #print(home_sensor_val)
 
@@ -190,12 +191,12 @@ class CornerActuator:
                 self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
                 self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
                 self.odrv0.axis0.controller.vel_ramp_enable = True
-                self.odrv0.axis0.controller.config.vel_ramp_rate = 10
+                self.odrv0.axis0.controller.config.vel_ramp_rate = 20
 
                 # self.odrv0.axis0.controller.config.vel_limit_tolerance = 2.5
-                self.odrv0.axis0.trap_traj.config.vel_limit = 4000
-                self.odrv0.axis0.trap_traj.config.accel_limit = 1500
-                self.odrv0.axis0.trap_traj.config.decel_limit = 1500
+                self.odrv0.axis0.trap_traj.config.vel_limit = 8000
+                self.odrv0.axis0.trap_traj.config.accel_limit = 3000
+                self.odrv0.axis0.trap_traj.config.decel_limit = 3000
                 self.odrv0.axis0.trap_traj.config.A_per_css = 0
 
                 toggling_sleep(self.GPIO, _SLOW_POLLING_SLEEP_S)
@@ -218,11 +219,16 @@ class CornerActuator:
                 toggling_sleep(self.GPIO, 5)  # TODO: Is this sleep time reasonable? Should also make it a variable.
 
     def check_errors(self):
+        self.voltage = self.odrv0.vbus_voltage
         gpio_toggle(self.GPIO)
         if self.odrv0.axis0.error or self.odrv0.axis1.error:
             gpio_toggle(self.GPIO)
             self.dump_errors()
             raise RuntimeError("odrive error state detected.")
+
+
+    def update_voltage(self):
+        self.voltage = self.odrv0.vbus_voltage
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
         #print("Update {}".format(self.name))
@@ -231,6 +237,7 @@ class CornerActuator:
             drive_velocity *= -1
         self.position = steering_pos_deg
         self.velocity = drive_velocity
+        self.update_voltage()
         # if self.steering_flipped:
         #     pos_counts = self.home_position + (180 + steering_pos_deg) * COUNTS_PER_REVOLUTION / 360.0
         # else:

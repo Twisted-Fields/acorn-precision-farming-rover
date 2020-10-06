@@ -16,6 +16,7 @@ import spline_lib
 import os
 import datetime
 from motors import _STATE_ENABLED
+import rtk_process
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
@@ -28,29 +29,43 @@ COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
 
 ACCELERATION_COUNTS_SEC = 0.5
 
-__gps_lateral_distance_SCALAR = 100000
+__gps_lateral_distance_error_SCALAR = 100000
 
-_RESUME_MOTION_WARNING_TIME_SEC = 20
+_RESUME_MOTION_WARNING_TIME_SEC = 10
 
-_MAXIMUM_ALLOWED_DISTANCE_METERS = 2
+_MAXIMUM_ALLOWED_DISTANCE_METERS = 0.5
+_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 10
 _VOLTAGE_CUTOFF = 30
 
 CONTROL_STARTUP = "Initializing..."
-CONTROL_GPS_STARTUP = "Waiting for GPS fix"
-CONTROL_ONLINE = "Online and awaiting commands"
-CONTROL_AUTONOMY = "Autonomy Operating"
-CONTROL_LOW_VOLTAGE = "Low Voltage Pause"
+CONTROL_GPS_STARTUP = "Waiting for GPS fix."
+CONTROL_ONLINE = "Online and awaiting commands."
+CONTROL_AUTONOMY = "Autonomy Operating."
+CONTROL_LOW_VOLTAGE = "Low Voltage Pause."
 CONTROL_AUTONOMY_ERROR_DISTANCE = "Autonomy failed - too far from path."
+CONTROL_AUTONOMY_ERROR_ANGLE = "Autonomy failed - path angle too great."
 CONTROL_AUTONOMY_ERROR_RTK_AGE = "Autonomy failed - rtk base data too old."
 CONTROL_AUTONOMY_ERROR_SOLUTION_AGE = "Autonomy failed - gps solution too old."
-CONTROL_OVERRIDE = "Remote control override"
+CONTROL_OVERRIDE = "Remote control override."
 CONTROL_SERVER_ERROR = "Server communication error."
 CONTROL_MOTOR_ERROR = "Motor error detected."
+
+GPS_PRINT_INTERVAL = 40
+
+_LOOP_RATE = 10
+
+_ERROR_RATE_AVERAGING_COUNT = 2
 
 _ALLOWED_RTK_AGE_SEC = 20.0
 _ALLOWED_SOLUTION_AGE_SEC = 2.0
 
+_ALLOWED_MOTOR_SEND_LAPSE_SEC = 5
+
 SERVER_COMMUNICATION_DELAY_LIMIT_SEC = 5
+
+_BEGIN_AUTONOMY_SPEED_RAMP_SEC = 3.0
+
+_PATH_END_PAUSE_SEC = 5.0
 
 _SLOW_POLLING_SLEEP_S = 0.5
 
@@ -90,11 +105,19 @@ class RemoteControl():
         self.connect_to_motors()
         self.connect_joystick()
 
-    def connect_to_motors(self):
+    def connect_to_motors(self, port=5590):
         context = zmq.Context()
         #  Socket to talk to motor control process
-        self.motor_socket = context.socket(zmq.PAIR)
-        self.motor_socket.connect("tcp://localhost:5590")
+        self.motor_socket = context.socket(zmq.REQ)
+        self.motor_socket.connect("tcp://localhost:{}".format(port))
+        self.motor_socket.setsockopt(zmq.LINGER, 50)
+        self.motor_send_okay = True
+        self.motor_last_send_time = time.time()
+
+    def close_motor_socket(self):
+        self.motor_socket.close()
+        del(self.motor_socket)
+        self.motor_socket = None
 
     def get_joystick_values(self, st_old, th_old, stf_old):
         steer = None
@@ -103,7 +126,11 @@ class RemoteControl():
         count = 0
         #print("Enter_joy")
         while True:
-            event = self.joy.read_one()
+            event = None
+            try:
+                event = self.joy.read_one()
+            except Exception as e:
+                print("Joystick read exception: {}".format(e))
             if event == None:
                 break
             #print(event)
@@ -169,23 +196,35 @@ class RemoteControl():
         self.gps_path_angular_error = 0
         self.gps_path_angular_error_rate = 0
         self.gps_error_update_time = 0
+        self.gps_angle_error_rate_averaging_list = []
+        self.gps_lateral_error_rate_averaging_list = []
+        self.last_autonomy_steer_cmd = 0
+        self.last_autonomy_strafe_cmd = 0
+        self.solution_age_averaging_list = []
+        self.voltage_average = 0
+
+        rtk_process.launch_rtk_sub_procs()
+        rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()
+        print_gps_counter = 0
+        self.latest_gps_sample = None
         try:
-            loop_count = 0
+            loop_count = -1
             while True:
                 loop_count += 1
+                self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample)
 
                 # Consume the incoming messages.
-                if self.master_conn.poll():
+                while self.master_conn.poll():
                     recieved_robot_object = self.master_conn.recv()
-                    # print(type(self.robot_object))
+                    #print(type(self.robot_object))
                     if str(type(recieved_robot_object))=="<class '__main__.Robot'>":
                         self.robot_object = recieved_robot_object
                         if len(self.nav_path) == 0 or self.loaded_path_name != self.robot_object.loaded_path_name:
                             if len(self.robot_object.loaded_path) > 0:
                                 self.nav_spline = spline_lib.GpsSpline(self.robot_object.loaded_path, smooth_factor=10, num_points=200)
                                 self.nav_path = self.nav_spline.points
-                                dist_start = gps_tools.get_distance(self.robot_object.location, self.nav_path[0])
-                                dist_end = gps_tools.get_distance(self.robot_object.location, self.nav_path[len(self.nav_path)-1])
+                                dist_start = gps_tools.get_distance(self.latest_gps_sample, self.nav_path[0])
+                                dist_end = gps_tools.get_distance(self.latest_gps_sample, self.nav_path[len(self.nav_path)-1])
                                 if dist_start < dist_end:
                                     self.nav_direction = 1
                                 else:
@@ -210,27 +249,36 @@ class RemoteControl():
                     continue
 
 
+
+
                 debug_points = (None, None, None, None)
                 calculated_rotation = None
                 calculated_strafe = None
                 gps_fix = False
                 distance_from_path_okay = False
+                angle_from_path_okay = False
                 rtk_age_okay = False
                 solution_age_okay = False
-                _gps_lateral_distance = 0
-                _gps_path_angle = 0
+                _gps_lateral_distance_error = 0
+                _gps_path_angle_error = 0
                 if self.robot_object:
-                    front = gps_tools.project_point(self.robot_object.location, self.robot_object.location.azimuth_degrees, 1.0)
-                    rear = gps_tools.project_point(self.robot_object.location, self.robot_object.location.azimuth_degrees, -1.0)
-                    #print("GPS DEBUG: FIX reads... : {}".format(self.robot_object.location.status))
-                    if len(self.robot_object.location.status) == 2:
-                        if self.robot_object.location.status[0] == 'fix' and self.robot_object.location.status[1] == 'fix':
+                    front = gps_tools.project_point(self.latest_gps_sample, self.latest_gps_sample.azimuth_degrees, 1.0)
+                    rear = gps_tools.project_point(self.latest_gps_sample, self.latest_gps_sample.azimuth_degrees, -1.0)
+                    #print("GPS DEBUG: FIX reads... : {}".format(self.latest_gps_sample.status))
+                    if len(self.latest_gps_sample.status) == 2:
+                        if self.latest_gps_sample.status[0] == 'fix' and self.latest_gps_sample.status[1] == 'fix':
                             #print("WE HAVE A FIX")
                             gps_fix = True
-                    if self.robot_object.location.rtk_age < _ALLOWED_RTK_AGE_SEC:
+                    if self.latest_gps_sample.rtk_age < _ALLOWED_RTK_AGE_SEC:
                         rtk_age_okay = True
 
-                    if time.time() - self.robot_object.location.time_stamp < _ALLOWED_SOLUTION_AGE_SEC:
+                    if time.time() - self.latest_gps_sample.time_stamp < _ALLOWED_SOLUTION_AGE_SEC:
+                        solution_age = time.time() - self.latest_gps_sample.time_stamp
+                        self.solution_age_averaging_list.append(solution_age)
+                        while len(self.solution_age_averaging_list) > 30:
+                            self.solution_age_averaging_list.pop(0)
+                        age_avg = sum(self.solution_age_averaging_list)/len(self.solution_age_averaging_list)
+                        #print("solution age average: {}".format(age_avg))
                         solution_age_okay = True
 
 
@@ -239,8 +287,8 @@ class RemoteControl():
                     if(len(self.nav_path)>0):
 
                         # Check if we meet the end condition.
-                        dist_start = gps_tools.get_distance(self.robot_object.location, self.nav_path[0])
-                        dist_end = gps_tools.get_distance(self.robot_object.location, self.nav_path[len(self.nav_path)-1])
+                        dist_start = gps_tools.get_distance(self.latest_gps_sample, self.nav_path[0])
+                        dist_end = gps_tools.get_distance(self.latest_gps_sample, self.nav_path[len(self.nav_path)-1])
                         if dist_start < 3.0:
                             if self.nav_direction == -1:
                                 self.nav_path = []
@@ -249,7 +297,7 @@ class RemoteControl():
                                 self.nav_path = []
 
 
-                        closest_u = self.nav_spline.closestUOnSpline(self.robot_object.location)
+                        closest_u = self.nav_spline.closestUOnSpline(self.latest_gps_sample)
                         closest_point = self.nav_spline.coordAtU(closest_u)
                         #print("closest_point {}".format(closest_point))
                         spline_angle_rad = self.nav_spline.slopeRadiansAtU(closest_u)
@@ -258,9 +306,9 @@ class RemoteControl():
 
 
                         projected_point = gps_tools.project_point(closest_point, path_point_heading, 3.0)
-                        _gps_lateral_distance = gps_tools.get_approx_distance_point_from_line(self.robot_object.location, closest_point, projected_point)
+                        _gps_lateral_distance_error = gps_tools.get_approx_distance_point_from_line(self.latest_gps_sample, closest_point, projected_point)
 
-                        if abs(_gps_lateral_distance) < _MAXIMUM_ALLOWED_DISTANCE_METERS:
+                        if abs(_gps_lateral_distance_error) < _MAXIMUM_ALLOWED_DISTANCE_METERS:
                             distance_from_path_okay = True
                         #print("DISTANCE: {}".format(abs(distance_from_line)))
 
@@ -268,9 +316,9 @@ class RemoteControl():
                         closest_front = projected_point
                         closest_rear = closest_point
 
-                        #print("robot heading {}, path heading {}".format(self.robot_object.location.azimuth_degrees, path_point_heading))
-                        calculated_rotation = path_point_heading - self.robot_object.location.azimuth_degrees
-                        calculated_strafe = _gps_lateral_distance
+                        #print("robot heading {}, path heading {}".format(self.latest_gps_sample.azimuth_degrees, path_point_heading))
+                        calculated_rotation = path_point_heading - self.latest_gps_sample.azimuth_degrees
+                        calculated_strafe = _gps_lateral_distance_error
 
                         while calculated_rotation > 180:
                             calculated_rotation-= 360
@@ -287,32 +335,34 @@ class RemoteControl():
                             calculated_rotation+= 180
                             direction = -1
 
-                        _gps_path_angle = calculated_rotation
+                        _gps_path_angle_error = calculated_rotation
+
+                        if abs(_gps_path_angle_error) < _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES:
+                            angle_from_path_okay = True
 
 
                         time_delta = time.time() - self.gps_error_update_time
                         self.gps_error_update_time = time.time()
 
-                        self.gps_path_lateral_error_rate = (_gps_lateral_distance - self.gps_path_lateral_error) / time_delta
-                        self.gps_path_angular_error_rate = (_gps_lateral_distance - self.gps_path_lateral_error) / time_delta
-                        self.gps_path_lateral_error = _gps_lateral_distance
-                        self.gps_path_angular_error = _gps_path_angle
+
+                        self.gps_lateral_error_rate_averaging_list.append((_gps_lateral_distance_error - self.gps_path_lateral_error) / time_delta)
+                        self.gps_angle_error_rate_averaging_list.append((_gps_path_angle_error - self.gps_path_angular_error) / time_delta)
+                        self.gps_path_lateral_error = _gps_lateral_distance_error
+                        self.gps_path_angular_error = _gps_path_angle_error
+
+                        while len(self.gps_lateral_error_rate_averaging_list) > _ERROR_RATE_AVERAGING_COUNT:
+                            self.gps_lateral_error_rate_averaging_list.pop(0)
+
+                        while len(self.gps_angle_error_rate_averaging_list) > _ERROR_RATE_AVERAGING_COUNT:
+                            self.gps_angle_error_rate_averaging_list.pop(0)
+
+                        self.gps_path_lateral_error_rate = sum(self.gps_lateral_error_rate_averaging_list) / len(self.gps_lateral_error_rate_averaging_list)
+                        self.gps_path_angular_error_rate = sum(self.gps_angle_error_rate_averaging_list) / len(self.gps_angle_error_rate_averaging_list)
 
                         self.next_point_heading = calculated_rotation
 
 
                     debug_points = (front, rear, closest_front, closest_rear)
-
-
-                # Check for updated motor status message.
-                if self.motor_socket.poll(_POLL_MILLISECONDS):
-                    motor_message = self.motor_socket.recv_multipart()
-                    try:
-                        self.motor_state = motor_message[0].decode("utf-8")
-                        #print("GOT_MOTOR_MESSAGE: {}".format(self.motor_state))
-                        #print(self.motor_state)
-                    except:
-                        print("Error reading motor state message.")
 
 
                 # Get joystick value
@@ -324,32 +374,84 @@ class RemoteControl():
                     self.activate_autonomy = False
                     self.control_state = CONTROL_OVERRIDE
 
+                strafeD = 0
+                steerD = 0
+                rotation = 0
+                strafe = 0
 
                 # Calculate driving commands for autonomy.
-                if self.next_point_heading != -180 and self.activate_autonomy:
+                if self.next_point_heading != -180 and self.activate_autonomy and calculated_rotation and calculated_strafe:
 
                     direction = direction * self.nav_direction
 
-                    if calculated_rotation and calculated_strafe:
-                        steering_angle = calculated_rotation * 1.2
-                        if steering_angle > 45:
-                            steering_angle = 45
-                        if steering_angle < -45:
-                            steering_angle = -45
-                        autonomy_steer_cmd = steering_angle/45.0 * direction
-                        if calculated_strafe > 1:
-                            autonomy_strafe = 0.5
-                        if calculated_strafe < -1:
-                            autonomy_strafe = -0.5
-                        if math.fabs(calculated_strafe) < 1.0:
-                            autonomy_strafe = calculated_strafe/2.0
-                        autonomy_strafe *= -0.5 * direction * self.nav_direction
+                    # calculated_rotation *= 2.0
+                    # calculated_strafe *= -0.35
+                    # steerD = self.gps_path_angular_error_rate * 0.8
+                    # strafeD = self.gps_path_lateral_error_rate * -0.2
+
+                    calculated_rotation *= 1.5
+                    calculated_strafe *= -0.25
+                    steerD = self.gps_path_angular_error_rate * -0.2
+                    strafeD = self.gps_path_lateral_error_rate * 0.05
+
+                    #print("StrafeP {}, StrafeD {}, SteerP {} SteerD {}".format(calculated_strafe, strafeD, calculated_rotation, steerD))
+
+                    rotation = calculated_rotation
+                    strafe = calculated_strafe
+
+                    calculated_rotation += steerD
+                    calculated_strafe += strafeD
+
+                    _STRAFE_LIMIT = 0.25
+                    _STEER_LIMIT = 45
+
+                    steering_angle = calculated_rotation
+                    if steering_angle > _STEER_LIMIT:
+                        steering_angle = _STEER_LIMIT
+                    if steering_angle < -_STEER_LIMIT:
+                        steering_angle = -_STEER_LIMIT
+                    if calculated_strafe > _STRAFE_LIMIT:
+                        unfiltered_strafe_cmd = _STRAFE_LIMIT
+                    if calculated_strafe < -_STRAFE_LIMIT:
+                        unfiltered_strafe_cmd = -_STRAFE_LIMIT
+                    if math.fabs(calculated_strafe) < _STRAFE_LIMIT:
+                        unfiltered_strafe_cmd = calculated_strafe
+
+
+                    unfiltered_steer_cmd = steering_angle/45.0 * direction
+                    unfiltered_strafe_cmd *= direction * self.nav_direction
+
+                    autonomy_steer_diff = unfiltered_steer_cmd - self.last_autonomy_steer_cmd
+                    autonomy_strafe_diff = unfiltered_strafe_cmd - self.last_autonomy_strafe_cmd
+
+                    #print("diffs: {}, {}".format(autonomy_steer_diff * _LOOP_RATE, autonomy_strafe_diff * _LOOP_RATE))
+
+
+                    steer_rate = 0.4/_LOOP_RATE
+                    strafe_rate = 2.5/_LOOP_RATE
+                    if autonomy_steer_diff > steer_rate:
+                        autonomy_steer_cmd = self.last_autonomy_steer_cmd + steer_rate
+                    elif autonomy_steer_diff < -steer_rate:
+                        autonomy_steer_cmd = self.last_autonomy_steer_cmd - steer_rate
+                    else:
+                        autonomy_steer_cmd = unfiltered_steer_cmd
+
+                    if autonomy_strafe_diff > strafe_rate:
+                        autonomy_strafe_cmd = self.last_autonomy_strafe_cmd + strafe_rate
+                    elif autonomy_strafe_diff < -strafe_rate:
+                        autonomy_strafe_cmd = self.last_autonomy_strafe_cmd - strafe_rate
+                    else:
+                        autonomy_strafe_cmd = unfiltered_strafe_cmd
+
+                    self.last_autonomy_steer_cmd = autonomy_steer_cmd
+                    self.last_autonomy_strafe_cmd = autonomy_strafe_cmd
+
 
                     autonomy_vel_cmd = self.autonomy_velocity * direction # * self.nav_direction
                     joy_steer = 0.0 # ensures that vel goes to zero when autonomy disabled
                     if loop_count % 10 == 0:
                         #print(loop_count)
-                        print("calc rotation: {}, calc strafe: {}, steer: {}, strafe: {}, vel_cmd: {}".format(calculated_rotation, calculated_strafe, steer_cmd, strafe, vel_cmd))
+                        print("calc rotation: {}, calc strafe: {}, steer: {}, strafe: {}, vel_cmd: {}".format(rotation, strafe, steer_cmd, strafe, vel_cmd))
                     #print("Steer: {}, Throttle: {}".format(steer_cmd, vel_cmd))
                 zero_output = False
 
@@ -364,7 +466,7 @@ class RemoteControl():
                     self.control_state = CONTROL_MOTOR_ERROR
                     self.resume_motion_timer = time.time()
 
-                if self.robot_object.voltage < _VOLTAGE_CUTOFF:
+                if self.voltage_average < _VOLTAGE_CUTOFF:
                     error_messages.append("Voltage low so zeroing out autonomy commands.")
                     zero_output = True
                     self.control_state = CONTROL_LOW_VOLTAGE
@@ -380,6 +482,11 @@ class RemoteControl():
                     self.resume_motion_timer = time.time()
                     self.control_state = CONTROL_AUTONOMY_ERROR_DISTANCE
                     error_messages.append("GPS distance too far from path so zeroing out autonomy commands.")
+                elif angle_from_path_okay == False:
+                    zero_output = True
+                    self.resume_motion_timer = time.time()
+                    self.control_state = CONTROL_AUTONOMY_ERROR_ANGLE
+                    error_messages.append("GPS path angle exceeds allowed limit so zeroing out autonomy commands.")
                 elif rtk_age_okay == False:
                     zero_output = True
                     self.resume_motion_timer = time.time()
@@ -415,7 +522,7 @@ class RemoteControl():
                             file1.write(datetime.datetime.now().strftime("%a %b %d, %I:%M:%S %p\r\n"))
                             file1.write("Last Wifi signal strength: {} dbm\r\n".format(self.robot_object.wifi_strength))
                             file1.write("Last Wifi AP associated: {}\r\n".format(self.robot_object.wifi_ap_name))
-                            file1.write("Error location: {}, {}\r\n".format(self.robot_object.location.lat, self.robot_object.location.lon))
+                            file1.write("Error location: {}, {}\r\n".format(self.latest_gps_sample.lat, self.latest_gps_sample.lon))
                             error_count = 1
                             for error in error_messages:
                                 file1.write("Error {}: {}\r\n".format(error_count, error))
@@ -427,7 +534,7 @@ class RemoteControl():
                     self.resume_motion_timer = time.time()
                     self.control_state = CONTROL_ONLINE
 
-                if time.time() - load_path_time < 5 and not zero_output:
+                if time.time() - load_path_time < _PATH_END_PAUSE_SEC and not zero_output:
                     zero_output = True
                     # Don't use the motion timer here as it reactivates alarm.
                     if loop_count % 10 == 0:
@@ -443,8 +550,12 @@ class RemoteControl():
                     self.alarm2.value = False
                     self.alarm3.value = False
 
+
                 # Determine final drive commands.
                 if self.activate_autonomy:
+                    autonomy_time_elapsed = time.time() - load_path_time - _PATH_END_PAUSE_SEC
+                    if autonomy_time_elapsed < _BEGIN_AUTONOMY_SPEED_RAMP_SEC:
+                        autonomy_vel_cmd*= autonomy_time_elapsed/_BEGIN_AUTONOMY_SPEED_RAMP_SEC
                     self.control_mode = CONTROL_AUTONOMY
                     if zero_output:
                         vel_cmd = 0.0
@@ -453,7 +564,7 @@ class RemoteControl():
                     else:
                         vel_cmd = autonomy_vel_cmd
                         steer_cmd = autonomy_steer_cmd
-                        strafe = autonomy_strafe
+                        strafe = autonomy_strafe_cmd
                 else:
                     vel_cmd = joy_throttle
                     steer_cmd = joy_steer
@@ -463,7 +574,7 @@ class RemoteControl():
                         strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
 
 
-                self.master_conn.send((self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate))
+                self.master_conn.send((self.latest_gps_sample,self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate, strafe, rotation, strafeD, steerD, gps_fix, self.voltage_average))
 
                 #print(self.activate_autonomy)
                 period = time.time() - tick_time
@@ -476,12 +587,43 @@ class RemoteControl():
 
                 #print("Final values: Steer {}, Vel {}".format(steer_cmd, vel_cmd))
                 calc = calculate_steering(steer_cmd, vel_cmd, strafe)
+
+                if not self.motor_socket:
+                    print("Connect to motor control socket")
+                    self.connect_to_motors()
+                # else:
+                #     print("socket okay")
+
                 try:
-                    self.motor_socket.send_pyobj(pickle.dumps(calc), flags=zmq.NOBLOCK)
-                except zmq.ZMQError:
-                    pass
-                    #print("Warning: Motor Control pipe full, or other ZMQ error raised.")
-                time.sleep(0.1)
+                    if self.motor_send_okay == True:
+                        # print("send_calc")
+                        self.motor_socket.send_pyobj(pickle.dumps(calc), flags=zmq.NOBLOCK)
+                        self.motor_send_okay = False
+                        self.motor_last_send_time = time.time()
+                    # else:
+                    #     print("NOT OKAY TO SEND")
+                    while self.motor_socket.poll(timeout=_POLL_MILLISECONDS):
+                        motor_message = pickle.loads(self.motor_socket.recv_pyobj())
+                        self.motor_send_okay = True
+                        #print("motor_message: {}".format(motor_message))
+                        try:
+                            self.motor_state = motor_message[0]
+                            self.voltages = motor_message[1]
+                            if len(self.voltages) > 0:
+                                self.voltage_average = sum(self.voltages)/len(self.voltages)
+                            # print(self.voltages)
+                        except:
+                            print("Error reading motor state message.")
+                except zmq.error.Again as e:
+                    print("Remote server unreachable.")
+                except zmq.error.ZMQError as e:
+                    print("ZMQ error with motor command socket. Resetting.")
+                    self.close_motor_socket()
+                if time.time() - self.motor_last_send_time > _ALLOWED_MOTOR_SEND_LAPSE_SEC:
+                    # If this occurrs its worth trying to send again.
+                    self.motor_send_okay = True
+
+                # time.sleep(1.0/_LOOP_RATE)
         except KeyboardInterrupt:
             pass
 

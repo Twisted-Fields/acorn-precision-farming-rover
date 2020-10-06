@@ -101,7 +101,13 @@ def robots_to_json(keys):
         'access_point_name' : robot.wifi_ap_name,
         'wifi_signal' : robot.wifi_strength,
         'gps_distances' : robot.gps_distances,
-        'gps_angles' : robot.gps_angles
+        'gps_angles' : robot.gps_angles,
+        'gps_distance_rates' : robot.gps_path_lateral_error_rates,
+        'gps_angle_rates' : robot.gps_path_angular_error_rates,
+        'strafe' : robot.strafe,
+        'rotation' : robot.rotation,
+        'strafeD' : robot.strafeD,
+        'steerD' : robot.steerD
         # 'front_lat': debug_points[0].lat,
         # 'front_lon': debug_points[0].lat,
         # 'rear_lat': debug_points[1].lat,

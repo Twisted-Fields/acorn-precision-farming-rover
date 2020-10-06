@@ -13,6 +13,10 @@ sys.path.append('../vehicle')
 
 from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY
 
+_ALLOWED_ACTIVITY_LAPSE_SEC = 120
+_SOCKET_RESET_TIMEOUT_MIN = 60
+_SOCKET_RESET_TIMEOUT_SEC = _SOCKET_RESET_TIMEOUT_MIN * 60
+
 
 def tprint(msg):
     """like print, but won't get newlines confused with multiple threads"""
@@ -75,7 +79,13 @@ class ServerWorker(threading.Thread):
             port=6379)
         tprint('Worker started')
         while True:
-            if connection_active and time.time() - self.last_active_time > 10:
+            if (connection_active and time.time() - self.last_active_time >
+                _ALLOWED_ACTIVITY_LAPSE_SEC):
+                print("Lost connection so killing socket.")
+                self.context.destroy()
+                break
+            if time.time() - self.last_active_time > _SOCKET_RESET_TIMEOUT_SEC:
+                print("Hourly socket reset.")
                 self.context.destroy()
                 break
             #print(type(worker))
@@ -89,7 +99,8 @@ class ServerWorker(threading.Thread):
                     _BACKOFF_DELAY = 0.0  # TODO: this was debug code and this delay could be removed.
                     return_command, reply = handle_command(r, ident, command, key, msg, _BACKOFF_DELAY)
                     worker.send_multipart([ident, return_command, reply])
-            except zmq.error.ZMQError:
+            except zmq.error.ZMQError as e:
+                print(e)
                 print("Socket Error. Closing.")
                 break
 

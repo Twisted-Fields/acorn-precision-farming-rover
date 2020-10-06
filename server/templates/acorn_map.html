@@ -71,7 +71,15 @@
           </div>
           <div class="row">
             <div class="col-lg">
-              <div id="plot_div" style="width:100%;height:1500px;"></div>
+              <div id="plot_div_distance" style="width:100%;height:500px;"></div>
+              <div id="plot_div_angles" style="width:100%;height:500px;"></div>
+
+                </div>
+
+                <div class="col-lg">
+
+              <div id="plot_div_distance_rates" style="width:100%;height:500px;"></div>
+              <div id="plot_div_angle_rates" style="width:100%;height:500px;"></div>
 
             </div>
           </div>
@@ -230,6 +238,7 @@
     var path_start = -1;
     var path_end = -1;
     var path_point_to_remove = -1;
+    var have_cleared_autonomy = false
 
     //time between api refreshes
     var INTERVAL = 1000;
@@ -241,6 +250,7 @@
 
     // <------- THIS FUNCTION GETS ROBOT DATA FROM SERVER AND UPDATES MARKERS AT INTERVAL ------->
     function getRobotData() {
+
 
         //request herd data from server API
         fetch('http://' + ipAddress + '/api/get_herd_data')
@@ -261,6 +271,12 @@
                     let date = new Date(JSON.parse(robot.time_stamp));
                     let data_age_sec = (datenow-date)/1000.0
 
+                    if (have_cleared_autonomy == false)
+                    {
+                      have_cleared_autonomy = true
+                      modifyAutonomyHold(`${robot.name}`, false);
+                    }
+
                     if(robot.autonomy_hold)
                     {
 
@@ -272,21 +288,123 @@
 
                     var autonomy_allowed = robot.autonomy_hold?"False":"True"
 
-                    console.log(robot.gps_distances)
+                    console.log(robot.strafeD)
 
-                    var trace1 = {
+                    var distances = {
                         y: robot.gps_distances,
-                        type: 'scatter'
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'Distances m'
                       };
 
-                      var trace2 = {
+                      var angles = {
                           y: robot.gps_angles,
-                          type: 'scatter'
+                          type: 'scatter',
+                          mode: 'lines',
+                          name: 'Angles deg'
                         };
 
-                      var data = [trace1, trace2];
 
-                      Plotly.newPlot('plot_div', data);
+                    var distance_rates = {
+                        y: robot.gps_distance_rates,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'Distance rates'
+                      };
+
+                      var angle_rates = {
+                          y: robot.gps_angle_rates,
+                          type: 'scatter',
+                          mode: 'lines',
+                          name: 'Angle rates'
+                        };
+
+                        var strafeD = {
+                            y: robot.strafeD,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'strafeD'
+                          };
+
+                        var steerD = {
+                            y: robot.steerD,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'steerD'
+                          };
+
+                        var rotation = {
+                            y: robot.rotation,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'rotation'
+                          };
+
+                        var strafe = {
+                            y: robot.strafe,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'strafe'
+                          };
+
+
+                            var layout_lateral = {
+                              title: {
+                                text:'Lateral Error',
+                                font: {
+                                  family: 'Courier New, monospace',
+                                  size: 24
+                                },
+                                xref: 'paper',
+                                x: 0.05,
+                              },
+                            };
+
+
+                            var layout_angle = {
+                              title: {
+                                text:'Angle Error',
+                                font: {
+                                  family: 'Courier New, monospace',
+                                  size: 24
+                                },
+                                xref: 'paper',
+                                x: 0.05,
+                              },
+                            };
+
+
+                            var layout_lateral_rates = {
+                              title: {
+                                text:'Lateral Error Rates',
+                                font: {
+                                  family: 'Courier New, monospace',
+                                  size: 24
+                                },
+                                xref: 'paper',
+                                x: 0.05,
+                              },
+                            };
+
+
+                            var layout_angle_rates = {
+                              title: {
+                                text:'Angular Error Rates',
+                                font: {
+                                  family: 'Courier New, monospace',
+                                  size: 24
+                                },
+                                xref: 'paper',
+                                x: 0.05,
+                              },
+                            };
+
+                    Plotly.newPlot('plot_div_distance_rates', [strafe, strafeD], layout_lateral_rates);
+                    Plotly.newPlot('plot_div_angle_rates', [rotation, steerD], layout_angle_rates);
+
+                    Plotly.newPlot('plot_div_distance', [distances], layout_lateral);
+                    Plotly.newPlot('plot_div_angles', [angles], layout_angle);
+
 
 
                     const markup = `

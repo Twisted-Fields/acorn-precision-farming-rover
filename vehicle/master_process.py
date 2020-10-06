@@ -41,6 +41,12 @@ _GPS_RECORDING_CLEAR = "Clear"
 
 _UPDATE_PERIOD = 2.0
 
+_MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC = 60
+
+_SERVER_CONNECT_TIME_LIMIT_MINUTES = 10
+
+_SEC_IN_ONE_MINUTE = 60
+
 
 class Robot:
     def __init__(self):
@@ -75,6 +81,10 @@ class Robot:
         self.gps_angles = []
         self.gps_path_lateral_error_rates = []
         self.gps_path_angular_error_rates = []
+        self.strafe = []
+        self.rotation = []
+        self.strafeD = []
+        self.steerD = []
 
     def __repr__(self):
         return 'Robot'
@@ -112,7 +122,43 @@ def AppendFIFO(list, value, max_values):
         list.pop(0)
     return list
 
+def connect_server(acorn):
+    failure_count = 0
+    error_backoff = 2
+    start_time = time.time()
+    while True:
+        context = zmq.Context()
+        print("creating socket")
+        remote_server_socket = context.socket(zmq.DEALER)
+        remote_server_socket.identity = bytes(acorn.name, encoding='ascii')
+        remote_server_socket.connect('tcp://{}:5570'.format(acorn.server))
+        try:
+            remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)],flags=zmq.DONTWAIT)
+        except zmq.error.Again as e:
+            print("Remote server unreachable.")
+        timeout_milliseconds = 3000
+        print("Poll socket.")
+        while remote_server_socket.poll(timeout=timeout_milliseconds):
+            print("reading socket.")
+            try:
+                command, msg = remote_server_socket.recv_multipart(flags=zmq.NOBLOCK)
+                return remote_server_socket
+            except Exception as e:
+                print(e)
 
+        # If we did not return, there was some error.
+        print("destroy")
+        context.destroy(linger=0)
+        while not context.closed:
+            time.sleep(0.1)
+            print("waiting for context to be closed")
+        print("destroyed")
+        failure_count += 1
+        time.sleep(error_backoff)
+        error_backoff *= 1.2
+        if time.time() - start_time > _SERVER_CONNECT_TIME_LIMIT_MINUTES * _SEC_IN_ONE_MINUTE:
+            #sys.exit()
+            os.system('sudo reboot')
 
 class MasterProcess():
     def __init__(self):
@@ -127,7 +173,7 @@ class MasterProcess():
         wifi_proc = mp.Process(target=wifi.wifi_process, args=(wifi_child_conn,))
         wifi_proc.start()
 
-        time.sleep(5) # Let wifi settle before moving to ping test
+        time.sleep(20) # Let wifi settle before moving to ping test
 
         while True:
             print("trying to ping server...")
@@ -136,31 +182,14 @@ class MasterProcess():
                 break
             print("Ping failed. Will wait and retry.")
             time.sleep(2)
-        while not connected:
-            context = zmq.Context()
-            print("creating socket")
-            self.remote_server_socket = context.socket(zmq.DEALER)
-            self.remote_server_socket.identity = bytes(acorn.name, encoding='ascii')
-            self.remote_server_socket.connect('tcp://{}:5570'.format(acorn.server))
-            try:
-                self.remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)],flags=zmq.DONTWAIT)
-            except zmq.error.Again as e:
-                print("Remote server unreachable.")
-            timeout_milliseconds = 100
-            print("Poll socket.")
-            while self.remote_server_socket.poll(timeout=timeout_milliseconds):
-                print("reading socket.")
-                command, msg = self.remote_server_socket.recv_multipart()
-                connected = True
-            #print("connection_failed")
-            if not connected:
-                print("destroy")
-                context.destroy(linger=0)
-                print("destroyed")
 
-        gps_parent_conn, gps_child_conn = mp.Pipe()
-        gps_proc = mp.Process(target=rtk_process.start_gps, args=(gps_child_conn,))
-        gps_proc.start()
+        self.remote_server_socket = connect_server(acorn)
+        acorn.last_server_communication_stamp = time.time()
+
+
+        # gps_parent_conn, gps_child_conn = mp.Pipe()
+        # gps_proc = mp.Process(target=rtk_process.start_gps, args=(gps_child_conn,))
+        # gps_proc.start()
 
         remote_control_parent_conn, remote_control_child_conn = mp.Pipe()
         remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(remote_control_child_conn,))
@@ -178,33 +207,28 @@ class MasterProcess():
         gps_count = 0
         while True:
 
-            if gps_parent_conn.poll():
-                while gps_parent_conn.poll():
-                    acorn.location = gps_parent_conn.recv()
-                gps_count += 1
-                if gps_count % 10 == 0:
-                    updated_object = True
-                    if acorn.record_gps_command == _GPS_RECORDING_ACTIVATE:
-                        acorn.gps_path_data.append(acorn.location)
-                        print("APPEND GPS")
-                if acorn.record_gps_command == _GPS_RECORDING_PAUSE:
-                    pass
-                if acorn.record_gps_command == _GPS_RECORDING_CLEAR:
-                    acorn.gps_path_data = []
+            # if gps_parent_conn.poll():
+            #     while gps_parent_conn.poll():
+
 
             #print("MAIN READS AZIMUTH AS {} degrees".format(acorn.location.azimuth_degrees))
             #if updated_object:
 
+            #print("1111")
+
             # Clear read buffer.
             while remote_control_parent_conn.poll():
+                #print("2222")
+                #time.sleep(0.1)
                 remote_control_parent_conn.recv()
+            #print("3333")
             remote_control_parent_conn.send(acorn)
 
             #print("4444")
 
             if voltage_monitor_parent_conn.poll():
                 cell1, cell2, cell3, total = voltage_monitor_parent_conn.recv()
-                acorn.voltage = total
+                #acorn.voltage = total
                 acorn.cell1 = cell1
                 acorn.cell2 = cell2
                 acorn.cell3 = cell3
@@ -217,13 +241,28 @@ class MasterProcess():
             #print("5555")
 
             if remote_control_parent_conn.poll(0.5):
-                acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate = remote_control_parent_conn.recv()
-                acorn.gps_distances = AppendFIFO(acorn.gps_distances, gps_distance, _MAX_GPS_DISTANCES)
-                acorn.gps_angles = AppendFIFO(acorn.gps_angles, gps_angle, _MAX_GPS_DISTANCES)
-                acorn.gps_path_lateral_error_rates = AppendFIFO(acorn.gps_path_lateral_error_rates, gps_lateral_rate, _MAX_GPS_DISTANCES)
-                acorn.gps_path_angular_error_rates = AppendFIFO(acorn.gps_path_angular_error_rates, gps_angular_rate, _MAX_GPS_DISTANCES)
+                acorn.location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafe, rotation, strafeD, steerD, gps_fix, acorn.voltage = remote_control_parent_conn.recv()
+                if gps_fix:
+                    acorn.gps_distances = AppendFIFO(acorn.gps_distances, gps_distance, _MAX_GPS_DISTANCES)
+                    acorn.gps_angles = AppendFIFO(acorn.gps_angles, gps_angle, _MAX_GPS_DISTANCES)
+                    acorn.gps_path_lateral_error_rates = AppendFIFO(acorn.gps_path_lateral_error_rates, gps_lateral_rate, _MAX_GPS_DISTANCES)
+                    acorn.gps_path_angular_error_rates = AppendFIFO(acorn.gps_path_angular_error_rates, gps_angular_rate, _MAX_GPS_DISTANCES)
+                    acorn.strafe = AppendFIFO(acorn.strafe, strafe, _MAX_GPS_DISTANCES)
+                    acorn.rotation = AppendFIFO(acorn.rotation, rotation, _MAX_GPS_DISTANCES)
+                    acorn.strafeD = AppendFIFO(acorn.strafeD, strafeD, _MAX_GPS_DISTANCES)
+                    acorn.steerD = AppendFIFO(acorn.steerD, steerD, _MAX_GPS_DISTANCES)
                 #print(acorn.motor_state)
                 updated_object = True
+                gps_count += 1
+                if gps_count % 10 == 0:
+                    updated_object = True
+                    if acorn.record_gps_command == _GPS_RECORDING_ACTIVATE:
+                        acorn.gps_path_data.append(acorn.location)
+                        print("APPEND GPS")
+                if acorn.record_gps_command == _GPS_RECORDING_PAUSE:
+                    pass
+                if acorn.record_gps_command == _GPS_RECORDING_CLEAR:
+                    acorn.gps_path_data = []
 
 
             #print("6666")
@@ -240,6 +279,7 @@ class MasterProcess():
             #print("$$$$$$")
 
             while self.remote_server_socket.poll(timeout=0):
+                #print("recv_multipart")
                 command, msg = self.remote_server_socket.recv_multipart()
                 #print('Client received command {} with message {}'.format(command, msg))
                 acorn.last_server_communication_stamp = time.time()
@@ -265,9 +305,12 @@ class MasterProcess():
                     acorn.activate_autonomy = robot_command.activate_autonomy
                     acorn.autonomy_velocity = robot_command.autonomy_velocity
                     acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
-                    print("GPS Path: {}, Autonomy Hold: {}, Activate Autonomy: {}, Autonomy Velocity: {}, Clear Autonomy Hold: {}".format(robot_command.record_gps_path, acorn.autonomy_hold, robot_command.activate_autonomy, robot_command.autonomy_velocity, acorn.clear_autonomy_hold ))
+                    #print("GPS Path: {}, Autonomy Hold: {}, Activate Autonomy: {}, Autonomy Velocity: {}, Clear Autonomy Hold: {}".format(robot_command.record_gps_path, acorn.autonomy_hold, robot_command.activate_autonomy, robot_command.autonomy_velocity, acorn.clear_autonomy_hold ))
 
             #print(time.time())
+            if time.time() - acorn.last_server_communication_stamp > _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC:
+                self.remote_server_socket = connect_server(acorn)
+                acorn.last_server_communication_stamp = time.time()
 
 
         self.remote_server_socket.close()

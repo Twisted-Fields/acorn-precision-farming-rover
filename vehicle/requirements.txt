@@ -2,8 +2,10 @@ svgpathtools
 zmq
 odrive
 evdev
-geopy
+geopy==1.22.0
 Adafruit_ADS1x15
 pyyaml
 scipy
 click
+psutil
+netifaces
