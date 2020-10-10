@@ -1,0 +1,16 @@
+
+Set up the raspberry pi:
+
+$ curl -sSL https://get.docker.com | sh
+$ sudo groupadd docker
+$ sudo usermod -aG docker $USER
+
+
+Build docker:
+docker build --tag acornserver:1.0 .
+
+Connect to running container:
+docker exec -it <container name> /bin/sh
+
+Run docker:
+sudo docker run -td --mount type=bind,source="$(pwd)",target=/acorn -p 80:80 -p 5570:5570 -p 6379:6379 -w /acorn/server acornserver:1.0

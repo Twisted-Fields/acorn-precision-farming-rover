@@ -33,6 +33,8 @@ __gps_lateral_distance_error_SCALAR = 100000
 
 _RESUME_MOTION_WARNING_TIME_SEC = 10
 
+_SEC_IN_ONE_MINUTE = 60
+
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 0.5
 _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 10
 _VOLTAGE_CUTOFF = 30
@@ -40,8 +42,9 @@ _VOLTAGE_CUTOFF = 30
 CONTROL_STARTUP = "Initializing..."
 CONTROL_GPS_STARTUP = "Waiting for GPS fix."
 CONTROL_ONLINE = "Online and awaiting commands."
-CONTROL_AUTONOMY = "Autonomy Operating."
-CONTROL_LOW_VOLTAGE = "Low Voltage Pause."
+CONTROL_AUTONOMY = "Autonomy operating."
+CONTROL_AUTONOMY_PAUSE = "Autonomy paused with temporary error."
+CONTROL_LOW_VOLTAGE = "Low voltage Pause."
 CONTROL_AUTONOMY_ERROR_DISTANCE = "Autonomy failed - too far from path."
 CONTROL_AUTONOMY_ERROR_ANGLE = "Autonomy failed - path angle too great."
 CONTROL_AUTONOMY_ERROR_RTK_AGE = "Autonomy failed - rtk base data too old."
@@ -61,7 +64,7 @@ _ALLOWED_SOLUTION_AGE_SEC = 2.0
 
 _ALLOWED_MOTOR_SEND_LAPSE_SEC = 5
 
-SERVER_COMMUNICATION_DELAY_LIMIT_SEC = 5
+SERVER_COMMUNICATION_DELAY_LIMIT_SEC = 10
 
 _BEGIN_AUTONOMY_SPEED_RAMP_SEC = 3.0
 
@@ -70,6 +73,9 @@ _PATH_END_PAUSE_SEC = 5.0
 _SLOW_POLLING_SLEEP_S = 0.5
 
 _POLL_MILLISECONDS = 50
+
+_DISENGAGEMENT_RETRY_DELAY_MINUTES = 3
+_DISENGAGEMENT_RETRY_DELAY_SEC = _DISENGAGEMENT_RETRY_DELAY_MINUTES * _SEC_IN_ONE_MINUTE
 
 
 def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
@@ -202,6 +208,7 @@ class RemoteControl():
         self.last_autonomy_strafe_cmd = 0
         self.solution_age_averaging_list = []
         self.voltage_average = 0
+        self.disengagement_time = 0
 
         rtk_process.launch_rtk_sub_procs()
         rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()
@@ -460,6 +467,9 @@ class RemoteControl():
 
                 error_messages = []
 
+                fatal_error = False
+
+
                 if self.motor_state != _STATE_ENABLED:
                     error_messages.append("Motor error so zeroing out autonomy commands.")
                     zero_output = True
@@ -467,6 +477,7 @@ class RemoteControl():
                     self.resume_motion_timer = time.time()
 
                 if self.voltage_average < _VOLTAGE_CUTOFF:
+                    fatal_error = True
                     error_messages.append("Voltage low so zeroing out autonomy commands.")
                     zero_output = True
                     self.control_state = CONTROL_LOW_VOLTAGE
@@ -509,16 +520,18 @@ class RemoteControl():
                     for error in error_messages:
                         print(error)
 
+
                 if zero_output == True:
-                    if self.activate_autonomy:
-                        print("Deactivating Autonomy.")
+                    if self.activate_autonomy and time.time() - self.disengagement_time > _DISENGAGEMENT_RETRY_DELAY_SEC:
+                        self.disengagement_time = time.time()
+                        print("Disengaging Autonomy.")
                         # Ensure we always print errors if we are deactivating autonomy.
                         if loop_count % 10 != 0:
                             for error in error_messages:
                                 print(error)
                         with open("error_log.txt", 'a+') as file1:
                             file1.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n")
-                            file1.write("Deactivation Log\r\n")
+                            file1.write("Disegagement Log\r\n")
                             file1.write(datetime.datetime.now().strftime("%a %b %d, %I:%M:%S %p\r\n"))
                             file1.write("Last Wifi signal strength: {} dbm\r\n".format(self.robot_object.wifi_strength))
                             file1.write("Last Wifi AP associated: {}\r\n".format(self.robot_object.wifi_ap_name))
@@ -528,8 +541,9 @@ class RemoteControl():
                                 file1.write("Error {}: {}\r\n".format(error_count, error))
                                 error_count += 1
                             file1.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n")
-                    self.autonomy_hold = True
-                    self.activate_autonomy = False
+                        if fatal_error:
+                            self.autonomy_hold = True
+                            self.activate_autonomy = False
                 elif not self.activate_autonomy:
                     self.resume_motion_timer = time.time()
                     self.control_state = CONTROL_ONLINE
@@ -539,6 +553,12 @@ class RemoteControl():
                     # Don't use the motion timer here as it reactivates alarm.
                     if loop_count % 10 == 0:
                         print("Taking a short delay at the end of the path so zeroing out autonomy commands.")
+
+                if time.time() - self.disengagement_time < _DISENGAGEMENT_RETRY_DELAY_SEC:
+                    zero_output = True
+                    self.resume_motion_timer = time.time()
+                    if loop_count % 10 == 0:
+                        print("Disengaged for {} more seconds so zeroing out autonomy commands.".format(_DISENGAGEMENT_RETRY_DELAY_SEC - (time.time() - self.disengagement_time)))
 
                 if self.activate_autonomy == True and zero_output == False and time.time() - self.resume_motion_timer < _RESUME_MOTION_WARNING_TIME_SEC:
                     zero_output = True
@@ -556,8 +576,9 @@ class RemoteControl():
                     autonomy_time_elapsed = time.time() - load_path_time - _PATH_END_PAUSE_SEC
                     if autonomy_time_elapsed < _BEGIN_AUTONOMY_SPEED_RAMP_SEC:
                         autonomy_vel_cmd*= autonomy_time_elapsed/_BEGIN_AUTONOMY_SPEED_RAMP_SEC
-                    self.control_mode = CONTROL_AUTONOMY
+                    self.control_state = CONTROL_AUTONOMY
                     if zero_output:
+                        self.control_state = CONTROL_AUTONOMY_PAUSE
                         vel_cmd = 0.0
                         steer_cmd = 0.0
                         strafe = 0

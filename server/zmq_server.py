@@ -1,5 +1,3 @@
-
-
 import zmq
 import sys
 import threading
@@ -18,6 +16,11 @@ _SOCKET_RESET_TIMEOUT_MIN = 60
 _SOCKET_RESET_TIMEOUT_SEC = _SOCKET_RESET_TIMEOUT_MIN * 60
 
 
+_PORT = 5570
+# _PORT = 5579 # debug
+# _SOCKET_RESET_TIMEOUT_SEC = 5 # debug
+
+
 def tprint(msg):
     """like print, but won't get newlines confused with multiple threads"""
     sys.stdout.write(msg + '\n')
@@ -34,7 +37,7 @@ class ServerTask(threading.Thread):
             try:
                 context = zmq.Context()
                 frontend = context.socket(zmq.ROUTER)
-                frontend.bind('tcp://*:5570')
+                frontend.bind('tcp://*:{}'.format(_PORT))
 
                 backend = context.socket(zmq.DEALER)
                 backend.bind('inproc://backend')
@@ -57,8 +60,11 @@ class ServerTask(threading.Thread):
                 print(e)
                 print("Proxy Crashed. Restarting.")
                 # cleanup if needed
-            frontend.close()
-            backend.close()
+            try:
+                frontend.close()
+                backend.close()
+            except Exception as e:
+                print("Closing sockets raised exception: {}".format(e))
             #context.term()
 
 
@@ -85,7 +91,7 @@ class ServerWorker(threading.Thread):
                 self.context.destroy()
                 break
             if time.time() - self.last_active_time > _SOCKET_RESET_TIMEOUT_SEC:
-                print("Hourly socket reset.")
+                print("NO RECENT ZMQ ACTIVITY SO RESTARTING PROGRAM.")
                 self.context.destroy()
                 break
             #print(type(worker))
@@ -104,6 +110,7 @@ class ServerWorker(threading.Thread):
                 print("Socket Error. Closing.")
                 break
 
+        print("worker close")
         worker.close()
 
 def handle_command(r, ident, command, key, msg, delay):
@@ -152,10 +159,6 @@ def handle_command(r, ident, command, key, msg, delay):
 def get_robot_command_key(robot_key):
 
     return bytes(str(robot_key)[2:-1].replace(":key", ":command:key"), encoding='ascii')
-
-
-
-
 
 #bytes(str(robot_key).replace(":key", ":command:key"), encoding='ascii')
 
