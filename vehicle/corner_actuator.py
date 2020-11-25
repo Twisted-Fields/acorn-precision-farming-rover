@@ -222,6 +222,8 @@ class CornerActuator:
         self.voltage = self.odrv0.vbus_voltage
         gpio_toggle(self.GPIO)
         if self.odrv0.axis0.error or self.odrv0.axis1.error:
+            if "rear_left" in self.name and self.odrv0.axis0.error==False:
+                return
             gpio_toggle(self.GPIO)
             self.dump_errors()
             raise RuntimeError("odrive error state detected.")
@@ -229,6 +231,8 @@ class CornerActuator:
 
     def update_voltage(self):
         self.voltage = self.odrv0.vbus_voltage
+        self.ibus_0 = self.odrv0.axis0.motor.current_control.Ibus
+        self.ibus_1 = self.odrv0.axis1.motor.current_control.Ibus
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
         #print("Update {}".format(self.name))

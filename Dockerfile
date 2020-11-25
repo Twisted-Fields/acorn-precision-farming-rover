@@ -9,7 +9,8 @@ COPY server/requirements.txt /install/server/
 COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/server/requirements.txt
 RUN python3 -m pip install -r /install/vehicle/requirements.txt
-RUN apk add tmux
+RUN apk add tmux vim mercurial
+RUN python3 -m pip install adafruit-circuitpython-mcp230xx
 COPY . /acorn/
 WORKDIR /acorn/server
 ENTRYPOINT ["/bin/sh","autolaunch.sh"]

@@ -1,3 +1,36 @@
 install tmux on acorn setup script
 and i2c-tools
 install wavemon
+
+
+
+
+
+
+
+
+
+
+
+Fatal Python error: GC object already tracked
+
+Thread 0xb12ff460 (most recent call first):
+  File "/usr/lib/python3.7/multiprocessing/reduction.py", line 51 in dumps
+  File "/usr/lib/python3.7/multiprocessing/queues.py", line 236 in _feed
+  File "/usr/lib/python3.7/threading.py", line 865 in run
+  File "/usr/lib/python3.7/threading.py", line 917 in _bootstrap_inner
+  File "/usr/lib/python3.7/threading.py", line 885 in _bootstrap
+
+Current thread 0xb6f2bad0 (most recent call first):
+  File "<string>", line 1 in __new__
+  File "/usr/lib/python3.7/selectors.py", line 238 in register
+  File "/usr/lib/python3.7/selectors.py", line 352 in register
+  File "/usr/lib/python3.7/multiprocessing/connection.py", line 914 in wait
+  File "/usr/lib/python3.7/multiprocessing/connection.py", line 414 in _poll
+  File "/usr/lib/python3.7/multiprocessing/connection.py", line 257 in poll
+  File "/usr/lib/python3.7/multiprocessing/queues.py", line 106 in get
+  File "/usr/lib/python3.7/multiprocessing/queues.py", line 126 in get_nowait
+  File "vehicle/master_process.py", line 260 in run
+  File "vehicle/master_process.py", line 371 in run_master
+  File "vehicle/master_process.py", line 374 in <module>
+Aborted

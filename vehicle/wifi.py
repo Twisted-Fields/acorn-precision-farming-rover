@@ -55,6 +55,7 @@ def wifi_process(master_conn):
         while True:
             linkdata = subprocess.check_output("iw dev wlan1 link", shell=True)
             linkdata = linkdata.splitlines()
+            tempdata = subprocess.check_output("/opt/vc/bin/vcgencmd measure_temp", shell=True)
             try:
                 # Note: My deepest apologies for not using regex here. - TLA
                 signal = str(linkdata[5]).split(':')[1].split(' ')[1]
@@ -63,8 +64,12 @@ def wifi_process(master_conn):
                     station_name = access_points[station_mac]
                 else:
                     station_name = station_mac
+
+                temp = float(str(tempdata).split('=')[1].split('\'')[0])
+                # print("Temp = {} C".format(temp))
+
                 if master_conn:
-                    master_conn.send((signal, station_name))
+                    master_conn.send((signal, station_name, temp))
                 else:
                     print(station_name)
                     print("Wifi RSSI: {} dBm".format(signal))

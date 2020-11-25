@@ -22,6 +22,8 @@ _FAST_POLLING_DELAY_S = 0.05
 RTK_CMD1 = ['/usr/local/bin/rtkrcv','-s','-d','/dev/null','-o','/home/pi/vehicle/twisted.conf']
 RTK_CMD2 = ['/usr/local/bin/rtkrcv','-s','-d','/dev/null','-o','/home/pi/vehicle/twisted2.conf']
 
+#/usr/local/bin/rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted.conf
+
 
 """
 In this file, the RTK programs are launched as subprocesses. When both processes
@@ -32,8 +34,8 @@ pipe given when this code was launched.
 
 
 def digest_data(data):
-    data = str(data.splitlines()[0])
     #print(data)
+    data = str(data.splitlines()[0])
     data = data.split(' ')
     data = [a for a in data if a]
 
@@ -44,8 +46,10 @@ def digest_data(data):
         status = "fix" if data[5] is "1" else "no fix"
         num_sats = data[6]
         base_rtk_age = float(data[13])
+    #    print("Good GPS data recieved: {}".format(data))
         return gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
     else:
+        print("Incorrect GPS data length. Recieved: {}".format(data))
         return None
 
 def run_rtk_system(master_conn):
@@ -60,6 +64,18 @@ def run_rtk_system(master_conn):
             master_conn.send(latest_sample)
 
 
+def run_rtk_system_single():
+    launch_rtk_sub_procs(single=True)
+    tcp_sock1, tcp_sock2 = connect_rtk_procs(single=True)
+    print_gps_counter = 0
+    latest_sample = None
+    while True:
+        latest_sample = single_loop(tcp_sock1, print_gps=(print_gps_counter % 10 == 0), last_sample=latest_sample)
+        print_gps_counter += 1
+        # if master_conn is not None:
+        #     master_conn.send(latest_sample)
+
+
 def kill_rtk_sub_procs():
     for proc in psutil.process_iter():
     # check whether the process name matches
@@ -67,23 +83,23 @@ def kill_rtk_sub_procs():
             print(proc.cmdline())
             proc.kill()
 
-def check_for_rtk_sub_procs():
+def check_for_rtk_sub_procs(single=False):
     match_count = 0
     for proc in psutil.process_iter():
     # check whether the process name matches
         if proc.name() == 'rtkrcv':
         #if proc.cmdline == RTK_CMD1 or proc.cmdline == RTK_CMD2:
             match_count+=1
-    if match_count == 2:
+    if match_count == 2 - single*1:
         print("RTK processes already running so will connect to those.")
         return True
     kill_rtk_sub_procs()
     return False
 
-def launch_rtk_sub_procs():
+def launch_rtk_sub_procs(single=False):
     # Launch rtklib process.
 
-    if check_for_rtk_sub_procs():
+    if check_for_rtk_sub_procs(single):
         return
 
     # This comes from:
@@ -114,15 +130,19 @@ def launch_rtk_sub_procs():
     cwd = "/home/pi/vehicle/"
 
     proc1 = subprocess.Popen(RTK_CMD1, cwd=cwd, stdin=None, stdout=None, stderr=None, close_fds=True, shell=False)
-    proc2 = subprocess.Popen(RTK_CMD2, cwd=cwd, stdin=None, stdout=None, stderr=None, close_fds=True, shell=False)
+    if single== False:
+        proc2 = subprocess.Popen(RTK_CMD2, cwd=cwd, stdin=None, stdout=None, stderr=None, close_fds=True, shell=False)
 
     while True:
         time.sleep(0.001)
 
 
-def connect_rtk_procs():
+def connect_rtk_procs(single=False):
     tcp_sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tcp_sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if single == False:
+        tcp_sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    else:
+        tcp_sock2 = None
 
     connected = False
     attempts = 0
@@ -130,12 +150,15 @@ def connect_rtk_procs():
       try:
         # Connect to socket.
         tcp_sock1.connect((TCP_IP, TCP_PORT1))
-        tcp_sock2.connect((TCP_IP, TCP_PORT2))
+        if single == False:
+            print("SINGLE IS FALSE")
+            tcp_sock2.connect((TCP_IP, TCP_PORT2))
         print('Connected to RTK subprocesses.')
         break
-      except:
+      except Exception as e:
+        print(e)
         time.sleep(0.500)
-        #print('Attempt failed.')
+        print('Attempt failed.')
         attempts += 1
         if attempts > 5:
             raise RuntimeError("Could not connect to rtkrcv TCP socket.")
@@ -143,11 +166,42 @@ def connect_rtk_procs():
     return tcp_sock1, tcp_sock2
 
 
+def single_loop(tcp_sock, print_gps=False, last_sample=None):
+    print_gps_counter = 0
+    while True:
+        data1 = tcp_sock.recv(BUFFER_SIZE)
+        try:
+            if data1:
+                latest_sample = digest_data(data1)
+                if last_sample:
+                    period = latest_sample.time_stamp - last_sample.time_stamp
+                else:
+                    period = None
+                #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
+                if print_gps:
+                    try:
+                        print("Lat: {:.10f}, Lon: {:.10f}, Height M: {:.4f}, Fix: {}, Period: {:.4f}".format(latest_sample.lat, latest_sample.lon, latest_sample.height_m, latest_sample.status, period))
+                    except:
+                        pass
+                return latest_sample
+            else:
+                print("Missing GPS Data")
+                time.sleep(1)
+        except KeyboardInterrupt as e:
+            raise e
+        except Exception as e:
+            print(e)
+        # TODO: Close sockets when needed.
+
+
+
 def rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=False, last_sample=None):
     print_gps_counter = 0
     while True:
         data1 = tcp_sock1.recv(BUFFER_SIZE)
         data2 = tcp_sock2.recv(BUFFER_SIZE)
+        #print(data2)
+        #continue
         try:
             if data1 and data2:
                 data1 = digest_data(data1)
@@ -183,4 +237,5 @@ def start_gps(master_conn):
 
 
 if __name__=="__main__":
-    run_rtk_system(None)
+    run_rtk_system_single()
+    #run_rtk_system(None)

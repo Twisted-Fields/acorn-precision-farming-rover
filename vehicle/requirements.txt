@@ -9,3 +9,5 @@ scipy
 click
 psutil
 netifaces
+RPi.GPIO
+adafruit-blinka

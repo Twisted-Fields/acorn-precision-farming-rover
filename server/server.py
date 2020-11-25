@@ -68,13 +68,15 @@ date_handler = lambda obj: (
 def send_herd_data():
     keys = get_robot_keys()
     robots = robots_to_json(keys)
+    # print(robots)
+    # print(jsonify(robots))
     return jsonify(robots)
 
 def get_robot_keys():
     robot_keys = []
     for key in redis_client.scan_iter():
         if ':robot:' in str(key):
-            if ':command:' not in str(key):
+            if ':command:' not in str(key) and ':energy_segment' not in str(key):
                 robot_keys.append(key)
     return robot_keys
 
@@ -83,10 +85,10 @@ def robots_to_json(keys):
     for key in keys:
         robot = pickle.loads(redis_client.get(key))
         time_stamp = json.dumps(robot.time_stamp, default=date_handler)
-        live_path_data = robot.live_path_data
-        gps_path_data = robot.gps_path_data
-        debug_points = robot.debug_points
-        #print(debug_points)
+        live_path_data = [point._asdict() for point in robot.live_path_data]
+        gps_path_data = [point._asdict() for point in robot.gps_path_data]
+        debug_points = [point._asdict() for point in robot.debug_points]
+        #print(json.dumps(robot.gps_path_data[0]._asdict()))
         robot_entry = { 'name': robot.name, 'lat': robot.location.lat, 'lon':
         robot.location.lon, 'heading': robot.location.azimuth_degrees,
         'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
@@ -117,6 +119,7 @@ def robots_to_json(keys):
         # 'rear_close_lat': debug_points[3].lat,
         # 'rear_close_lon': debug_points[3].lat,
         }
+        #print(robot_entry)
         robots_list.append(robot_entry)
     return robots_list
 

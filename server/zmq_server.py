@@ -5,6 +5,7 @@ import time
 from random import randint, random
 import pickle
 import redis
+import psutil
 
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
@@ -51,9 +52,6 @@ class ServerTask(threading.Thread):
                 worker.start()
                 workers.append(worker)
 
-            # while True:
-            #     print(dir(frontend))
-            #     time.sleep(0.5)
             try:
                 zmq.proxy(frontend, backend)
             except Exception as e:
@@ -61,11 +59,21 @@ class ServerTask(threading.Thread):
                 print("Proxy Crashed. Restarting.")
                 # cleanup if needed
             try:
+                frontend.setsockopt(zmq.LINGER, 0)
+                backend.setsockopt(zmq.LINGER, 0)
                 frontend.close()
                 backend.close()
             except Exception as e:
                 print("Closing sockets raised exception: {}".format(e))
             #context.term()
+
+
+def REALLY_KILL():
+    for proc in psutil.process_iter():
+    # check whether the process name matches
+        if 'zmq_server.py' in proc.cmdline():
+            print(proc.cmdline())
+            proc.kill()
 
 
 class ServerWorker(threading.Thread):
@@ -88,11 +96,9 @@ class ServerWorker(threading.Thread):
             if (connection_active and time.time() - self.last_active_time >
                 _ALLOWED_ACTIVITY_LAPSE_SEC):
                 print("Lost connection so killing socket.")
-                self.context.destroy()
                 break
             if time.time() - self.last_active_time > _SOCKET_RESET_TIMEOUT_SEC:
                 print("NO RECENT ZMQ ACTIVITY SO RESTARTING PROGRAM.")
-                self.context.destroy()
                 break
             #print(type(worker))
             try:
@@ -111,7 +117,11 @@ class ServerWorker(threading.Thread):
                 break
 
         print("worker close")
+        worker.setsockopt(zmq.LINGER, 0)
         worker.close()
+        print("worker closed")
+        REALLY_KILL()
+        #raise zmq.error.ZMQError
 
 def handle_command(r, ident, command, key, msg, delay):
     command_reply = _CMD_ACK
@@ -138,7 +148,10 @@ def handle_command(r, ident, command, key, msg, delay):
         command_reply = _CMD_READ_KEY_REPLY
     elif command == _CMD_UPDATE_ROBOT:
         #tprint(key)
-        r.set(key, msg)
+        robot = pickle.loads(msg)
+        robot = update_robot(r, key, robot)
+        robot_pickle = pickle.dumps(robot)
+        r.set(key, robot_pickle)
         command_key = get_robot_command_key(key)
         # if not command_key:
         #     print("Error. Command key is none. Key was:")
@@ -157,10 +170,21 @@ def handle_command(r, ident, command, key, msg, delay):
     return command_reply, message
 
 def get_robot_command_key(robot_key):
-
     return bytes(str(robot_key)[2:-1].replace(":key", ":command:key"), encoding='ascii')
 
+def get_energy_segment_key(robot_key):
+    return bytes(str(robot_key)[2:-1].replace(":key", ":energy_segment:key"), encoding='ascii')
+
 #bytes(str(robot_key).replace(":key", ":command:key"), encoding='ascii')
+
+
+def update_robot(r, key, robot):
+    if len(robot.energy_segment_list) > 0:
+        key = get_energy_segment_key(key)
+        for segment in robot.energy_segment_list:
+            r.rpush(key, pickle.dumps(segment))
+        robot.energy_segment_list = []
+    return robot
 
 
 def main():

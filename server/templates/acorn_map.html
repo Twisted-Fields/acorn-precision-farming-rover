@@ -288,7 +288,7 @@
 
                     var autonomy_allowed = robot.autonomy_hold?"False":"True"
 
-                    console.log(robot.strafeD)
+                    //console.log(robot.strafeD)
 
                     var distances = {
                         y: robot.gps_distances,
@@ -831,7 +831,7 @@
                         center: new google.maps.LatLng(pathData[i].lat, pathData[i].lon),
                         map: map,
                         //radius: 0.6, // in meters
-                        radius: 0.1, // in meters
+                        radius: 0.3, // in meters
                         fillColor: color,
                         fillOpacity: 0.3,
                         strokeColor: "#FFF",
@@ -849,7 +849,7 @@
 
       function renderPathDebug(pathData) {
                   //check data from server in console
-                  //console.log(pathData);
+                //  console.log(pathData);
                   //reset array of google circles
                   for (let i = 0; i < debugPointMarkers.length; i++) {
                       debugPointMarkers[i].setMap(null);
@@ -884,8 +884,9 @@
       }
 
         function renderPathLive(pathData) {
+                    //return;
                     //check data from server in console
-                    //console.log(pathData);
+                  //  console.log(pathData);
                     //reset array of google circles
                     for (let i = 0; i < livePathMarkers.length; i++) {
                         livePathMarkers[i].setMap(null);
@@ -924,8 +925,10 @@
 
 
     function renderPathGPS(pathData) {
+              //  return;
                 //check data from server in console
-                //console.log(pathData);
+                console.log("PATHDATA")
+                console.log(pathData);
                 //reset array of google circles
                 for (let i = 0; i < gpsPathMarkers.length; i++) {
                     gpsPathMarkers[i].setMap(null);
@@ -946,17 +949,24 @@
                       {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon - offset}
                     ];
 
-                    var marker = new google.maps.Polygon({
-                      paths: triangleCoords,
-                      map: map,
-                      strokeColor: '#FF00FF',
-                      strokeOpacity: 0.0,
-                      strokeWeight: 2,
-                      fillColor: '#FFA500 ',
-                      fillOpacity: 1.0
-                    });
-                    //add each circle to array of google circles
-                    gpsPathMarkers.push(marker);
+                    try {
+                      var marker = new google.maps.Polygon({
+                        paths: triangleCoords,
+                        map: map,
+                        strokeColor: '#FF00FF',
+                        strokeOpacity: 0.0,
+                        strokeWeight: 2,
+                        fillColor: '#FFA500 ',
+                        fillOpacity: 1.0
+                      });
+                      //add each circle to array of google circles
+                      gpsPathMarkers.push(marker);
+                    } catch (error) {
+                    console.error(error);
+                    console.log(pathData[i])
+                    // expected output: ReferenceError: nonExistentFunction is not defined
+                    // Note - error messages will vary depending on browser
+                    }
                 }
 
     }

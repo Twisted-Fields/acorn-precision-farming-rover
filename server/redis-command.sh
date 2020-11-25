@@ -1,2 +1,2 @@
-redis-server stop
-redis-server redis.conf
+#redis-server stop
+sysctl vm.overcommit_memory=1 && redis-server redis.conf

@@ -16,6 +16,7 @@ GpsPoint = namedtuple('GpsPoint', 'lat lon')
 geod = Geodesic.WGS84  # define the WGS84 ellipsoid
 
 def get_distance(point1, point2):
+    """Gets distance in meters."""
     point1 = check_point(point1)
     point2 = check_point(point2)
     return distance((point1.lat, point1.lon), (point2.lat, point2.lon)).m
