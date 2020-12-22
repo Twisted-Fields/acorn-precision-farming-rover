@@ -1,9 +1,9 @@
 {
   "config": {
-    "brake_resistance": 1,
+    "brake_resistance": 2,
     "enable_uart": true,
     "enable_i2c_instead_of_can": false,
-    "enable_ascii_protocol_on_usb": true,
+    "enable_ascii_protocol_on_usb": false,
     "dc_bus_undervoltage_trip_level": 8,
     "dc_bus_overvoltage_trip_level": 59.92000198364258
   },
@@ -22,45 +22,45 @@
     },
     "motor": {
       "config": {
-        "pre_calibrated": false,
+        "pre_calibrated": true,
         "pole_pairs": 7,
         "calibration_current": 10,
-        "resistance_calib_max_voltage": 2,
-        "phase_inductance": 0,
-        "phase_resistance": 0,
-        "direction": 0,
-        "motor_type": 0,
-        "current_lim": 10,
+        "resistance_calib_max_voltage": 4,
+        "phase_inductance": 99999,
+        "phase_resistance": 0.0074179209768772125,
+        "direction": 1,
+        "motor_type": 4,
+        "current_lim": 35,
         "inverter_temp_limit_lower": 100,
         "inverter_temp_limit_upper": 120,
-        "requested_current_range": 60,
-        "current_control_bandwidth": 1000
+        "requested_current_range": 25,
+        "current_control_bandwidth": 100
       }
     },
     "controller": {
       "config": {
         "control_mode": 3,
-        "pos_gain": 1,
-        "vel_gain": 0.0005000000237487257,
-        "vel_integrator_gain": 0.10000000149011612,
+        "pos_gain": -10,
+        "vel_gain": 0.004999999888241291,
+        "vel_integrator_gain": 0.0010000000474974513,
         "vel_limit": 20000,
         "vel_limit_tolerance": 1.2000000476837158,
-        "vel_ramp_rate": 10000,
+        "vel_ramp_rate": 20,
         "setpoints_in_cpr": false
       }
     },
     "encoder": {
       "config": {
         "mode": 0,
-        "use_index": true,
+        "use_index": false,
         "find_idx_on_lockin_only": false,
-        "pre_calibrated": false,
+        "pre_calibrated": true,
         "zero_count_on_find_idx": true,
         "cpr": 2000,
         "offset": 0,
         "offset_float": 0,
         "enable_phase_interpolation": true,
-        "bandwidth": 100,
+        "bandwidth": 1000,
         "calib_range": 0.019999999552965164,
         "calib_scan_distance": 50.26548385620117,
         "calib_scan_omega": 12.566370964050293,
@@ -77,9 +77,9 @@
     },
     "trap_traj": {
       "config": {
-        "vel_limit": 20000,
-        "accel_limit": 5000,
-        "decel_limit": 5000,
+        "vel_limit": 12000,
+        "accel_limit": 3000,
+        "decel_limit": 3000,
         "A_per_css": 0
       }
     }
@@ -100,14 +100,14 @@
     "motor": {
       "config": {
         "pre_calibrated": true,
-        "pole_pairs": 7,
+        "pole_pairs": 8,
         "calibration_current": 10,
-        "resistance_calib_max_voltage": 2,
-        "phase_inductance": 1,
-        "phase_resistance": 2,
+        "resistance_calib_max_voltage": 4,
+        "phase_inductance": 0.00012485090701375157,
+        "phase_resistance": 0.12408474832773209,
         "direction": 1,
-        "motor_type": 3,
-        "current_lim": 30,
+        "motor_type": 0,
+        "current_lim": 90,
         "inverter_temp_limit_lower": 100,
         "inverter_temp_limit_upper": 120,
         "requested_current_range": 60,
@@ -116,11 +116,11 @@
     },
     "controller": {
       "config": {
-        "control_mode": 0,
+        "control_mode": 2,
         "pos_gain": 1,
-        "vel_gain": 0.004999999888241291,
-        "vel_integrator_gain": 0.0010000000474974513,
-        "vel_limit": 20000,
+        "vel_gain": 0.019999999552965164,
+        "vel_integrator_gain": 0.10000000149011612,
+        "vel_limit": 2000,
         "vel_limit_tolerance": 1.2000000476837158,
         "vel_ramp_rate": 10000,
         "setpoints_in_cpr": false
@@ -128,16 +128,16 @@
     },
     "encoder": {
       "config": {
-        "mode": 0,
+        "mode": 1,
         "use_index": false,
         "find_idx_on_lockin_only": false,
         "pre_calibrated": true,
         "zero_count_on_find_idx": true,
-        "cpr": 2000,
-        "offset": 0,
-        "offset_float": 0,
+        "cpr": 48,
+        "offset": 35,
+        "offset_float": 0.509640634059906,
         "enable_phase_interpolation": true,
-        "bandwidth": 1000,
+        "bandwidth": 100,
         "calib_range": 0.019999999552965164,
         "calib_scan_distance": 50.26548385620117,
         "calib_scan_omega": 12.566370964050293,

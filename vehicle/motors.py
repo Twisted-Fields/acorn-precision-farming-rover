@@ -139,6 +139,7 @@ class AcornMotorInterface():
             drive.update_actuator(steering, 0.0)
         for drive in self.odrives:
             if "rear_left" in drive.name:
+                drive.enable_thermistor()
                 continue
             drive.initialize_traction()
         self.motors_initialized = True
@@ -146,8 +147,8 @@ class AcornMotorInterface():
     def check_errors(self):
         for drive in self.odrives:
             try:
-                if "rear_left" in drive.name and drive.odrv0.axis0.error==False:
-                    continue
+                #if "rear_left" in drive.name and drive.odrv0.axis0.error==False:
+                #    continue
                 if drive.odrv0.axis0.error or drive.odrv0.axis1.error:
                     return True
             except fibre.protocol.ChannelBrokenException as e:
@@ -155,14 +156,14 @@ class AcornMotorInterface():
                 raise e
         return False
 
-    def communicate_message(self, state, voltages=None, ibus=None):
+    def communicate_message(self, state, voltages=None, ibus=None, temperatures=None):
         # print("TRYING TO SEND STATE: {}, Voltages {}".format(state, voltages))
         try:
             corner_actuator.gpio_toggle(GPIO)
             while self.command_socket.poll(timeout=20):
                 recv = pickle.loads(self.command_socket.recv_pyobj())
                 corner_actuator.gpio_toggle(GPIO)
-                self.command_socket.send_pyobj(pickle.dumps((state, voltages, ibus)),flags=zmq.DONTWAIT)
+                self.command_socket.send_pyobj(pickle.dumps((state, voltages, ibus, temperatures)),flags=zmq.DONTWAIT)
                 return recv
             # print("no incoming messages")
         except zmq.error.ZMQError as e:
@@ -198,11 +199,22 @@ class AcornMotorInterface():
 
                 voltages = []
                 bus_currents = []
+                temperatures = []
                 for vehicle_corner in self.odrives:
                     corner_actuator.gpio_toggle(GPIO)
                     vehicle_corner.update_voltage()
+                    corner_actuator.gpio_toggle(GPIO)
+                    vehicle_corner.update_thermistor_temperature_C()
                     voltages.append(vehicle_corner.voltage)
                     bus_currents.append(abs(vehicle_corner.ibus_0) + abs(vehicle_corner.ibus_1))
+                    temperatures.append(vehicle_corner.temperature_c)
+
+                # velocities = []
+                # for vehicle_corner in self.odrives:
+                #     velocities.append(vehicle_corner.odrv0.axis1.encoder.vel_estimate)
+                #     corner_actuator.gpio_toggle(GPIO)
+                #
+                # print(velocities)
 
                 if self.check_errors():
                     if motor_error != True:
@@ -217,7 +229,7 @@ class AcornMotorInterface():
                     print("ERROR DETECTED IN ODRIVES.")
                     corner_actuator.toggling_sleep(GPIO, _ERROR_RECOVERY_DELAY_S)
                     #time.sleep(_ERROR_RECOVERY_DELAY_S)
-                    recv = self.communicate_message(_STATE_DISABLED, voltages, bus_currents)
+                    recv = self.communicate_message(_STATE_DISABLED, voltages, bus_currents, temperatures)
                     if recv:
                         print("Got motor command but motors are in error state.")
                         print("Motor command was {}".format(recv))
@@ -229,7 +241,7 @@ class AcornMotorInterface():
                             print("Recovered from e-stop.")
                             motor_error = False
 
-                    calc = self.communicate_message(_STATE_ENABLED, voltages, bus_currents)
+                    calc = self.communicate_message(_STATE_ENABLED, voltages, bus_currents, temperatures)
                     corner_actuator.gpio_toggle(GPIO)
                     if calc:
                         if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
@@ -238,8 +250,19 @@ class AcornMotorInterface():
                         for drive in self.odrives:
                             this_pos, this_vel_cmd = calc[drive.name]
                             this_pos = math.degrees(this_pos)
-                            # if "rear_left" in drive.name:
-                            #     this_vel_cmd *= 1.0
+                            # if "front_right" in drive.name:
+                            #     # this_pos
+                            #     this_vel_cmd = 0
+                            # else:
+                            #     this_pos = 0
+                            #     this_vel_cmd = 0
+
+
+                            if "rear_left" in drive.name:
+                                # this_vel_cmd *= 0.63
+                                this_vel_cmd *= 0.70
+                            #     drive.odrv0.axis1.controller.config.vel_gain = 0 # 0.02
+                            #     drive.odrv0.axis1.controller.config.vel_integrator_gain = 0 # 0.1
                             # else:
                             #     this_vel_cmd = 0
                             # this_pos = 0

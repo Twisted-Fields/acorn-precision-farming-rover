@@ -29,6 +29,7 @@ _FAST_POLLING_SLEEP_S = 0.01
 _SLOW_POLLING_SLEEP_S = 0.5
 _ODRIVE_CONNECT_TIMEOUT = 75
 _MAX_HOMING_ATTEMPTS = 10
+THERMISTOR_ADC_CHANNEL = 4
 
 COMMAND_VALUE_MINIMUM = 0.001
 
@@ -60,6 +61,11 @@ class CornerActuator:
         self.position = 0.0
         self.velocity = 0.0
         self.voltage = 0.0
+        self.has_thermistor = False
+        self.temperature_c = None
+
+    def enable_thermistor(self):
+        self.has_thermistor = True
 
     def idle_wait(self):
         while self.odrv0.axis1.current_state != AXIS_STATE_IDLE:
@@ -270,6 +276,23 @@ class CornerActuator:
         gpio_toggle(self.GPIO)
         self.odrv0.axis0.controller.vel_setpoint = 0
         self.odrv0.axis1.controller.vel_setpoint = 0
+
+    def update_thermistor_temperature_C(self, adc_channel=THERMISTOR_ADC_CHANNEL):
+        if not self.has_thermistor:
+            return
+        try:
+            value = self.odrv0.get_adc_voltage(adc_channel)
+            resistance = 10000 / (3.3/value)
+            self.temperature_c = self.thermistor_steinhart_temperature_C(resistance)
+        except ZeroDivisionError:
+            pass
+
+    def thermistor_steinhart_temperature_C(self, r, Ro=10000.0, To=25.0, beta=3900.0):
+        """ Via: https://learn.adafruit.com/thermistor/circuitpython """
+        steinhart = math.log(r / Ro) / beta      # log(R/Ro) / beta
+        steinhart += 1.0 / (To + 273.15)         # log(R/Ro) / beta + 1/To
+        steinhart = (1.0 / steinhart) - 273.15   # Invert, convert to C
+        return steinhart
 
     def dump_errors(self, clear=False):
         """A copy of dump_errors from odrive utils.py but with estop toggle added."""

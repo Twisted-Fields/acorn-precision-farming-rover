@@ -37,7 +37,10 @@ for key in r.scan_iter():
     #print(key)
     if 'energy_segment' in str(key):
         orig_x = []
-        orig_y = []
+        orig_y1 = []
+        orig_y2 = []
+        orig_y3 = []
+        orig_y4 = []
         orig_z = []
         colors = []
         min_colorval = 9999999
@@ -49,51 +52,50 @@ for key in r.scan_iter():
         colorby = ""
         watt_seconds = False
         now = time.time()
-        for idx in range(list_length-2000, list_length):
+        power_vals = [[],[],[],[]]
+        for idx in range(7000, list_length):
             segment = pickle.loads(r.lindex(key, idx))
-            print((segment.per_motor_watt_average))
+            # print((segment.per_motor_watt_average))
             #print("sequence, {}, watt_seconds_per_meter, {}, meters_per_second, {}".format(segment.sequence_num, segment.watt_seconds_per_meter, segment.meters_per_second))
             # orig_x.append(segment.start_gps.lat)
             # orig_y.append(segment.start_gps.lon)
             # print(segment.start_gps.lat, segment.start_gps.lon)
             if segment.height_change > -0.15 and segment.watt_seconds_per_meter < 1000 and segment.meters_per_second < 2:
                 this_stamp = segment.start_gps.time_stamp
-                if now - this_stamp > 3000:
+                if now - this_stamp > 1000:
                     print(idx)
                     continue
-
-                # age = this_stamp - first_stamp
-                # if age > 4000:
-                #     continue
-                #
-                if watt_seconds:
-                    orig_y.append(segment.watt_seconds_per_meter)
-                else:
-                    orig_y.append(segment.avg_watts)
 
                 try:
                     print(segment.per_motor_watt_average)
                 except:
                     continue
+
+                for idx in range(4):
+                    power_vals[idx].append(segment.per_motor_watt_average[idx])
+
+                if len(power_vals[0])<10:
+                    continue
+                else:
+                    orig_y1.append(sum(power_vals[0])/len(power_vals[0]))
+                    orig_y2.append(sum(power_vals[1])/len(power_vals[1]))
+                    orig_y3.append(sum(power_vals[2])/len(power_vals[2]))
+                    orig_y4.append(sum(power_vals[3])/len(power_vals[3]))
+                    power_vals = [[],[],[],[]]
+
+                # orig_y1.append(segment.per_motor_watt_average[0])
+                # orig_y2.append(segment.per_motor_watt_average[1])
+                # orig_y3.append(segment.per_motor_watt_average[2])
+                # orig_y4.append(segment.per_motor_watt_average[3])
+
                 #orig_x.append(segment.meters_per_second)
                 orig_x.append(segment.height_change)
                 orig_z.append(segment.meters_per_second)
-                if colorby == "age":
-                    age = this_stamp - first_stamp
-                    colors.append(age)
-                    #print(age)
-                    if age < min_colorval:
-                        min_colorval = age
-                    if age > max_colorval:
-                        max_colorval = age
-                else:
-                #    print("asiokuhsdflikhj")
-                    colors.append(segment.meters_per_second)
-                    if segment.meters_per_second < min_colorval:
-                        min_colorval = segment.meters_per_second
-                    if segment.meters_per_second > max_colorval:
-                        max_colorval = segment.meters_per_second
-            #    print(segment.start_gps.lat, segment.start_gps.lon)
+                colors.append(segment.meters_per_second)
+                if segment.meters_per_second < min_colorval:
+                    min_colorval = segment.meters_per_second
+                if segment.meters_per_second > max_colorval:
+                    max_colorval = segment.meters_per_second
 
 
         print("min_colorval {}, max_colorval {}".format(min_colorval, max_colorval))
@@ -111,11 +113,15 @@ for key in r.scan_iter():
         if watt_seconds:
             ax.set_ylabel('watt seconds per meter')
         else:
-            ax.set_ylabel('average watts over one meter')
-        ax.set_xlabel('height change (m)')
+            ax.set_ylabel('average watts over one meter per motor')
+        # ax.set_xlabel('height change (m)')
 
         #ax.scatter(orig_x, orig_y, orig_z, c = colors)
-        ax.scatter(orig_x, orig_y, c = colors)
+        #ax.scatter(orig_x, orig_y1, c = colors)
+        ax.plot(orig_y1)
+        ax.plot(orig_y2)
+        ax.plot(orig_y3)
+        ax.plot(orig_y4)
         plt.show()
 
 

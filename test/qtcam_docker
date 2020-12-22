@@ -1,0 +1,7 @@
+# qtcam_dockerfile
+#FROM ubuntu:18.04
+FROM nvidia/opengl:base-ubuntu18.04
+
+RUN apt update && apt install software-properties-common -y
+RUN apt-add-repository ppa:qtcam/bionic && apt update && apt install qtcam -y
+RUN apt install v4l-utils libgusb-dev mesa-utils -y

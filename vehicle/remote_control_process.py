@@ -31,13 +31,13 @@ ACCELERATION_COUNTS_SEC = 0.5
 
 __gps_lateral_distance_error_SCALAR = 100000
 
-_RESUME_MOTION_WARNING_TIME_SEC = 10
-_RESUME_MOTION_WARNING_TIME_SEC = -1
+_RESUME_MOTION_WARNING_TIME_SEC = 4
+#_RESUME_MOTION_WARNING_TIME_SEC = -1
 
 _SEC_IN_ONE_MINUTE = 60
 
-_MAXIMUM_ALLOWED_DISTANCE_METERS = 2.5
-_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 30
+_MAXIMUM_ALLOWED_DISTANCE_METERS = 1.5
+_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 20
 _VOLTAGE_CUTOFF = 30
 
 CONTROL_STARTUP = "Initializing..."
@@ -53,6 +53,10 @@ CONTROL_AUTONOMY_ERROR_SOLUTION_AGE = "Autonomy failed - gps solution too old."
 CONTROL_OVERRIDE = "Remote control override."
 CONTROL_SERVER_ERROR = "Server communication error."
 CONTROL_MOTOR_ERROR = "Motor error detected."
+
+
+AUTONOMY_AT_STARTUP = True
+
 
 GPS_PRINT_INTERVAL = 40
 
@@ -239,6 +243,11 @@ class RemoteControl():
         self.voltages = []
         self.bus_currents = []
         self.last_energy_segment = None
+        self.temperatures = []
+
+        if AUTONOMY_AT_STARTUP:
+            self.autonomy_hold = False
+            self.activate_autonomy = True
 
         rtk_process.launch_rtk_sub_procs()
         rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()
@@ -575,7 +584,7 @@ class RemoteControl():
                             file1.write(datetime.datetime.now().strftime("%a %b %d, %I:%M:%S %p\r\n"))
                             file1.write("Last Wifi signal strength: {} dbm\r\n".format(self.robot_object.wifi_strength))
                             file1.write("Last Wifi AP associated: {}\r\n".format(self.robot_object.wifi_ap_name))
-                            file1.write("Last CPU Temp: {}\r\n".format(self.robot_object.temperature_c))
+                            file1.write("Last CPU Temp: {}\r\n".format(self.robot_object.cpu_temperature_c))
                             file1.write("Error location: {}, {}\r\n".format(self.latest_gps_sample.lat, self.latest_gps_sample.lon))
                             error_count = 1
                             for error in error_messages:
@@ -639,7 +648,7 @@ class RemoteControl():
                         strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
 
 
-                send_data = (self.latest_gps_sample,self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate, strafe, rotation, strafeD, steerD, gps_fix, self.voltage_average, self.last_energy_segment)
+                send_data = (self.latest_gps_sample,self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate, strafe, rotation, strafeD, steerD, gps_fix, self.voltage_average, self.last_energy_segment, self.temperatures)
                 self.master_conn.send_pyobj(pickle.dumps(send_data))
                 period = time.time() - tick_time
                 self.last_energy_segment = None
@@ -676,6 +685,7 @@ class RemoteControl():
                             self.motor_state = motor_message[0]
                             self.voltages = motor_message[1]
                             self.bus_currents = motor_message[2]
+                            self.temperatures = motor_message[3]
                             self.total_watts = 0
                             if len(self.voltages) > 0:
                                 self.voltage_average = sum(self.voltages)/len(self.voltages)
@@ -712,14 +722,20 @@ class RemoteControl():
                         for sample_num in range(1, len(self.power_consumption_list)):
                             sample1 = self.power_consumption_list[sample_num - 1]
                             sample2 = self.power_consumption_list[sample_num]
+                            if sample1 == None or sample2 == None:
+                                continue
                             sample_distance = gps_tools.get_distance(sample1[0], sample2[0])
                             sample_duration = sample2[0].time_stamp - sample1[0].time_stamp
                             sample_avg_watts = (sample1[1] + sample2[1])/2.0
                             #print(sample1[2])
-                            print(sample1[3])
-                            for idx in range(len(sample1[2])):
-                                motor_watt_average[idx] = (sample1[2][idx] * sample1[3][idx] + sample2[2][idx] * sample2[3][idx]) * 0.5
-                                motor_total_watt_seconds[idx] = motor_watt_average[idx] * sample_duration
+                            try:
+                                for idx in range(len(sample1[2])):
+                                    motor_watt_average[idx] = (sample1[2][idx] * sample1[3][idx] + sample2[2][idx] * sample2[3][idx]) * 0.5
+                                    motor_total_watt_seconds[idx] = motor_watt_average[idx] * sample_duration
+                            except Exception as e:
+                                print(e)
+                                print(sample1[2])
+                                print(sample1[3])
                             watt_average += sample2[1]
                             watt_seconds = sample_avg_watts * sample_duration
                             total_watt_seconds += watt_seconds
