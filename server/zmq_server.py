@@ -108,8 +108,7 @@ class ServerWorker(threading.Thread):
                     self.last_active_time = time.time()
                     # msg = pickle.loads(msg)
                     tprint('Command: {} {} from {}'.format(command, key, ident))
-                    _BACKOFF_DELAY = 0.0  # TODO: this was debug code and this delay could be removed.
-                    return_command, reply = handle_command(r, ident, command, key, msg, _BACKOFF_DELAY)
+                    return_command, reply = handle_command(r, command, key, msg)
                     worker.send_multipart([ident, return_command, reply])
             except zmq.error.ZMQError as e:
                 print(e)
@@ -123,7 +122,7 @@ class ServerWorker(threading.Thread):
         REALLY_KILL()
         #raise zmq.error.ZMQError
 
-def handle_command(r, ident, command, key, msg, delay):
+def handle_command(r, command, key, msg):
     command_reply = _CMD_ACK
     if command == _CMD_WRITE_KEY:
         #tprint(key)

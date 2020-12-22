@@ -25,7 +25,7 @@ client.connect(SERVER_ENDPOINT)
 for sequence in itertools.count():
     request = str(sequence).encode()
     logging.info("Sending (%s)", request)
-    client.send(request)
+    client.send_multipart([request])
 
     retries_left = REQUEST_RETRIES
     while True:
@@ -52,4 +52,4 @@ for sequence in itertools.count():
         client = context.socket(zmq.REQ)
         client.connect(SERVER_ENDPOINT)
         logging.info("Resending (%s)", request)
-        client.send(request)
+        client.send_multipart([request])
