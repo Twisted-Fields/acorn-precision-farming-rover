@@ -137,13 +137,13 @@ $(document).ready(function(){
                       modifyAutonomyHold(`${robot.name}`, false);
                     }
 
-                    if(robot.autonomy_hold)
-                    {
-
-                      let speed = 0.0;
-                      let active = false;
-                      updateVehicleAutonomy(`${robot.name}`, speed, active);
-                    }
+                    // if(robot.autonomy_hold)
+                    // {
+                    //
+                    //   let speed = 0.0;
+                    //   let active = false;
+                    //   updateVehicleAutonomy(`${robot.name}`, speed, active);
+                    // }
                     //console.log(robot.autonomy_hold)
 
                     var autonomy_allowed = robot.autonomy_hold?"False":"True"
@@ -227,15 +227,15 @@ $(document).ready(function(){
                           $(`#${robot.name}-activate-button`).addClass('btn-success')
                           $(`#${robot.name}-activate-button`).removeClass('disabled')
                         }
-                        // if(robot.activate_autonomy)
-                        // {
-                        //     console.log("Deactivate");
-                        //   $(`#${robot.name}-activate-button`).html("Deactivate Autonomy")
-                        // } else
-                        // {
-                        //     console.log("Activate");
-                        //   $(`#${robot.name}-activate-button`).html("Activate Autonomy")
-                        // }
+                        if(robot.activate_autonomy)
+                        {
+                          if ($(`#${robot.name}-activate-button`).html() === "Activate Autonomy")
+                          {
+                            $(`#${robot.name}-activate-button`).removeClass('btn-success')
+                            $(`#${robot.name}-activate-button`).addClass('btn-danger')
+                            $(`#${robot.name}-activate-button`).html("Deactivate Autonomy")
+                          }
+                        }
 
                     } else
                     {

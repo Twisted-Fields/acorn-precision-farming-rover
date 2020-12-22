@@ -29,8 +29,6 @@ COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
 
 ACCELERATION_COUNTS_SEC = 0.5
 
-__gps_lateral_distance_error_SCALAR = 100000
-
 _RESUME_MOTION_WARNING_TIME_SEC = 4
 #_RESUME_MOTION_WARNING_TIME_SEC = -1
 
@@ -53,10 +51,6 @@ CONTROL_AUTONOMY_ERROR_SOLUTION_AGE = "Autonomy failed - gps solution too old."
 CONTROL_OVERRIDE = "Remote control override."
 CONTROL_SERVER_ERROR = "Server communication error."
 CONTROL_MOTOR_ERROR = "Motor error detected."
-
-
-AUTONOMY_AT_STARTUP = True
-
 
 GPS_PRINT_INTERVAL = 40
 
@@ -244,10 +238,7 @@ class RemoteControl():
         self.bus_currents = []
         self.last_energy_segment = None
         self.temperatures = []
-
-        if AUTONOMY_AT_STARTUP:
-            self.autonomy_hold = False
-            self.activate_autonomy = True
+        autonomy_vel_cmd = 0
 
         rtk_process.launch_rtk_sub_procs()
         rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()

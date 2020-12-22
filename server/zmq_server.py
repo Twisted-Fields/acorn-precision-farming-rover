@@ -10,7 +10,7 @@ import psutil
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
 
-from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY
+from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY, AUTONOMY_SPEED
 
 _ALLOWED_ACTIVITY_LAPSE_SEC = 120
 _SOCKET_RESET_TIMEOUT_MIN = 60
@@ -149,12 +149,29 @@ def handle_command(r, command, key, msg):
         #tprint(key)
         robot = pickle.loads(msg)
         robot = update_robot(r, key, robot)
-        robot_pickle = pickle.dumps(robot)
-        r.set(key, robot_pickle)
+
         command_key = get_robot_command_key(key)
         # if not command_key:
         #     print("Error. Command key is none. Key was:")
         command_object = pickle.loads(r.get(command_key))
+
+        # If the object changed definition we need to create a new one.
+        if len(dir(RobotCommand()))!=len(dir(command_object)):
+            command_object = RobotCommand()
+
+        if robot.autonomy_hold == True:
+            command_object.activate_autonomy = False
+            command_object.autonomy_velocity = float(0.0)
+            r.set(command_key, pickle.dumps(command_object))
+
+        if robot.request_autonomy_at_startup == True:
+            command_object.clear_autonomy_hold = True
+            command_object.activate_autonomy = True
+            command_object.autonomy_velocity = float(AUTONOMY_SPEED)
+            r.set(command_key, pickle.dumps(command_object))
+
+        robot_pickle = pickle.dumps(robot)
+        r.set(key, robot_pickle)
         #print(dir(command_object))
         #print(command_key)
         #message = bytes("ok", encoding='ascii')
@@ -183,6 +200,8 @@ def update_robot(r, key, robot):
         for segment in robot.energy_segment_list:
             r.rpush(key, pickle.dumps(segment))
         robot.energy_segment_list = []
+
+
     return robot
 
 

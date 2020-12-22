@@ -68,5 +68,5 @@ def AcornServerComms(acorn_pipe, server_endpoint):
             # Create new connection
             client = context.socket(zmq.REQ)
             client.connect(server_endpoint)
-            logging.info("Resending (%s)", request)
+            logging.info("Resending (%s)", seq_string)
             client.send_multipart(request)

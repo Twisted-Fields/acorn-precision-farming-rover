@@ -53,6 +53,9 @@ _SERVER_CONNECT_TIME_LIMIT_MINUTES = 10
 
 _SEC_IN_ONE_MINUTE = 60
 
+AUTONOMY_AT_STARTUP = True
+AUTONOMY_SPEED = 0.2
+
 
 def kill_master_procs():
     for proc in psutil.process_iter():
@@ -104,6 +107,7 @@ class Robot:
         self.cpu_temperature_c = 0.0
         self.energy_segment_list = []
         self.motor_temperatures = []
+        self.request_autonomy_at_startup = AUTONOMY_AT_STARTUP
 
     def __repr__(self):
         return 'Robot'
@@ -132,7 +136,6 @@ class RobotCommand:
         self.clear_autonomy_hold = False
         self.autonomy_velocity = 0
         self.record_gps_path = _GPS_RECORDING_CLEAR
-
 
 
 def AppendFIFO(list, value, max_values):
@@ -333,6 +336,8 @@ class MasterProcess():
                     acorn.activate_autonomy = robot_command.activate_autonomy
                     acorn.autonomy_velocity = robot_command.autonomy_velocity
                     acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
+                    if acorn.clear_autonomy_hold == True:
+                        acorn.request_autonomy_at_startup = False
                     print("GPS Path: {}, Autonomy Hold: {}, Activate Autonomy: {}, Autonomy Velocity: {}, Clear Autonomy Hold: {}".format(robot_command.record_gps_path, acorn.autonomy_hold, robot_command.activate_autonomy, robot_command.autonomy_velocity, acorn.clear_autonomy_hold ))
 
             #print(time.time())
