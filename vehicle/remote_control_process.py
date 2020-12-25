@@ -18,6 +18,7 @@ import datetime
 from motors import _STATE_ENABLED
 import rtk_process
 
+
 # This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
     import board
@@ -37,6 +38,8 @@ _SEC_IN_ONE_MINUTE = 60
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 1.5
 _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 20
 _VOLTAGE_CUTOFF = 30
+
+_GPS_ERROR_RETRIES = 3
 
 CONTROL_STARTUP = "Initializing..."
 CONTROL_GPS_STARTUP = "Waiting for GPS fix."
@@ -200,7 +203,7 @@ class RemoteControl():
                 self.joy = dev
                 return
 
-    def run_loop(self):
+    def run_loop(self, autonomy_at_startup):
         joy_steer = 0
         joy_throttle = 0
         joy_strafe = 0
@@ -212,7 +215,7 @@ class RemoteControl():
         load_path_time = time.time()
         auto_throttle = 0
         self.loaded_path_name = ""
-        self.autonomy_hold = True
+        self.autonomy_hold = autonomy_at_startup==False
         self.nav_path_next_point_index = 0
         self.nav_spline = None
         self.control_state = CONTROL_STARTUP
@@ -228,7 +231,7 @@ class RemoteControl():
         self.last_autonomy_strafe_cmd = 0
         self.solution_age_averaging_list = []
         self.voltage_average = 0
-        self.disengagement_time = 0
+        self.disengagement_time = time.time()
 
         self.power_consumption_list = []
         self.avg_watts_per_meter = 0
@@ -242,15 +245,32 @@ class RemoteControl():
 
         rtk_process.launch_rtk_sub_procs()
         rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()
+        allowed_rtk_errors = 60
+        rtk_error_count = 0
         print_gps_counter = 0
         self.latest_gps_sample = None
+        self.last_good_gps_sample = None
         try:
             loop_count = -1
             while True:
                 loop_count += 1
                 #print("rtk_loop_once_start")
-                self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample)
+                for _ in range(_GPS_ERROR_RETRIES):
+                    self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample)
+                    if self.latest_gps_sample is not None:
+                        break
+                # print(type(self.latest_gps_sample))
+                if self.latest_gps_sample is not None:
+                    self.last_good_gps_sample = self.latest_gps_sample
+                    if rtk_error_count > 0:
+                        rtk_error_count-=1
+                else:
+                    rtk_error_count += 1
+                    if rtk_error_count > allowed_rtk_errors:
+                        pass
+                        #rtk_socket1, rtk_socket2 = rtk_process.reset_and_reconnect_rtk(rtk_socket1, rtk_socket2)
                 #print("rtk_loop_once_completed")
+
 
                 try:
                     recieved_robot_object = pickle.loads(self.master_conn.recv_pyobj())
@@ -258,11 +278,10 @@ class RemoteControl():
                     print(e)
                     recieved_robot_object = None
                 if recieved_robot_object:
-
                     if str(type(recieved_robot_object))=="<class '__main__.Robot'>":
                         self.robot_object = recieved_robot_object
                         if len(self.nav_path) == 0 or self.loaded_path_name != self.robot_object.loaded_path_name:
-                            if len(self.robot_object.loaded_path) > 0:
+                            if len(self.robot_object.loaded_path) > 0  and self.latest_gps_sample is not None:
                                 #print(self.robot_object.loaded_path)
                                 self.nav_spline = spline_lib.GpsSpline(self.robot_object.loaded_path, smooth_factor=10, num_points=1000)
                                 self.nav_path = self.nav_spline.points
@@ -306,7 +325,7 @@ class RemoteControl():
                 solution_age_okay = False
                 _gps_lateral_distance_error = 0
                 _gps_path_angle_error = 0
-                if self.robot_object:
+                if self.robot_object and self.latest_gps_sample is not None:
                     front = gps_tools.project_point(self.latest_gps_sample, self.latest_gps_sample.azimuth_degrees, 1.0)
                     rear = gps_tools.project_point(self.latest_gps_sample, self.latest_gps_sample.azimuth_degrees, -1.0)
                     #print("GPS DEBUG: FIX reads... : {}".format(self.latest_gps_sample.status))
@@ -505,10 +524,12 @@ class RemoteControl():
 
                 # In the following list the order for when we set control state matters
 
+
+                # Begin Safety Checks
+
                 error_messages = []
 
                 fatal_error = False
-
 
                 if self.motor_state != _STATE_ENABLED:
                     error_messages.append("Motor error so zeroing out autonomy commands.")
@@ -576,7 +597,10 @@ class RemoteControl():
                             file1.write("Last Wifi signal strength: {} dbm\r\n".format(self.robot_object.wifi_strength))
                             file1.write("Last Wifi AP associated: {}\r\n".format(self.robot_object.wifi_ap_name))
                             file1.write("Last CPU Temp: {}\r\n".format(self.robot_object.cpu_temperature_c))
-                            file1.write("Error location: {}, {}\r\n".format(self.latest_gps_sample.lat, self.latest_gps_sample.lon))
+                            if self.last_good_gps_sample is not None:
+                                file1.write("Last known GPS location: {}, {}\r\n".format(self.last_good_gps_sample.lat, self.last_good_gps_sample.lon))
+                            else:
+                                file1.write("No valid GPS location recorded.")
                             error_count = 1
                             for error in error_messages:
                                 file1.write("Error {}: {}\r\n".format(error_count, error))
@@ -589,9 +613,17 @@ class RemoteControl():
                     self.resume_motion_timer = time.time()
                     self.control_state = CONTROL_ONLINE
 
+                if self.robot_object.wifi_ap_name == 'Farmhouse Exterior HP':
+                    if self.robot_object.loaded_path_name == 'new_big_field_row':
+                        if self.activate_autonomy:
+                            print("WARNING BAD ACCESS POINT DETECTED!")
+                            print("SIGNAL STRENGTH --  {}".format(self.robot_object.wifi_strength))
+
+
 
                 #print("late robot calc")
 
+                # Activate a brief pause at the end of a track.
                 if time.time() - load_path_time < _PATH_END_PAUSE_SEC and not zero_output:
                     zero_output = True
                     # Don't use the motion timer here as it reactivates alarm.
@@ -639,13 +671,14 @@ class RemoteControl():
                         strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
 
 
+                # Update master on latest calculations.
                 send_data = (self.latest_gps_sample,self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate, strafe, rotation, strafeD, steerD, gps_fix, self.voltage_average, self.last_energy_segment, self.temperatures)
                 self.master_conn.send_pyobj(pickle.dumps(send_data))
                 period = time.time() - tick_time
                 self.last_energy_segment = None
 
 
-                # Perform acceleration on vel_cmd value
+                # Perform acceleration on vel_cmd value.
                 vel_cmd = get_profiled_velocity(last_vel_cmd, vel_cmd, period)
                 last_vel_cmd = vel_cmd
                 tick_time = time.time()
@@ -656,9 +689,8 @@ class RemoteControl():
                 if not self.motor_socket:
                     print("Connect to motor control socket")
                     self.connect_to_motors()
-                # else:
-                #     print("socket okay")
 
+                # Try to send final drive commands to motor process.
                 try:
                     if self.motor_send_okay == True:
                         #print("send_calc")
@@ -732,8 +764,6 @@ class RemoteControl():
                             total_watt_seconds += watt_seconds
                             distance_sum += sample_distance
 
-
-
                             last_sample_gps = sample2[0]
 
 
@@ -747,16 +777,15 @@ class RemoteControl():
                         self.power_consumption_list = []
                         print("                                                                                                                                                                                       Avg watts {}, watt seconds per meter: {}, meters per second: {}, height change {}".format(self.last_energy_segment.avg_watts, self.last_energy_segment.watt_seconds_per_meter, self.last_energy_segment.meters_per_second, self.last_energy_segment.height_change))
 
-                # time.sleep(1.0/_LOOP_RATE)
         except KeyboardInterrupt:
             pass
 
 
 
-def run_control():
+def run_control(autonomy_at_startup=False):
     remote_control = RemoteControl()
     remote_control.run_setup()
-    remote_control.run_loop()
+    remote_control.run_loop(autonomy_at_startup)
 
 
 if __name__=="__main__":

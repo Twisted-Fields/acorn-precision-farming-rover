@@ -1,130 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-            <title>Acorn vehicle interface.</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCEV65aCQx0FJT96MWsYGVZWAIf3vry-qI&callback=initMap">  </script>
-
-    </head>
-    <body>
-      <br>
-      <div class="container-fluid">
-        <div class="row">
-          <div id="robot_detail_mobile" class="col-lg">
-
-          </div>
-        </div>
-      </div>
-      <div id="full_map_view" class="container-fluid">
-
-        <div class="row">
-            <div class="col-sm">
-              <h1>Acorn control</h1>
-            </div>
-            <div class="col-sm">
-
-                <div class="input-group" id=dropdown-container>
-                <button type="button" class="btn btn-danger mr-1" id="btn-delete" data-toggle="modal" data-target="#deleteModal">Delete Path</button>
-                <button class="btn btn-secondary dropdown-toggle mr-1" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  Select a path
-                </button>
-                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" id=dropdown-menu>
-                </div>
-
-              <button type="button" class="btn btn-primary mr-1" id="save-as">Save as</button>
-
-            <input type="text" class="form-control mr-1" placeholder="Path name" id=path-name aria-label="Path name" aria-describedby="basic-addon2" autocomplete='off'>
-            <button type="button" class="btn btn-primary mr-1" id="save-gps-as">Save GPS path as</button>
-            </div>
-            </div>
-            <div class="col-sm">
-
-
-
-              <div class="btn-group" role="group" aria-label="Start">
-                <button type="button" class="btn btn-info" id="start-minus"><</button>
-                  <button type="button" class="btn btn-secondary" disabled>Start</button>
-                <button type="button" class="btn btn-info" id="start-plus">></button>
-              </div>
-
-
-              <div class="btn-group" role="group" aria-label="End">
-                <button type="button" class="btn btn-info" id="end-minus"><</button>
-                  <button type="button" class="btn btn-secondary" disabled>End</button>
-                <button type="button" class="btn btn-info" id="end-plus">></button>
-              </div>
-
-
-              <div class="btn-group" role="group" aria-label="Remove">
-                <button type="button" class="btn btn-info" id="remove-minus"><</button>
-                  <button type="button" class="btn btn-secondary" disabled>Remove</button>
-                <button type="button" class="btn btn-info" id="remove-plus">></button>
-              </div>
-
-              <button type="button" class="btn btn-danger" id="modify-displayed-path">Modify Displayed Path</button>
-
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-lg">
-              <div id="plot_div_distance" style="width:100%;height:500px;"></div>
-              <div id="plot_div_angles" style="width:100%;height:500px;"></div>
-
-                </div>
-
-                <div class="col-lg">
-
-              <div id="plot_div_distance_rates" style="width:100%;height:500px;"></div>
-              <div id="plot_div_angle_rates" style="width:100%;height:500px;"></div>
-
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-lg">
-              <div id="map_canvas" style="width:100%;height:1500px;"></div>
-            </div>
-            <div id="robot_detail_desktop" class="col-lg-2">
-
-            </div>
-          </div>
-
-        </div>
-        <hr>
-
-        <div class="modal" id="deleteModal" tabindex="-1" role="dialog">
-          <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Confirm delete path</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                  <span aria-hidden="true">&times;</span>
-                </button>
-              </div>
-              <div class="modal-body">
-                <p>Are you sure you want to delete the selected path?</p>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-primary" onclick="deletePath();" data-dismiss="modal">Permanently Delete</button>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-
-    </body>
-</html>
-<script src="{{ url_for('static', filename='js/jquery-3.4.1.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/plotly-latest.min.js') }}"></script>
-
-
-<script>
-    $(document).ready(function(){
+$(document).ready(function(){
 
         if(window.matchMedia("(max-width: 767px)").matches){
 
@@ -179,47 +53,50 @@
 
     console.log(ipAddress);
 
-    var myOptions = {
-        zoom: 21,
-        center: new google.maps.LatLng(37.353720, -122.333377),
-        mapTypeId: 'satellite',
-    }
 
-    var map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
-    console.log(map)
-    google.maps.event.addListenerOnce(map, 'tilesloaded', getRobotData);
-    google.maps.event.addListener(map, 'idle', function(event) {
-    var cnt = map.getCenter();
-    cnt.e+=0.000001;
-    map.panTo(cnt);
-    cnt.e-=0.000001;
-    map.panTo(cnt);
+
+
+
+
+
+// http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles.json
+//
+// http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{Z}/{X}/{Y}.png
+
+var open_drone_map_layer = L.tileLayer('http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}', {
+attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.twistedfields.com/">Twisted Fields</a>',
+maxZoom: 22,
+tileSize: 256,
+zoomOffset: 0,
+id: '',
+accessToken: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoyLCJlbWFpbCI6IiIsInVzZXJuYW1lIjoidGF5bG9yIiwiZXhwIjoxNjA4ODcwOTg1fQ.u1F7byPevZ6xBILCuobxSOHGJXs3V7DxoBMEWE_VXEE',
+tms: false,
 });
 
-    let robot_path;
 
-    async function getRobotIconPath() {
-        let resp = await fetch('http://' + ipAddress + '/api/getRobotIcon');
-        let path = await resp.json();
-        return path;
-    }
-
-    getRobotIconPath().then(result => {
-        robot_path = String(result);
-    });
+var mapbox_layer = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 22,
+    id: 'mapbox/satellite-v9',
+    tileSize: 512,
+    zoomOffset: -1,
+    accessToken: 'pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g'
+});
 
 
-    let arrow_path;
+var map = L.map('map_canvas', {
+    center: [37.353720, -122.333377],
+    zoom: 20,
+    layers: [open_drone_map_layer]
+});
 
-    async function getArrowPath() {
-        let resp = await fetch('http://' + ipAddress + '/api/getArrowIcon');
-        let path = await resp.json();
-        return path;
-    }
+var baseLayers = {
+    "Drone Map": open_drone_map_layer,
+    "Mapbox": mapbox_layer
+};
 
-    getArrowPath().then(result => {
-        arrow_path = String(result);
-    });
+L.control.layers(baseLayers).addTo(map);
+
 
     //initialize empty marker and circle arrays
     var robotMarkerStore = {};
@@ -484,7 +361,7 @@
                         $(`#${robot.name}-detail-access-point`).html(`Access Point: ${robot.access_point_name}`);
                         $(`#${robot.name}-detail-wifi-signal`).html(`Wifi Signal: ${robot.wifi_signal}`);
 
-                        console.log(robot.activate_autonomy);
+                        // console.log(robot.activate_autonomy);
 
                         if(robot.autonomy_hold)
                         {
@@ -612,65 +489,50 @@
 
 
 
+                    var arrow_icon = L.icon({
+                        iconUrl: '/static/images/arrow.png',
+                        iconSize: [20, 70],
+                        iconAnchor: [10, 70],
+                    });
 
+                    var robot_icon = L.icon({
+                        iconUrl: '/static/images/robot.png',
+                        iconSize: [30, 40],
+                        iconAnchor: [15, 20],
 
-                    //initialize icon attributes
-                    var icon = {
-                        path: robot_path,
-                        anchor: new google.maps.Point(42, 48),
-                        fillColor: '#7483e3',
-                        fillOpacity: 0.5,
-                        scale: scale,
-                        strokeColor: '#c9c9c9',
-                        strokeWeight: 1,
-                        rotation: data[i].heading
-                    };
+                    });
 
-                    var arrow = {
-                        path: arrow_path,
-                        anchor: new google.maps.Point(45, 250),
-                        fillColor: 'green',
-                        fillOpacity: 0.0,
-                        scale: scale,
-                        strokeColor: '#63d5a7',
-                        strokeWeight: 2,
-                        rotation: data[i].turn_intent_degrees + data[i].heading
-                    };
 
                     //console.log("Turn intent degrees: ", data[i].turn_intent_degrees)
                     //check robotMarkerStore array if we have marker already
                     if (robotMarkerStore.hasOwnProperty(data[i].id)) {
                         //if we do, set new position attribute to existing marker
-                        robotMarkerStore[data[i].id].setIcon(icon);
-                        robotMarkerStore[data[i].id].setPosition(new google.maps.LatLng(data[i].lat, data[i].lon));
+                        robotMarkerStore[data[i].id].setIcon(robot_icon);
+                        robotMarkerStore[data[i].id].setLatLng(new L.latLng(data[i].lat, data[i].lon));
+                        robotMarkerStore[data[i].id].setRotationAngle(data[i].heading)
                         //console.log(goat_path);
                     } else {
                         //if we don't, create new marker and set attributes
-                        var marker = new google.maps.Marker({
-                            position: new google.maps.LatLng(data[i].lat, data[i].lon),
-                            title: data[i].name,
-                            map: map,
-                            icon: icon
-                        });
+                        var marker = L.marker([data[i].lat, data[i].lon], {icon: robot_icon});
                         //add new marker to robotMarkerStore array
                         robotMarkerStore[data[i].id] = marker;
+                        robotMarkerStore[data[i].id].setRotationAngle(data[i].heading)
+                        robotMarkerStore[data[i].id].addTo(map)
                     }
                     //check robotMarkerStore array if we have marker already
                     if (arrowMarkerStore.hasOwnProperty(data[i].id)) {
                         //if we do, set new position attribute to existing marker
-                        arrowMarkerStore[data[i].id].setIcon(arrow);
-                        arrowMarkerStore[data[i].id].setPosition(new google.maps.LatLng(data[i].lat, data[i].lon));
+                        arrowMarkerStore[data[i].id].setIcon(arrow_icon);
+                        arrowMarkerStore[data[i].id].setLatLng(new L.latLng(data[i].lat, data[i].lon));
+                        arrowMarkerStore[data[i].id].setRotationAngle(data[i].turn_intent_degrees + data[i].heading)
                         //console.log(goat_path);
                     } else {
                         //if we don't, create new marker and set attributes
-                        var marker = new google.maps.Marker({
-                            position: new google.maps.LatLng(data[i].lat, data[i].lon),
-                            title: data[i].name,
-                            map: map,
-                            icon: icon
-                        });
-                        //add new marker to arrowMarkerStore array
-                        arrowMarkerStore[data[i].id] = marker;
+                        var arrow_marker = L.marker([data[i].lat, data[i].lon], {icon: arrow_icon});
+                        //add new marker to robotMarkerStore array
+                        arrowMarkerStore[data[i].id] = arrow_marker;
+                        arrowMarkerStore[data[i].id].setRotationAngle(data[i].turn_intent_degrees + data[i].heading)
+                        arrowMarkerStore[data[i].id].addTo(map)
                     }
 
                 }
@@ -809,10 +671,9 @@
     function renderPath(pathData) {
                 //check data from server in console
                 //console.log(pathData);
-                //reset array of google circles
                 //console.log("Markers Length: ", markers.length)
                 for (let i = 0; i < savedPathMarkers.length; i++) {
-                    savedPathMarkers[i].setMap(null);
+                    savedPathMarkers[i].remove();
                 }
                 savedPathMarkers = [];
                 //loop through circle data
@@ -829,20 +690,17 @@
                       color = '#FF0000';
                     }
 
-                    var marker = new google.maps.Circle({
-                        center: new google.maps.LatLng(pathData[i].lat, pathData[i].lon),
-                        map: map,
+                    var marker = new L.Circle(new L.LatLng(pathData[i].lat, pathData[i].lon), {
                         //radius: 0.6, // in meters
                         radius: 0.3, // in meters
                         fillColor: color,
                         fillOpacity: 0.3,
-                        strokeColor: "#FFF",
-                        strokeWeight: 1,
-                        editable: false,
-                        draggable: false,
-                        geodesic: true
+                        color: "#FFF",
+                        weight: 1,
+                        interactive: false
                     });
-                    //add each circle to array of google circles
+
+                    marker.addTo(map);
                     savedPathMarkers.push(marker);
                 }
 
@@ -852,9 +710,8 @@
       function renderPathDebug(pathData) {
                   //check data from server in console
                 //  console.log(pathData);
-                  //reset array of google circles
                   for (let i = 0; i < debugPointMarkers.length; i++) {
-                      debugPointMarkers[i].setMap(null);
+                      debugPointMarkers[i].remove();
                   }
                   debugPointMarkers = [];
                   //loop through circle data
@@ -867,19 +724,15 @@
                         color = '#00FFFF';
                       }
 
-                      var marker = new google.maps.Circle({
-                          center: new google.maps.LatLng(pathData[i].lat, pathData[i].lon),
-                          map: map,
+                      var marker = new L.Circle(new L.LatLng(pathData[i].lat, pathData[i].lon), {
                           radius: 0.5, // in meters
                           fillColor: color,
                           fillOpacity: 1.0,
-                          strokeColor: "#FFF",
-                          strokeWeight: 1,
-                          editable: false,
-                          draggable: false,
-                          geodesic: true
+                          color: "#FFF",
+                          weight: 1,
+                          interactive: false
                       });
-                      //add each circle to array of google circles
+                      marker.addTo(map);
                       debugPointMarkers.push(marker);
                   }
 
@@ -889,9 +742,8 @@
                     //return;
                     //check data from server in console
                   //  console.log(pathData);
-                    //reset array of google circles
                     for (let i = 0; i < livePathMarkers.length; i++) {
-                        livePathMarkers[i].setMap(null);
+                        livePathMarkers[i].remove();
                     }
                     livePathMarkers = [];
                     //loop through circle data
@@ -904,22 +756,21 @@
                       //  var offset = 0.000005 ;
 
                         var triangleCoords = [
-                          {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset},
-                          {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon},
-                          {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon + offset},
-                          {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon - offset}
+                           [pathData[i].lat - offset * 0.7, pathData[i].lon - offset],
+                           [pathData[i].lat + offset * 0.7, pathData[i].lon],
+                           [pathData[i].lat - offset * 0.7, pathData[i].lon + offset],
+                           [pathData[i].lat - offset * 0.7, pathData[i].lon - offset]
                         ];
 
-                        var marker = new google.maps.Polygon({
-                          paths: triangleCoords,
-                          map: map,
-                          strokeColor: '#FF00FF',
-                          strokeOpacity: 0.0,
-                          strokeWeight: 2,
+                        var marker = new L.Polygon(triangleCoords, {
+                          color: '#FF00FF',
+                          opacity: 0.0,
+                          weight: 2,
                           fillColor: '#00FF00',
                           fillOpacity: 1.0
                         });
-                        //add each circle to array of google circles
+
+                        marker.addTo(map);
                         livePathMarkers.push(marker);
                     }
 
@@ -931,9 +782,8 @@
                 //check data from server in console
                 console.log("PATHDATA")
                 console.log(pathData);
-                //reset array of google circles
                 for (let i = 0; i < gpsPathMarkers.length; i++) {
-                    gpsPathMarkers[i].setMap(null);
+                    gpsPathMarkers[i].remove();
                 }
                 gpsPathMarkers = [];
                 //loop through circle data
@@ -945,23 +795,21 @@
                     var offset = 0.000005 ;
 
                     var triangleCoords = [
-                      {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon - offset},
-                      {lat: pathData[i].lat - offset * 0.7, lng: pathData[i].lon},
-                      {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon + offset},
-                      {lat: pathData[i].lat + offset * 0.7, lng: pathData[i].lon - offset}
+                      [pathData[i].lat + offset * 0.7, pathData[i].lon - offset],
+                      [pathData[i].lat - offset * 0.7, pathData[i].lon],
+                      [pathData[i].lat + offset * 0.7, pathData[i].lon + offset],
+                      [pathData[i].lat + offset * 0.7, pathData[i].lon - offset]
                     ];
 
                     try {
-                      var marker = new google.maps.Polygon({
-                        paths: triangleCoords,
-                        map: map,
-                        strokeColor: '#FF00FF',
-                        strokeOpacity: 0.0,
-                        strokeWeight: 2,
+                      var marker = new L.Polygon(triangleCoords, {
+                        color: '#FF00FF',
+                        opacity: 0.0,
+                        weight: 2,
                         fillColor: '#FFA500 ',
                         fillOpacity: 1.0
                       });
-                      //add each circle to array of google circles
+                      marker.addTo(map);
                       gpsPathMarkers.push(marker);
                     } catch (error) {
                     console.error(error);
@@ -1078,7 +926,6 @@
             .then(function (pathnames) {
                 //check data from server in console
                 console.log(pathnames);
-                //reset array of google circles
 
                 var $dropdown = $("#dropdown-menu");
                 $dropdown.empty();
@@ -1108,14 +955,8 @@
 
 
 
-    function resetMap() {
+    function readdTo() {
       //  getPath();
         getRobotData();
     }
 
-
-
-</script>
-
-
-<!-- <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script> -->

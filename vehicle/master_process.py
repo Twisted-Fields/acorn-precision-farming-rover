@@ -27,7 +27,6 @@ else:
     import rtk_process
 
 _YAML_NAME="/home/pi/vehicle/server_config.yaml"
-#_YAML_NAME="/home/ubuntu/vehicle/server_config.yaml"
 
 _CMD_WRITE_KEY = bytes('w', encoding='ascii')
 _CMD_READ_KEY = bytes('readkey', encoding='ascii')
@@ -55,6 +54,9 @@ _SEC_IN_ONE_MINUTE = 60
 
 AUTONOMY_AT_STARTUP = True
 AUTONOMY_SPEED = 0.2
+
+_WIFI_SETTLING_SLEEP_SEC = 5
+_SERVER_PING_DELAY_SEC = 2
 
 
 def kill_master_procs():
@@ -134,6 +136,7 @@ class RobotCommand:
         self.load_path = ""
         self.activate_autonomy = False
         self.clear_autonomy_hold = False
+        # self.clear_autonomy_at_startup = False
         self.autonomy_velocity = 0
         self.record_gps_path = _GPS_RECORDING_CLEAR
 
@@ -144,77 +147,39 @@ def AppendFIFO(list, value, max_values):
         list.pop(0)
     return list
 
-def connect_server(acorn):
-    failure_count = 0
-    # error_backoff = 2
-    # start_time = time.time()
-    # context = zmq.Context()
-    # while True:
-    #     print("creating socket")
-    #     remote_server_socket = context.socket(zmq.DEALER)
-    #     remote_server_socket.identity = bytes(acorn.name, encoding='ascii')
-    #     remote_server_socket.connect('tcp://{}:5570'.format(acorn.server))
-    #
-    #     while remote_server_socket.poll(timeout=0):
-    #         print("Found stale socket data. Clearing...")
-    #         remote_server_socket.recv_multipart(flags=zmq.NOBLOCK)
-    #     try:
-    #         # Send request to server.
-    #         remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)],flags=zmq.DONTWAIT)
-    #     except zmq.error.Again as e:
-    #         print("Remote server unreachable.")
-    #     timeout_milliseconds = 3000
-    #     print("Poll socket.")
-    #     while remote_server_socket.poll(timeout=timeout_milliseconds):
-    #         print("reading socket.")
-    #         try:
-    #             command, msg = remote_server_socket.recv_multipart(flags=zmq.NOBLOCK)
-    #             return remote_server_socket
-    #         except Exception as e:
-    #             print(e)
-    #
-    #     # If we did not return, there was some error.
-    #     print("destroy")
-    #     remote_server_socket.setsockopt(zmq.LINGER, 0)
-    #     remote_server_socket.close()
-    #     print("destroyed")
-    #     failure_count += 1
-    #     time.sleep(error_backoff)
-    #     error_backoff *= 1.05
-    #     if time.time() - start_time > _SERVER_CONNECT_TIME_LIMIT_MINUTES * _SEC_IN_ONE_MINUTE:
-    #         #sys.exit()
-    #         #pass
-    #         os.system('sudo reboot')
-
 class MasterProcess():
     def __init__(self):
         pass
     def run(self):
 
+        # Initialize robot object.
         acorn = Robot()
         acorn.setup()
         connected = False
 
+        # Setup and start wifi config and monitor process.
         wifi_parent_conn, wifi_child_conn = mp.Pipe()
         wifi_proc = mp.Process(target=wifi.wifi_process, args=(wifi_child_conn,))
         wifi_proc.start()
 
+        # Setup and start server communications process.
         self.server_comms_parent_conn, server_comms_child_conn = mp.Pipe()
         server_comms_proc = mp.Process(target=server_comms.AcornServerComms, args=(server_comms_child_conn, 'tcp://{}:5570'.format(acorn.server), ))
         server_comms_proc.start()
 
 
-        time.sleep(5) # Let wifi settle before moving to ping test
+        # Let wifi settle before moving to ping test.
+        time.sleep(_WIFI_SETTLING_SLEEP_SEC)
 
         while True:
+            # Check to make sure we can at least reach the server.
             print("trying to ping server...")
             if os.system("ping -c 1 " + acorn.server) == 0:
                 print("Ping Successful")
                 break
             print("Ping failed. Will wait and retry.")
-            time.sleep(2)
+            time.sleep(_SERVER_PING_DELAY_SEC)
 
-        # self.remote_server_socket = connect_server(acorn)
         acorn.last_server_communication_stamp = time.time()
 
         port = "5996"
@@ -222,7 +187,7 @@ class MasterProcess():
         remote_control_parent_conn = context.socket(zmq.PAIR)
         remote_control_parent_conn.bind("tcp://*:%s" % port)
 
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=())
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(AUTONOMY_AT_STARTUP,))
         remote_control_proc.start()
 
 
@@ -236,11 +201,17 @@ class MasterProcess():
         robot_id = bytes(acorn.name, encoding='ascii')
         updated_object = False
         gps_count = 0
+        send_robot_object = True
+
         while True:
 
-            remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
+            # print("3333")
 
-        #    print("4444")
+            if send_robot_object:
+                remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
+                send_robot_object = False
+
+            # print("4444")
 
             if voltage_monitor_parent_conn.poll():
                 cell1, cell2, cell3, total = voltage_monitor_parent_conn.recv()
@@ -253,14 +224,18 @@ class MasterProcess():
             while wifi_parent_conn.poll():
                 acorn.wifi_strength, acorn.wifi_ap_name, acorn.cpu_temperature_c = wifi_parent_conn.recv()
 
-            #print("5555")
+            # print("5555")
 
             read_okay = False
             try:
-                acorn.location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafe, rotation, strafeD, steerD, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj())
+                acorn.location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafe, rotation, strafeD, steerD, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
                 read_okay = True
+                send_robot_object = True
+                # print("44444")
             except Exception as e:
-                print(e)
+                pass
+                # time.sleep(2)
+                # print(e)
             if read_okay:
                 if gps_fix:
                     #print("GPS_FIX")
@@ -291,26 +266,23 @@ class MasterProcess():
 
 
 
-            #print("6666")
+            # print("6666")
             seconds_since_update = (datetime.now() - acorn.time_stamp).total_seconds()
             if updated_object and seconds_since_update > _UPDATE_PERIOD:
                 acorn.time_stamp = datetime.now()
                 #print(acorn.time_stamp)
                 try:
-                    #self.remote_server_socket.send_multipart([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)],flags=zmq.DONTWAIT)
                     self.server_comms_parent_conn.send([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)])
                     acorn.energy_segment_list = []
                 except zmq.error.Again as e:
                     print("Remote server unreachable.")
                 updated_object = False
 
-            #print("$$$$$$")
+            # print("$$$$$$")
 
 
-            #while (self.remote_server_socket.poll(timeout=0) & zmq.POLLIN) != 0:
             while self.server_comms_parent_conn.poll():
                 #print("recv_multipart")
-                # command, msg = self.remote_server_socket.recv_multipart()
                 command, msg = self.server_comms_parent_conn.recv()
                 #print('Client received command {} with message {}'.format(command, msg))
                 acorn.last_server_communication_stamp = time.time()
@@ -321,7 +293,6 @@ class MasterProcess():
                     #print("GOT COMMAND: {}".format(robot_command))
                     if robot_command.load_path != acorn.loaded_path_name and len(robot_command.load_path)>0:
                         print("GETTING PATH DATA")
-                        self.consume_messages()
                         path = self.get_path(robot_command.load_path, acorn)
                     #    print("8888")
                         if path:
@@ -336,21 +307,20 @@ class MasterProcess():
                     acorn.activate_autonomy = robot_command.activate_autonomy
                     acorn.autonomy_velocity = robot_command.autonomy_velocity
                     acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
-                    if acorn.clear_autonomy_hold == True:
+                    if acorn.activate_autonomy == True:
                         acorn.request_autonomy_at_startup = False
                     print("GPS Path: {}, Autonomy Hold: {}, Activate Autonomy: {}, Autonomy Velocity: {}, Clear Autonomy Hold: {}".format(robot_command.record_gps_path, acorn.autonomy_hold, robot_command.activate_autonomy, robot_command.autonomy_velocity, acorn.clear_autonomy_hold ))
 
             #print(time.time())
 
         #    print("((((()))))")
-            if time.time() - acorn.last_server_communication_stamp > _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC:
-                print("RESET SERVER CONNECTION")
-                # self.remote_server_socket = connect_server(acorn)
+            # if time.time() - acorn.last_server_communication_stamp > _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC:
+            #     print("RESET SERVER CONNECTION")
                 # acorn.last_server_communication_stamp = time.time()
         #    print("((8888))")
 
 
-        # self.remote_server_socket.close()
+
         context.term()
 
     def get_path(self, pathkey, robot):
@@ -358,14 +328,11 @@ class MasterProcess():
         print("SEND REQUEST FOR PATH DATA")
         while True:
             attempts = 0
-            # self.remote_server_socket.send_multipart([_CMD_READ_PATH_KEY, bytes(pathkey, encoding='ascii'), robot.key])
             self.server_comms_parent_conn.send([_CMD_READ_PATH_KEY, bytes(pathkey, encoding='ascii'), robot.key])
             time.sleep(0.5)
             while attempts < 5:
-                # if (self.remote_server_socket.poll(_SERVER_REPLY_TIMEOUT_MILLISECONDS) & zmq.POLLIN) != 0:
                 if self.server_comms_parent_conn.poll(timeout=_SERVER_REPLY_TIMEOUT_MILLISECONDS / 1000.0):
                     print("READING PATH DATA")
-                    # command, msg = self.remote_server_socket.recv_multipart()
                     command, msg = self.server_comms_parent_conn.recv()
                     if command == _CMD_READ_KEY_REPLY:
                         msg = pickle.loads(msg)
@@ -378,13 +345,6 @@ class MasterProcess():
                         else:
                             print(msg)
                 attempts+=1
-
-
-    def consume_messages(self):
-        pass
-        #while (self.remote_server_socket.poll(_SERVER_REPLY_TIMEOUT_MILLISECONDS) & zmq.POLLIN) != 0:
-    #        discarded_messaged = self.remote_server_socket.recv_multipart()
-#            print("Discarding message {}".format(discarded_messaged))
 
 
 def run_master():

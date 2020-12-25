@@ -10,6 +10,7 @@ import multiprocessing as mp
 import gps_tools
 import sys
 import psutil
+import struct
 
 TCP_IP = "127.0.0.1"
 TCP_PORT1 = 10001
@@ -17,6 +18,14 @@ TCP_PORT2 = 10002
 BUFFER_SIZE = 1024
 VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 39.0
 _FAST_POLLING_DELAY_S = 0.05
+SOCKET_TIMEOUT_SECONDS = 1
+
+
+if sys.maxsize > 2**32:
+  TCP_TIMEOUT = struct.pack(str("ll"), int(SOCKET_TIMEOUT_SECONDS), int(0))
+else:
+  TCP_TIMEOUT = struct.pack(str("ii"), int(SOCKET_TIMEOUT_SECONDS), int(0))
+
 
 
 RTK_CMD1 = ['/usr/local/bin/rtkrcv','-s','-d','/dev/null','-o','/home/pi/vehicle/twisted.conf']
@@ -137,10 +146,27 @@ def launch_rtk_sub_procs(single=False):
         time.sleep(0.001)
 
 
+def reset_and_reconnect_rtk(sock1, sock2, single=False):
+    kill_rtk_sub_procs()
+    time.sleep(5)
+    sock1.shutdown(socket.SHUT_RDWR)
+    sock2.shutdown(socket.SHUT_RDWR)
+    # sock1.shutdown()
+    # sock2.shutdown()
+    time.sleep(5)
+    sock1.close()
+    sock2.close()
+    time.sleep(5)
+    return connect_rtk_procs(single)
+
 def connect_rtk_procs(single=False):
     tcp_sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_sock1.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, TCP_TIMEOUT)
+    # tcp_sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if single == False:
         tcp_sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, TCP_TIMEOUT)
+        # tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     else:
         tcp_sock2 = None
 
@@ -157,7 +183,7 @@ def connect_rtk_procs(single=False):
         break
       except Exception as e:
         print(e)
-        time.sleep(0.500)
+        time.sleep(0.500 + attempts)
         print('Attempt failed.')
         attempts += 1
         if attempts > 5:
@@ -197,38 +223,40 @@ def single_loop(tcp_sock, print_gps=False, last_sample=None):
 
 def rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=False, last_sample=None):
     print_gps_counter = 0
-    while True:
+    try:
         data1 = tcp_sock1.recv(BUFFER_SIZE)
         data2 = tcp_sock2.recv(BUFFER_SIZE)
-        #print(data2)
-        #continue
-        try:
-            if data1 and data2:
-                data1 = digest_data(data1)
-                data2 = digest_data(data2)
-                azimuth_degrees = gps_tools.get_heading(data1, data2) + VEHICLE_AZIMUTH_OFFSET_DEG
-                d = gps_tools.get_distance(data1,data2)
-                lat = (data1.lat + data2.lat) / 2.0
-                lon = (data1.lon + data2.lon) / 2.0
-                height_m = (data1.height_m + data2.height_m) / 2.0
-                rtk_age = max([data1.rtk_age, data2.rtk_age])
-                latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data1.status, data2.status), (data1.num_sats, data2.num_sats), azimuth_degrees, data1.time_stamp, rtk_age)
-                if last_sample:
-                    period = latest_sample.time_stamp - last_sample.time_stamp
-                else:
-                    period = None
-                #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
-                if print_gps:
-                    print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}, Period: {}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, data1.status, data2.status, period))
-                return latest_sample
+    except BlockingIOError:
+        return None
+    #print(data2)
+    #continue
+    try:
+        if data1 and data2:
+            data1 = digest_data(data1)
+            data2 = digest_data(data2)
+            azimuth_degrees = gps_tools.get_heading(data1, data2) + VEHICLE_AZIMUTH_OFFSET_DEG
+            d = gps_tools.get_distance(data1,data2)
+            lat = (data1.lat + data2.lat) / 2.0
+            lon = (data1.lon + data2.lon) / 2.0
+            height_m = (data1.height_m + data2.height_m) / 2.0
+            rtk_age = max([data1.rtk_age, data2.rtk_age])
+            latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data1.status, data2.status), (data1.num_sats, data2.num_sats), azimuth_degrees, data1.time_stamp, rtk_age)
+            if last_sample:
+                period = latest_sample.time_stamp - last_sample.time_stamp
             else:
-                print("Missing GPS Data")
-                time.sleep(1)
-        except KeyboardInterrupt as e:
-            raise e
-        except Exception as e:
-            print(e)
-        # TODO: Close sockets when needed.
+                period = None
+            #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
+            if print_gps:
+                print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}, Period: {}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, data1.status, data2.status, period))
+            return latest_sample
+        else:
+            print("Missing GPS Data")
+            return None
+    except KeyboardInterrupt as e:
+        raise e
+    except Exception as e:
+        print("GPS ERROR: {}".format(e))
+    # TODO: Close sockets when needed.
 
 
 def start_gps(master_conn):

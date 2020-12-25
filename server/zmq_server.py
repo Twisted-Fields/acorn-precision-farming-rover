@@ -162,13 +162,14 @@ def handle_command(r, command, key, msg):
         if robot.autonomy_hold == True:
             command_object.activate_autonomy = False
             command_object.autonomy_velocity = float(0.0)
-            r.set(command_key, pickle.dumps(command_object))
 
         if robot.request_autonomy_at_startup == True:
-            command_object.clear_autonomy_hold = True
+            # command_object.clear_autonomy_hold = True
             command_object.activate_autonomy = True
             command_object.autonomy_velocity = float(AUTONOMY_SPEED)
-            r.set(command_key, pickle.dumps(command_object))
+
+
+        r.set(command_key, pickle.dumps(command_object))
 
         robot_pickle = pickle.dumps(robot)
         r.set(key, robot_pickle)
