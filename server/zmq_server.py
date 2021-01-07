@@ -10,7 +10,7 @@ import psutil
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
 
-from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY, AUTONOMY_SPEED
+from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY
 
 _ALLOWED_ACTIVITY_LAPSE_SEC = 120
 _SOCKET_RESET_TIMEOUT_MIN = 60
@@ -163,10 +163,10 @@ def handle_command(r, command, key, msg):
             command_object.activate_autonomy = False
             command_object.autonomy_velocity = float(0.0)
 
-        if robot.request_autonomy_at_startup == True:
-            # command_object.clear_autonomy_hold = True
-            command_object.activate_autonomy = True
-            command_object.autonomy_velocity = float(AUTONOMY_SPEED)
+        # if robot.request_autonomy_at_startup == True:
+        #     # command_object.clear_autonomy_hold = True
+        #     command_object.activate_autonomy = True
+        #     command_object.autonomy_velocity = float(AUTONOMY_SPEED)
 
 
         r.set(command_key, pickle.dumps(command_object))

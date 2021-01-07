@@ -63,39 +63,59 @@ $(document).ready(function(){
 //
 // http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{Z}/{X}/{Y}.png
 
-var open_drone_map_layer = L.tileLayer('http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}', {
-attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.twistedfields.com/">Twisted Fields</a>',
-maxZoom: 22,
-tileSize: 256,
-zoomOffset: 0,
-id: '',
-accessToken: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoyLCJlbWFpbCI6IiIsInVzZXJuYW1lIjoidGF5bG9yIiwiZXhwIjoxNjA4ODcwOTg1fQ.u1F7byPevZ6xBILCuobxSOHGJXs3V7DxoBMEWE_VXEE',
-tms: false,
+
+var data = {'username': 'taylor', 'password': 'taylor'};
+
+
+$.ajax({
+  type: "POST",
+  url: 'http://192.168.1.170:8090/api/token-auth/',
+  data: data,
+  success: setup_map
 });
 
+var map;
 
-var mapbox_layer = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-    maxZoom: 22,
-    id: 'mapbox/satellite-v9',
-    tileSize: 512,
-    zoomOffset: -1,
-    accessToken: 'pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g'
-});
+function setup_map(access_token_data) {
+
+  var token = access_token_data['token']
+  var open_drone_map_layer = L.tileLayer('http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}', {
+  attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.twistedfields.com/">Twisted Fields</a>',
+  maxZoom: 22,
+  tileSize: 256,
+  zoomOffset: 0,
+  id: '',
+  accessToken: token,
+  tms: false,
+  });
 
 
-var map = L.map('map_canvas', {
-    center: [37.353720, -122.333377],
-    zoom: 20,
-    layers: [open_drone_map_layer]
-});
+  var mapbox_layer = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+      attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+      maxZoom: 22,
+      id: 'mapbox/satellite-v9',
+      tileSize: 512,
+      zoomOffset: -1,
+      accessToken: 'pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g'
+  });
 
-var baseLayers = {
-    "Drone Map": open_drone_map_layer,
-    "Mapbox": mapbox_layer
-};
 
-L.control.layers(baseLayers).addTo(map);
+  map = L.map('map_canvas', {
+      center: [37.353720, -122.333377],
+      zoom: 20,
+      layers: [open_drone_map_layer]
+  });
+
+  var baseLayers = {
+      "Drone Map": open_drone_map_layer,
+      "Mapbox": mapbox_layer
+  };
+
+  L.control.layers(baseLayers).addTo(map);
+
+}
+
+
 
 
     //initialize empty marker and circle arrays
@@ -959,4 +979,3 @@ L.control.layers(baseLayers).addTo(map);
       //  getPath();
         getRobotData();
     }
-

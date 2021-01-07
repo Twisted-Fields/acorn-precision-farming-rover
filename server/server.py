@@ -12,6 +12,7 @@ while True:
         import pickle
         import json
         import datetime
+        import redis_utils
         sys.path.append('../vehicle')
         from master_process import Robot, RobotCommand
         break
@@ -19,8 +20,6 @@ while True:
         print(e)
         print("Server had some error. Restarting...")
         time.sleep(5)
-
-
 
 
 app = Flask(__name__, template_folder="templates")
@@ -74,28 +73,25 @@ date_handler = lambda obj: (
 
 @app.route('/api/get_herd_data')
 def send_herd_data():
-    keys = get_robot_keys()
+    keys = redis_utils.get_robot_keys(redis_client)
     robots = robots_to_json(keys)
     # print(robots)
     # print(jsonify(robots))
     return jsonify(robots)
 
-def get_robot_keys():
-    robot_keys = []
-    for key in redis_client.scan_iter():
-        if ':robot:' in str(key):
-            if ':command:' not in str(key) and ':energy_segment' not in str(key):
-                robot_keys.append(key)
-    return robot_keys
-
 def robots_to_json(keys):
     robots_list = []
     for key in keys:
         robot = pickle.loads(redis_client.get(key))
+        if robot is None:
+            print("Database returned None for key {}".format(key))
         time_stamp = json.dumps(robot.time_stamp, default=date_handler)
         live_path_data = [point._asdict() for point in robot.live_path_data]
         gps_path_data = [point._asdict() for point in robot.gps_path_data]
-        debug_points = [point._asdict() for point in robot.debug_points]
+        try:
+            debug_points = [point._asdict() for point in robot.debug_points]
+        except:
+            debug_points = []
         #print(json.dumps(robot.gps_path_data[0]._asdict()))
         robot_entry = { 'name': robot.name, 'lat': robot.location.lat, 'lon':
         robot.location.lon, 'heading': robot.location.azimuth_degrees,
@@ -185,44 +181,13 @@ def set_gps_recording(vehicle_name=None, record_gps_path=None):
 
 @app.route('/api/set_vehicle_autonomy/<vehicle_name>/<speed>/<enable>')
 def set_vehicle_autonomy(vehicle_name=None, speed=None, enable=None):
-    if not all((vehicle_name, speed, enable)):
-        return "Missing something. No vehicle autonomy set."
-    if len(active_site) == 0:
-        return "Active site not set. Please load a path."
-    vehicle_command_key = "{}:robot:{}:command:key".format(active_site, vehicle_name)
-    if redis_client.exists(vehicle_command_key):
-        robot_command = pickle.loads(redis_client.get(vehicle_command_key))
-        # Create a new command object if the definition has changed.
-        if len(dir(RobotCommand()))!=len(dir(robot_command)):
-            robot_command = RobotCommand()
-    else:
-        robot_command = RobotCommand()
-    robot_command.activate_autonomy = enable=="true"
-    robot_command.autonomy_velocity = float(speed)
-    redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
-    print("Set vehicle {} autonomy to {}".format(vehicle_command_key, (speed, enable)))
-    return "Set vehicle {} autonomy to {}".format(vehicle_command_key, (speed, enable))
-
+    enable = enable=="true"
+    return redis_utils.set_vehicle_autonomy(redis_client=redis_client, vehicle_name=vehicle_name, speed=speed, enable=enable, active_site=active_site)
 
 @app.route('/api/modify_autonomy_hold/<vehicle_name>/<value>')
 def clear_autonomy_hold(vehicle_name=None, value=None):
-    if not all((vehicle_name, value)):
-        return "Missing vehicle_name. No changes made."
-    if len(active_site) == 0:
-        return "Active site not set. Please load a path."
-    vehicle_command_key = "{}:robot:{}:command:key".format(active_site, vehicle_name)
-    if redis_client.exists(vehicle_command_key):
-        robot_command = pickle.loads(redis_client.get(vehicle_command_key))
-        # Create a new command object if the definition has changed.
-        if len(dir(RobotCommand()))!=len(dir(robot_command)):
-            robot_command = RobotCommand()
-    else:
-        robot_command = RobotCommand()
-    robot_command.clear_autonomy_hold = value=="true"
-    redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
-    print("Clear hold vehicle {}".format(vehicle_command_key))
-    return "Clear hold vehicle {}".format(vehicle_command_key)
-
+    value = value=="true"
+    return redis_utils.clear_autonomy_hold(redis_client=redis_client, vehicle_name=vehicle_name, value=value, active_site=active_site)
 
 def get_path_key(pathname):
     print(active_site)

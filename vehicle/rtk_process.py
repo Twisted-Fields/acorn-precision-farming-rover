@@ -15,7 +15,7 @@ import struct
 TCP_IP = "127.0.0.1"
 TCP_PORT1 = 10001
 TCP_PORT2 = 10002
-BUFFER_SIZE = 1024
+TCP_BUFFER_SIZE = 1024
 VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 39.0
 _FAST_POLLING_DELAY_S = 0.05
 SOCKET_TIMEOUT_SECONDS = 1
@@ -55,7 +55,7 @@ def digest_data(data):
         status = "fix" if data[5] is "1" else "no fix"
         num_sats = data[6]
         base_rtk_age = float(data[13])
-    #    print("Good GPS data recieved: {}".format(data))
+        # print("Good GPS data recieved: {}".format(data))
         return gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
     else:
         print("Incorrect GPS data length. Recieved: {}".format(data))
@@ -79,7 +79,7 @@ def run_rtk_system_single():
     print_gps_counter = 0
     latest_sample = None
     while True:
-        latest_sample = single_loop(tcp_sock1, print_gps=(print_gps_counter % 10 == 0), last_sample=latest_sample)
+        latest_sample = rtk_loop_once_single_receiver(tcp_sock1, print_gps=(print_gps_counter % 10 == 0), last_sample=latest_sample)
         print_gps_counter += 1
         # if master_conn is not None:
         #     master_conn.send(latest_sample)
@@ -192,10 +192,10 @@ def connect_rtk_procs(single=False):
     return tcp_sock1, tcp_sock2
 
 
-def single_loop(tcp_sock, print_gps=False, last_sample=None):
+def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
     print_gps_counter = 0
     while True:
-        data1 = tcp_sock.recv(BUFFER_SIZE)
+        data1 = tcp_sock.recv(TCP_BUFFER_SIZE)
         try:
             if data1:
                 latest_sample = digest_data(data1)
@@ -220,20 +220,73 @@ def single_loop(tcp_sock, print_gps=False, last_sample=None):
         # TODO: Close sockets when needed.
 
 
+# Good GPS data recieved: ["b'2138", '345203', '37.353039224', '-122.333725667', '79.7368', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0039', '0.40', "280.7'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060376', '-122.333742916', '79.8650', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.50', "288.4'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039236', '-122.333725665', '79.7345', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.60', "280.0'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060388', '-122.333742931', '79.8652', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.60', "288.4'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039233', '-122.333725682', '79.7360', '1', '16', '0.0056', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.70', "279.7'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060378', '-122.333742933', '79.8635', '1', '16', '0.0056', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.69', "288.4'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039228', '-122.333725683', '79.7289', '1', '16', '0.0056', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.80', "279.2'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060389', '-122.333742924', '79.8602', '1', '16', '0.0056', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.80', "288.5'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039231', '-122.333725678', '79.7309', '1', '16', '0.0056', '0.0054', '0.0153', '-0.0032', '0.0049', '-0.0040', '0.90', "278.7'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060379', '-122.333742930', '79.8641', '1', '16', '0.0056', '0.0054', '0.0153', '-0.0032', '0.0049', '-0.0040', '0.89', "288.6'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039225', '-122.333725655', '79.7303', '1', '16', '0.0056', '0.0055', '0.0153', '-0.0032', '0.0049', '-0.0040', '1.00', "278.5'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060380', '-122.333742935', '79.8615', '1', '16', '0.0056', '0.0055', '0.0153', '-0.0032', '0.0049', '-0.0040', '1.00', "288.6'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039211', '-122.333725705', '79.7376', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.10', "278.0'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060376', '-122.333742936', '79.8621', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0040', '0.09', "288.7'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039224', '-122.333725703', '79.7352', '1', '16', '0.0055', '0.0054', '0.0151', '-0.0031', '0.0048', '-0.0039', '0.20', "277.3'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060374', '-122.333742933', '79.8648', '1', '16', '0.0055', '0.0054', '0.0151', '-0.0031', '0.0048', '-0.0039', '0.19', "288.7'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039220', '-122.333725716', '79.7365', '1', '16', '0.0055', '0.0054', '0.0151', '-0.0031', '0.0048', '-0.0039', '0.30', "276.9'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353060366', '-122.333742965', '79.8674', '1', '16', '0.0055', '0.0054', '0.0151', '-0.0031', '0.0048', '-0.0039', '0.29', "288.8'"]
+# Good GPS data recieved: ["b'2138", '345204', '37.353039214', '-122.333725704', '79.7374', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0039', '0.40', "276.4'"]
 
-def rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=False, last_sample=None):
+
+
+# def read_to_newline(sock, retries=3):
+#     errors = 0
+#     data = []
+#     result = None
+#     while True:
+#         next_byte = sock.recv(1)
+#         data.append(next_byte)
+#         # print(data)
+#
+#         if next_byte == b'\n':
+#             try:
+#                 result = digest_data(b''.join(data))
+#             except Exception as e:
+#                 print("GPS Parse failed: {}".format(e)) # Todo: logger trace
+#             if result:
+#                 return result
+#             else:
+#                 data = []
+#                 errors += 1
+#                 if errors > retries:
+#                     return None
+
+
+
+def rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=False, last_sample=None, retries=3):
     print_gps_counter = 0
-    try:
-        data1 = tcp_sock1.recv(BUFFER_SIZE)
-        data2 = tcp_sock2.recv(BUFFER_SIZE)
-    except BlockingIOError:
-        return None
-    #print(data2)
-    #continue
+    errors = 0
+    while True:
+        try:
+            data1 = tcp_sock1.recv(TCP_BUFFER_SIZE)
+            data1 = digest_data(data1)
+            data2 = tcp_sock2.recv(TCP_BUFFER_SIZE)
+            data2 = digest_data(data2)
+            break
+        except BlockingIOError:
+            pass
+        except Exception as e:
+            print("GPS ERROR DURING READ: {}".format(e))
+        errors += 1
+        if errors > retries:
+            print("TOO MANY GPS ERRORS")
+            return None
+
     try:
         if data1 and data2:
-            data1 = digest_data(data1)
-            data2 = digest_data(data2)
             azimuth_degrees = gps_tools.get_heading(data1, data2) + VEHICLE_AZIMUTH_OFFSET_DEG
             d = gps_tools.get_distance(data1,data2)
             lat = (data1.lat + data2.lat) / 2.0
@@ -254,8 +307,11 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=False, last_sample=None):
             return None
     except KeyboardInterrupt as e:
         raise e
+    except BlockingIOError:
+        return None
     except Exception as e:
-        print("GPS ERROR: {}".format(e))
+        print("GPS ERROR DURING PROCESSING: {}".format(e))
+        return None
     # TODO: Close sockets when needed.
 
 
@@ -265,5 +321,5 @@ def start_gps(master_conn):
 
 
 if __name__=="__main__":
-    run_rtk_system_single()
-    #run_rtk_system(None)
+    #run_rtk_system_single()
+    run_rtk_system(None)

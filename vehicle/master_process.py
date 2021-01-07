@@ -52,9 +52,6 @@ _SERVER_CONNECT_TIME_LIMIT_MINUTES = 10
 
 _SEC_IN_ONE_MINUTE = 60
 
-AUTONOMY_AT_STARTUP = True
-AUTONOMY_SPEED = 0.2
-
 _WIFI_SETTLING_SLEEP_SEC = 5
 _SERVER_PING_DELAY_SEC = 2
 
@@ -109,7 +106,6 @@ class Robot:
         self.cpu_temperature_c = 0.0
         self.energy_segment_list = []
         self.motor_temperatures = []
-        self.request_autonomy_at_startup = AUTONOMY_AT_STARTUP
 
     def __repr__(self):
         return 'Robot'
@@ -136,7 +132,6 @@ class RobotCommand:
         self.load_path = ""
         self.activate_autonomy = False
         self.clear_autonomy_hold = False
-        # self.clear_autonomy_at_startup = False
         self.autonomy_velocity = 0
         self.record_gps_path = _GPS_RECORDING_CLEAR
 
@@ -187,7 +182,7 @@ class MasterProcess():
         remote_control_parent_conn = context.socket(zmq.PAIR)
         remote_control_parent_conn.bind("tcp://*:%s" % port)
 
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(AUTONOMY_AT_STARTUP,))
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=())
         remote_control_proc.start()
 
 
@@ -228,9 +223,11 @@ class MasterProcess():
 
             read_okay = False
             try:
-                acorn.location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafe, rotation, strafeD, steerD, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
+                acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafe, rotation, strafeD, steerD, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
                 read_okay = True
                 send_robot_object = True
+                if acorn_location != None:
+                    acorn.location = acorn_location
                 # print("44444")
             except Exception as e:
                 pass
@@ -307,8 +304,8 @@ class MasterProcess():
                     acorn.activate_autonomy = robot_command.activate_autonomy
                     acorn.autonomy_velocity = robot_command.autonomy_velocity
                     acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
-                    if acorn.activate_autonomy == True:
-                        acorn.request_autonomy_at_startup = False
+                    # if acorn.activate_autonomy == True:
+                    #     acorn.request_autonomy_at_startup = False
                     print("GPS Path: {}, Autonomy Hold: {}, Activate Autonomy: {}, Autonomy Velocity: {}, Clear Autonomy Hold: {}".format(robot_command.record_gps_path, acorn.autonomy_hold, robot_command.activate_autonomy, robot_command.autonomy_velocity, acorn.clear_autonomy_hold ))
 
             #print(time.time())

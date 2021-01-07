@@ -15,7 +15,7 @@ import numpy as np
 import spline_lib
 import os
 import datetime
-from motors import _STATE_ENABLED
+from motors import _STATE_ENABLED, STATE_DISCONNECTED
 import rtk_process
 
 
@@ -203,7 +203,7 @@ class RemoteControl():
                 self.joy = dev
                 return
 
-    def run_loop(self, autonomy_at_startup):
+    def run_loop(self):
         joy_steer = 0
         joy_throttle = 0
         joy_strafe = 0
@@ -215,11 +215,11 @@ class RemoteControl():
         load_path_time = time.time()
         auto_throttle = 0
         self.loaded_path_name = ""
-        self.autonomy_hold = autonomy_at_startup==False
+        self.autonomy_hold = True
         self.nav_path_next_point_index = 0
         self.nav_spline = None
         self.control_state = CONTROL_STARTUP
-        self.motor_state = "Motor state undefined."
+        self.motor_state = STATE_DISCONNECTED
         self.gps_path_lateral_error = 0
         self.gps_path_lateral_error_rate = 0
         self.gps_path_angular_error = 0
@@ -254,11 +254,11 @@ class RemoteControl():
             loop_count = -1
             while True:
                 loop_count += 1
+                # if loop_count >= 80:
+                #     time.sleep(0.5) #DEBUGGING
                 #print("rtk_loop_once_start")
-                for _ in range(_GPS_ERROR_RETRIES):
-                    self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample)
-                    if self.latest_gps_sample is not None:
-                        break
+                self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample, retries=_GPS_ERROR_RETRIES)
+
                 # print(type(self.latest_gps_sample))
                 if self.latest_gps_sample is not None:
                     self.last_good_gps_sample = self.latest_gps_sample
@@ -718,10 +718,12 @@ class RemoteControl():
                         except Exception as e:
                             print("Error reading motor state message.")
                             print(e)
+                            self.motor_state = STATE_DISCONNECTED
                 except zmq.error.Again as e:
                     print("Remote server unreachable.")
                 except zmq.error.ZMQError as e:
                     print("ZMQ error with motor command socket. Resetting.")
+                    self.motor_state = STATE_DISCONNECTED
                     self.close_motor_socket()
                 if time.time() - self.motor_last_send_time > _ALLOWED_MOTOR_SEND_LAPSE_SEC:
                     # If this occurrs its worth trying to send again.
@@ -782,11 +784,11 @@ class RemoteControl():
 
 
 
-def run_control(autonomy_at_startup=False):
+def run_control():
     remote_control = RemoteControl()
     remote_control.run_setup()
-    remote_control.run_loop(autonomy_at_startup)
+    remote_control.run_loop()
 
 
 if __name__=="__main__":
-    run_control(None)
+    run_control()

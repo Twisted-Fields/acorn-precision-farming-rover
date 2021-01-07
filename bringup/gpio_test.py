@@ -19,6 +19,7 @@ GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
 #
 if len(sys.argv) > 1:
     GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
+    sys.exit()
 else:
     for _ in range(100):
         GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
