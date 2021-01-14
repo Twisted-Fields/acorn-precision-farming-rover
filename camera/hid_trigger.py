@@ -84,109 +84,119 @@ PRODUCT_ID = 0xC1D4
 
 # enumerate USB devices
 
-paths = []
 
-for d in hid.enumerate(VENDOR_ID, PRODUCT_ID):
-    if int(d['interface_number']) == 2:
-        paths.append(d['path'])
-        print(d['path'])
-    # keys = list(d.keys())
-    # keys.sort()
-    # print(d['path'])
-    # for key in keys:
-    #     print("%s : %s" % (key, d[key]))
-    # print()
-#
+def run_hid_process():
 
-# device = hid.device()
-# # device.open(VENDOR_ID, PRODUCT_ID)
-#
-#
-# print(dir(device))
-# print(device)
-#
-# device.close()
-#
-# import sys
-# sys.exit()
+    paths = []
 
-devices = [hid.device(), hid.device()]
-# devices = [hid.device()]
-devices[0].open_path(paths[0])
-devices[1].open_path(paths[1])
+    for d in hid.enumerate(VENDOR_ID, PRODUCT_ID):
+        if int(d['interface_number']) == 2:
+            paths.append(d['path'])
+            print(d['path'])
+        # keys = list(d.keys())
+        # keys.sort()
+        # print(d['path'])
+        # for key in keys:
+        #     print("%s : %s" % (key, d[key]))
+        # print()
+    #
 
-for device in devices:
     # device = hid.device()
-    # device.open(VENDOR_ID, PRODUCT_ID)
-    print('Connected to ecam {}\n'.format(PRODUCT_ID))
+    # # device.open(VENDOR_ID, PRODUCT_ID)
+    #
+    #
+    # print(dir(device))
+    # print(device)
+    #
+    # device.close()
+    #
+    # import sys
+    # sys.exit()
 
+    devices = [hid.device(), hid.device()]
+    # devices = [hid.device()]
+    devices[0].open_path(paths[0])
+    devices[1].open_path(paths[1])
 
-    timeout = 0
-
-    # First just read LED Control status, as a test.
-
-    g_out_packet_buf = [0, 0]
-    g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135
-    g_out_packet_buf[1] = GET_LED_CONTROL_FSCAM_CU135
-
-    device.write(g_out_packet_buf)
-    time.sleep(0.5)
-
-    data = device.read(BUFFER_LENGTH, timeout)
-    print(data)
-
-    # if data[6]==GET_SUCCESS:
-    if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1]==GET_LED_CONTROL_FSCAM_CU135 and data[6]==GET_SUCCESS:
-        ledstatus=data[2]
-        powerctl=data[3]
-        stream=data[4]
-        trigger=data[5]
-        print("ledstatus {}, powerctl {}, stream {}, trigger {}".format(ledstatus, powerctl, stream, trigger))
-    else:
-        print("GET_FAILED")
-
-    # Now set LED control to indicate when hardware trigger has activated.
-
-    g_out_packet_buf = [0, 0, 0, 0, 0, 0]
-    g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135 # /* set camera control code */
-    g_out_packet_buf[1] = SET_LED_CONTROL_FSCAM_CU135 # /* set led control code */
-    g_out_packet_buf[2] = ENABLE_LED_CONTROL_FSCAM_CU135
-    g_out_packet_buf[3] = DISABLE_STREAMING_CONTROL_FSCAM_CU135
-    g_out_packet_buf[4] = ENABLE_TRIGGERACK_CONTROL_FSCAM_CU135
-    g_out_packet_buf[5] = DISABLE_POWERON_CONTROL_FSCAM_CU135
-    device.write(g_out_packet_buf)
-    time.sleep(0.5)
-
-    data = device.read(BUFFER_LENGTH, timeout)
-    #print(data)
-
-    # Finally set trigger control.
-
-    g_out_packet_buf = [0, 0, 0, 0]
-    g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135  # /* set camera control code */
-    g_out_packet_buf[2] = SET_STREAM_MODE_FSCAM_CU135  # /* set stream mode code */
-    g_out_packet_buf[3] = STREAM_HARDWARE_TRIGGER  # /* actual stream mode */
-    # g_out_packet_buf[3] = STREAM_MASTER_CONTINUOUS  # NOTE: Uncomment this to select auto trigger.
-
-    device.write(g_out_packet_buf)
-
-    time.sleep(2)
-
-    data = device.read(BUFFER_LENGTH, timeout)
-    if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1]==SET_STREAM_MODE_FSCAM_CU135 and data[6]==SET_SUCCESS:
-        print("SUCCESS")
-    else:
-        print("FAILED")
-
-    time.sleep(2)
-
-while True:
     for device in devices:
-        # In hardware trigger mode we must continually request the next frame.
-        g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135 # // camera control id
-        g_out_packet_buf[2] = GRAB_PREVIEW_FRAME # // query frame
-        g_out_packet_buf[3] = QUERY_NEXT_FRAME # // query next frame - 0x01 , query prev frame - 0x02
+        # device = hid.device()
+        # device.open(VENDOR_ID, PRODUCT_ID)
+        print('Connected to ecam {}\n'.format(PRODUCT_ID))
+
+
+        timeout = 0
+
+        # First just read LED Control status, as a test.
+
+        g_out_packet_buf = [0, 0]
+        g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135
+        g_out_packet_buf[1] = GET_LED_CONTROL_FSCAM_CU135
+
         device.write(g_out_packet_buf)
+        time.sleep(0.5)
+
         data = device.read(BUFFER_LENGTH, timeout)
-        print(time.time())
-    time.sleep(0.001)
+        print(data)
+
+        # if data[6]==GET_SUCCESS:
+        if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1]==GET_LED_CONTROL_FSCAM_CU135 and data[6]==GET_SUCCESS:
+            ledstatus=data[2]
+            powerctl=data[3]
+            stream=data[4]
+            trigger=data[5]
+            print("ledstatus {}, powerctl {}, stream {}, trigger {}".format(ledstatus, powerctl, stream, trigger))
+        else:
+            print("GET_FAILED")
+
+        # Now set LED control to indicate when hardware trigger has activated.
+
+        g_out_packet_buf = [0, 0, 0, 0, 0, 0]
+        g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135 # /* set camera control code */
+        g_out_packet_buf[1] = SET_LED_CONTROL_FSCAM_CU135 # /* set led control code */
+        g_out_packet_buf[2] = ENABLE_LED_CONTROL_FSCAM_CU135
+        g_out_packet_buf[3] = DISABLE_STREAMING_CONTROL_FSCAM_CU135
+        g_out_packet_buf[4] = ENABLE_TRIGGERACK_CONTROL_FSCAM_CU135
+        g_out_packet_buf[5] = DISABLE_POWERON_CONTROL_FSCAM_CU135
+        device.write(g_out_packet_buf)
+        time.sleep(0.5)
+
+        data = device.read(BUFFER_LENGTH, timeout)
+        #print(data)
+
+        # Finally set trigger control.
+
+        g_out_packet_buf = [0, 0, 0, 0]
+        g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135  # /* set camera control code */
+        g_out_packet_buf[2] = SET_STREAM_MODE_FSCAM_CU135  # /* set stream mode code */
+        g_out_packet_buf[3] = STREAM_HARDWARE_TRIGGER  # /* actual stream mode */
+        # g_out_packet_buf[3] = STREAM_MASTER_CONTINUOUS  # NOTE: Uncomment this to select auto trigger.
+
+        device.write(g_out_packet_buf)
+
+        time.sleep(2)
+
+        data = device.read(BUFFER_LENGTH, timeout)
+        if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1]==SET_STREAM_MODE_FSCAM_CU135 and data[6]==SET_SUCCESS:
+            print("SUCCESS")
+        else:
+            print("FAILED")
+
+        time.sleep(2)
+
+
+    print("RUNNING HID FRAME GRAB")
+    while True:
+        sample_time = time.time()
+        for device in devices:
+            # In hardware trigger mode we must continually request the next frame.
+            g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135 # // camera control id
+            g_out_packet_buf[2] = GRAB_PREVIEW_FRAME # // query frame
+            g_out_packet_buf[3] = QUERY_NEXT_FRAME # // query next frame - 0x01 , query prev frame - 0x02
+            device.write(g_out_packet_buf)
+            time.sleep(0.001)
+            # data = device.read(BUFFER_LENGTH, timeout)
+            # if data[6] == GET_SUCCESS and device == devices[0]:
+            #     print(time.time() - sample_time)
+            #     sample_time = time.time()
+                #print(time.time())
+        time.sleep(0.001)
