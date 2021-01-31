@@ -38,6 +38,17 @@ COUNTS_PER_REVOLUTION = 9797.0
 ESTOP_PIN = 6
 
 
+
+# class PowerSample:
+#     def init(self, volts, amps, duration):
+#
+#
+# class PowerTracker:
+#     def init(self, interval):
+#         self.recent_samples = []
+#         self.collapse_samples_interval = interval
+
+
 class CornerActuator:
 
     def __init__(self, serial_number=None, name=None, path=None, GPIO=None):
@@ -63,6 +74,7 @@ class CornerActuator:
         self.voltage = 0.0
         self.has_thermistor = False
         self.temperature_c = None
+
 
     def enable_thermistor(self):
         self.has_thermistor = True
@@ -228,16 +240,18 @@ class CornerActuator:
         self.voltage = self.odrv0.vbus_voltage
         gpio_toggle(self.GPIO)
         if self.odrv0.axis0.error or self.odrv0.axis1.error:
-            if "rear_left" in self.name and self.odrv0.axis0.error==False:
-                return
+            # if "rear_left" in self.name and self.odrv0.axis0.error==False:
+            #     return
             gpio_toggle(self.GPIO)
             self.dump_errors()
             raise RuntimeError("odrive error state detected.")
 
 
     def update_voltage(self):
+        gpio_toggle(self.GPIO)
         self.voltage = self.odrv0.vbus_voltage
         self.ibus_0 = self.odrv0.axis0.motor.current_control.Ibus
+        gpio_toggle(self.GPIO)
         self.ibus_1 = self.odrv0.axis1.motor.current_control.Ibus
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
@@ -254,6 +268,7 @@ class CornerActuator:
         pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
         #self.odrv0.axis0.controller.pos_setpoint = pos_counts
         self.odrv0.axis0.controller.move_to_pos(pos_counts)
+        gpio_toggle(self.GPIO)
         # TODO: Setting vel_integrator_current to zero every time we update
         # means we just don't get integrator control. But that would be nice.
         self.odrv0.axis1.controller.vel_integrator_current = 0
@@ -281,6 +296,7 @@ class CornerActuator:
         if not self.has_thermistor:
             return
         try:
+            gpio_toggle(self.GPIO)
             value = self.odrv0.get_adc_voltage(adc_channel)
             resistance = 10000 / (3.3/value)
             self.temperature_c = self.thermistor_steinhart_temperature_C(resistance)

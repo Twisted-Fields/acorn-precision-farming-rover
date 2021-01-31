@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = u'Acorn Farming Machine'
-copyright = u'2020, Taylor Alexander, Daniel Theobald, Twisted Fields, LLC'
+copyright = u'2021, Taylor Alexander, Daniel Theobald, Twisted Fields, LLC'
 author = u'Taylor Alexander, Daniel Theobald, Twisted Fields, LLC'
 
 # The short X.Y version

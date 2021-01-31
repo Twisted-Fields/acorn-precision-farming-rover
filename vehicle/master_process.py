@@ -279,10 +279,11 @@ class MasterProcess():
 
 
             while self.server_comms_parent_conn.poll():
-                #print("recv_multipart")
+                print("Got new data from server.")
                 command, msg = self.server_comms_parent_conn.recv()
                 #print('Client received command {} with message {}'.format(command, msg))
                 acorn.last_server_communication_stamp = time.time()
+                send_robot_object = True
 
             #    print("7777")
                 if command == _CMD_ROBOT_COMMAND:

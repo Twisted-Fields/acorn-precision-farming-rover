@@ -19,6 +19,7 @@ TCP_BUFFER_SIZE = 1024
 VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 39.0
 _FAST_POLLING_DELAY_S = 0.05
 SOCKET_TIMEOUT_SECONDS = 1
+_GPS_ERRORS_ALLOWED = 4
 
 
 if sys.maxsize > 2**32:
@@ -42,32 +43,63 @@ pipe given when this code was launched.
 """
 
 
-def digest_data(data):
+def digest_data(buffer):
     #print(data)
-    data = str(data.splitlines()[0])
-    data = data.split(' ')
-    data = [a for a in data if a]
+    # print(buffer)
+    line_buffer = buffer.splitlines(keepends=True)
+    # print(line_buffer)
 
-    if len(data) > 13:
-        lat = float(data[2])
-        lon = float(data[3])
-        height_m = float(data[4].replace('\'',''))
-        status = "fix" if data[5] is "1" else "no fix"
-        num_sats = data[6]
-        base_rtk_age = float(data[13])
-        # print("Good GPS data recieved: {}".format(data))
-        return gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
+    errors = 0
+    index = len(line_buffer) - 1
+    while True:
+        try:
+            data = line_buffer[index]
+            data = data.splitlines()[0]
+            data = data.split(' ')
+            # print(data)
+            data = [a for a in data if a] # Remove empty string entries.
+            # print(data)
+            # print(index)
+            if len(data) <= 13:
+                raise ValueError("Data incomplete.")
+            lat = float(data[2])
+            lon = float(data[3])
+            height_m = float(data[4].replace('\'',''))
+            status = "fix" if data[5] is "1" else "no fix"
+            num_sats = data[6]
+            base_rtk_age = float(data[13])
+            # print("Good GPS data recieved: {}".format(data))
+            sample = gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
+            if index < len(line_buffer) - 1:
+                buffer = "".join(line_buffer[index+1:])
+                # print(buffer)
+            else:
+                buffer = ""
+            if index > 2:
+                print("Warning, skipping {} GPS samples.".format(index))
+            # print("Returning")
+            return buffer, sample
+        except Exception as e:
+            # print(repr(e))
+            errors += 1
+            index -= 1
+            if errors > _GPS_ERRORS_ALLOWED or index < 0:
+                break
+            else:
+                continue
     else:
         print("Incorrect GPS data length. Recieved: {}".format(data))
-        return None
+        return buffer, None
 
 def run_rtk_system(master_conn):
     launch_rtk_sub_procs()
     tcp_sock1, tcp_sock2 = connect_rtk_procs()
     print_gps_counter = 0
     latest_sample = None
+    buffers = ["", ""]
     while True:
-        latest_sample = rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=print_gps_counter % 40 == 0, last_sample=latest_sample)
+        buffers, latest_sample = rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=True, last_sample=latest_sample)
+        # buffers, latest_sample = rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=print_gps_counter % 40 == 0, last_sample=latest_sample)
         print_gps_counter += 1
         if master_conn is not None:
             master_conn.send(latest_sample)
@@ -266,24 +298,28 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
 
 
 
-def rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=False, last_sample=None, retries=3):
+def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=None, retries=3):
     print_gps_counter = 0
     errors = 0
+    # print(buffers)
+    blocking_exception = None
     while True:
         try:
-            data1 = tcp_sock1.recv(TCP_BUFFER_SIZE)
-            data1 = digest_data(data1)
-            data2 = tcp_sock2.recv(TCP_BUFFER_SIZE)
-            data2 = digest_data(data2)
+            buffers[0] += tcp_sock1.recv(TCP_BUFFER_SIZE).decode('utf-8')
+            buffers[1] += tcp_sock2.recv(TCP_BUFFER_SIZE).decode('utf-8')
+            buffers[0], data1 = digest_data(buffers[0])
+            buffers[1], data2 = digest_data(buffers[1])
             break
-        except BlockingIOError:
-            pass
+        except BlockingIOError as e:
+            blocking_exception = e
         except Exception as e:
             print("GPS ERROR DURING READ: {}".format(e))
         errors += 1
         if errors > retries:
+            if blocking_exception is not None:
+                print("ERROR GPS DATA NOT AVAILABLE")
             print("TOO MANY GPS ERRORS")
-            return None
+            return buffers, None
 
     try:
         if data1 and data2:
@@ -301,17 +337,17 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, print_gps=False, last_sample=None, retri
             #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
             if print_gps:
                 print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}, Period: {}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, data1.status, data2.status, period))
-            return latest_sample
+            return buffers, latest_sample
         else:
             print("Missing GPS Data")
-            return None
+            return buffers, None
     except KeyboardInterrupt as e:
         raise e
     except BlockingIOError:
-        return None
+        return buffers, None
     except Exception as e:
         print("GPS ERROR DURING PROCESSING: {}".format(e))
-        return None
+        return buffers, None
     # TODO: Close sockets when needed.
 
 

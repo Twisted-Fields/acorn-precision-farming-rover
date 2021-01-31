@@ -27,7 +27,11 @@ _ONLINE_SETTLING_TIME_SEC = 1 * 60
 
 _MAXIMUM_TIME_TO_ATTEMPT_AUTONOMY_SEC = 20 * 60
 
+_CLEAR_AUTONOMY_HOLD_COMMAND_OBJECT_TIME_SEC = 5
+
 _LONG_PAUSE_SEC = 10
+
+_LOOP_DELAY_SEC = 2
 
 def main():
     r = redis.Redis(
@@ -36,10 +40,23 @@ def main():
     acorn_present = False
     acorn_activated = False
     acorn_activated_time = 0
+    command_object_autonomy_hold_time = 0
     while True:
         keys = redis_utils.get_robot_keys(r)
         for key in keys:
             robot = pickle.loads(r.get(key))
+            command_object = redis_utils.get_command_object_from_robot_key(r, key)
+
+            if command_object.clear_autonomy_hold == True:
+                if command_object_autonomy_hold_time == 0:
+                    command_object_autonomy_hold_time = time.time()
+                elif time.time() - command_object_autonomy_hold_time > _CLEAR_AUTONOMY_HOLD_COMMAND_OBJECT_TIME_SEC:
+                    command_object.clear_autonomy_hold = False
+                    redis_utils.save_command_object_from_robot_key(r, key, command_object)
+                    command_object_autonomy_hold_time = 0
+                    continue
+                print("Clear autonomy hold set. Will clear command value in {} seconds.".format(_CLEAR_AUTONOMY_HOLD_COMMAND_OBJECT_TIME_SEC - (time.time() - command_object_autonomy_hold_time)))
+
 
             data_age = (datetime.now() - robot.time_stamp).total_seconds()
             print("Data age: {} , Control State: {}, Autonomy Hold {}, Activate Autonomy {}".format(data_age, robot.control_state, robot.autonomy_hold, robot.activate_autonomy))
@@ -73,7 +90,7 @@ def main():
                 print("Acorn offline.")
                 acorn_present = False
 
-        time.sleep(2)
+        time.sleep(_LOOP_DELAY_SEC)
 
 if __name__ == "__main__":
     main()

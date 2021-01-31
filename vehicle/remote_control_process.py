@@ -62,7 +62,7 @@ _LOOP_RATE = 10
 _ERROR_RATE_AVERAGING_COUNT = 2
 
 _ALLOWED_RTK_AGE_SEC = 20.0
-_ALLOWED_SOLUTION_AGE_SEC = 2.0
+_ALLOWED_SOLUTION_AGE_SEC = 1.0
 
 _ALLOWED_MOTOR_SEND_LAPSE_SEC = 5
 
@@ -74,9 +74,12 @@ _PATH_END_PAUSE_SEC = 5.0
 
 _SLOW_POLLING_SLEEP_S = 0.5
 
-_POLL_MILLISECONDS = 25
+_POLL_MILLISECONDS = 100
+_FAST_POLL_MILLISECONDS = 20
 
-_DISENGAGEMENT_RETRY_DELAY_MINUTES = 3
+_ERROR_SKIP_RATE = 40
+
+_DISENGAGEMENT_RETRY_DELAY_MINUTES = 1
 _DISENGAGEMENT_RETRY_DELAY_SEC = _DISENGAGEMENT_RETRY_DELAY_MINUTES * _SEC_IN_ONE_MINUTE
 
 
@@ -250,6 +253,8 @@ class RemoteControl():
         print_gps_counter = 0
         self.latest_gps_sample = None
         self.last_good_gps_sample = None
+        self.gps_buffers = ["",""]
+        debug_time = time.time()
         try:
             loop_count = -1
             while True:
@@ -257,8 +262,8 @@ class RemoteControl():
                 # if loop_count >= 80:
                 #     time.sleep(0.5) #DEBUGGING
                 #print("rtk_loop_once_start")
-                self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample, retries=_GPS_ERROR_RETRIES)
-
+                self.gps_buffers, self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, buffers=self.gps_buffers, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample, retries=_GPS_ERROR_RETRIES)
+                debug_time = time.time()
                 # print(type(self.latest_gps_sample))
                 if self.latest_gps_sample is not None:
                     self.last_good_gps_sample = self.latest_gps_sample
@@ -272,14 +277,21 @@ class RemoteControl():
                 #print("rtk_loop_once_completed")
 
 
+
+
                 try:
-                    recieved_robot_object = pickle.loads(self.master_conn.recv_pyobj())
+                    recieved_robot_object = None
+                    time1 = time.time() - debug_time
+                    while self.master_conn.poll(_FAST_POLL_MILLISECONDS):
+                        recieved_robot_object = pickle.loads(self.master_conn.recv_pyobj())
+                    time2 = time.time() - debug_time
                 except Exception as e:
                     print(e)
-                    recieved_robot_object = None
                 if recieved_robot_object:
                     if str(type(recieved_robot_object))=="<class '__main__.Robot'>":
                         self.robot_object = recieved_robot_object
+                        # print("Remote received new robot object.")
+                        time3 = time.time() - debug_time
                         if len(self.nav_path) == 0 or self.loaded_path_name != self.robot_object.loaded_path_name:
                             if len(self.robot_object.loaded_path) > 0  and self.latest_gps_sample is not None:
                                 #print(self.robot_object.loaded_path)
@@ -312,6 +324,7 @@ class RemoteControl():
                     continue
 
 
+                time4 = time.time() - debug_time
 
             #    print("begin robot calc")
 
@@ -338,12 +351,15 @@ class RemoteControl():
 
                     if time.time() - self.latest_gps_sample.time_stamp < _ALLOWED_SOLUTION_AGE_SEC:
                         solution_age = time.time() - self.latest_gps_sample.time_stamp
-                        self.solution_age_averaging_list.append(solution_age)
-                        while len(self.solution_age_averaging_list) > 30:
-                            self.solution_age_averaging_list.pop(0)
-                        age_avg = sum(self.solution_age_averaging_list)/len(self.solution_age_averaging_list)
-                        #print("solution age average: {}".format(age_avg))
+                        # self.solution_age_averaging_list.append(solution_age)
+                        # while len(self.solution_age_averaging_list) > 30:
+                        #     self.solution_age_averaging_list.pop(0)
+                        # age_avg = sum(self.solution_age_averaging_list)/len(self.solution_age_averaging_list)
+                        # print("solution age average: {}".format(age_avg))
                         solution_age_okay = True
+                    if not solution_age_okay:
+                        print("SOLUTION AGE {} NOT OKAY AND LATEST GPS SAMPLE IS: {}".format(time.time() - self.latest_gps_sample.time_stamp, self.latest_gps_sample))
+                        print("Took {} sec to get here. {} {} {} {}".format(time.time()-debug_time, time1, time2, time3, time4))
 
 
                     closest_front = gps_tools.GpsPoint(0, 0)
@@ -553,7 +569,7 @@ class RemoteControl():
                     zero_output = True
                     self.resume_motion_timer = time.time()
                     self.control_state = CONTROL_AUTONOMY_ERROR_DISTANCE
-                    error_messages.append("GPS distance too far from path so zeroing out autonomy commands.")
+                    error_messages.append("GPS distance {} meters too far from path so zeroing out autonomy commands.".format(abs(_gps_lateral_distance_error)))
                 elif angle_from_path_okay == False:
                     zero_output = True
                     self.resume_motion_timer = time.time()
@@ -575,9 +591,9 @@ class RemoteControl():
                     server_communication_okay = False
                     zero_output = True
                     self.resume_motion_timer = time.time()
-                    error_messages.append("Server communication error so zeroing out autonomy commands.")
+                    error_messages.append("Server communication error so zeroing out autonomy commands. Last stamp age {} exceeds allowed age of {} seconds. AP name: {}".format(time.time() - self.robot_object.last_server_communication_stamp, SERVER_COMMUNICATION_DELAY_LIMIT_SEC, self.robot_object.wifi_ap_name))
 
-                if loop_count % 40 == 0:
+                if loop_count % _ERROR_SKIP_RATE == 0:
                     for error in error_messages:
                         print(error)
 
@@ -587,7 +603,7 @@ class RemoteControl():
                         self.disengagement_time = time.time()
                         print("Disengaging Autonomy.")
                         # Ensure we always print errors if we are deactivating autonomy.
-                        if loop_count % 10 != 0:
+                        if loop_count % _ERROR_SKIP_RATE != 0:
                             for error in error_messages:
                                 print(error)
                         with open("error_log.txt", 'a+') as file1:
@@ -725,9 +741,10 @@ class RemoteControl():
                     print("ZMQ error with motor command socket. Resetting.")
                     self.motor_state = STATE_DISCONNECTED
                     self.close_motor_socket()
-                if time.time() - self.motor_last_send_time > _ALLOWED_MOTOR_SEND_LAPSE_SEC:
-                    # If this occurrs its worth trying to send again.
-                    self.motor_send_okay = True
+                # if time.time() - self.motor_last_send_time > _ALLOWED_MOTOR_SEND_LAPSE_SEC:
+                #     # If this occurrs its worth trying to send again.
+                #     self.motor_send_okay = True
+                #     print("DOES THIS LINE CAUSE A ZMQ ERROR?")
 
 
                 if gps_fix:

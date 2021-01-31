@@ -6,6 +6,7 @@ from random import randint, random
 import pickle
 import redis
 import psutil
+import redis_utils
 
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
@@ -150,7 +151,7 @@ def handle_command(r, command, key, msg):
         robot = pickle.loads(msg)
         robot = update_robot(r, key, robot)
 
-        command_key = get_robot_command_key(key)
+        command_key = redis_utils.get_robot_command_key(key)
         # if not command_key:
         #     print("Error. Command key is none. Key was:")
         command_object = pickle.loads(r.get(command_key))
@@ -186,18 +187,12 @@ def handle_command(r, command, key, msg):
     #time.sleep(delay)
     return command_reply, message
 
-def get_robot_command_key(robot_key):
-    return bytes(str(robot_key)[2:-1].replace(":key", ":command:key"), encoding='ascii')
-
-def get_energy_segment_key(robot_key):
-    return bytes(str(robot_key)[2:-1].replace(":key", ":energy_segment:key"), encoding='ascii')
-
 #bytes(str(robot_key).replace(":key", ":command:key"), encoding='ascii')
 
 
 def update_robot(r, key, robot):
     if len(robot.energy_segment_list) > 0:
-        key = get_energy_segment_key(key)
+        key = redis_utils.get_energy_segment_key(key)
         for segment in robot.energy_segment_list:
             r.rpush(key, pickle.dumps(segment))
         robot.energy_segment_list = []

@@ -27,7 +27,11 @@ access_points = {
 '18:e8:29:a4:ee:7d':'Upstairs Bath',
 '1a:e8:29:a5:ee:7d':'Upstairs Bath',
 'e0:63:da:15:1e:74':'Big Field HP',
-'e2:63:da:16:1e:74':'Big Field HP'
+'e2:63:da:16:1e:74':'Big Field HP',
+'74:ac:b9:64:36:a1':'Back of Farmhouse',
+'74:ac:b9:63:36:a1':'Back of Farmhouse',
+'74:ac:b9:34:fd:08':'Farm Store',
+'76:ac:b9:35:fd:08':'Farm Store'
 }
 
 def wifi_process(master_conn):

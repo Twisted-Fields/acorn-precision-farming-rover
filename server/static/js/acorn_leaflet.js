@@ -492,10 +492,6 @@ function setup_map(access_token_data) {
 
                         modifyAutonomyHold(`${robot.name}`, true);
 
-                        setTimeout(function() {
-                            modifyAutonomyHold(`${robot.name}`, false);
-                        }, 4000)
-
                     });
 
 

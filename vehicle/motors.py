@@ -161,9 +161,10 @@ class AcornMotorInterface():
         try:
             corner_actuator.gpio_toggle(GPIO)
             while self.command_socket.poll(timeout=20):
-                recv = pickle.loads(self.command_socket.recv_pyobj())
                 corner_actuator.gpio_toggle(GPIO)
+                recv = pickle.loads(self.command_socket.recv_pyobj())
                 self.command_socket.send_pyobj(pickle.dumps((state, voltages, ibus, temperatures)),flags=zmq.DONTWAIT)
+                corner_actuator.gpio_toggle(GPIO)
                 return recv
             # print("no incoming messages")
         except zmq.error.ZMQError as e:

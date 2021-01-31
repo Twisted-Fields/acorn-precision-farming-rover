@@ -469,10 +469,6 @@ $(document).ready(function(){
 
                         modifyAutonomyHold(`${robot.name}`, true);
 
-                        setTimeout(function() {
-                            modifyAutonomyHold(`${robot.name}`, false);
-                        }, 4000)
-
                     });
 
 
@@ -986,4 +982,3 @@ $(document).ready(function(){
       //  getPath();
         getRobotData();
     }
-
