@@ -22,7 +22,7 @@ limitations under the License.
 """
 
 import corner_actuator
-from corner_actuator import COUNTS_PER_REVOLUTION
+from corner_actuator import COUNTS_PER_REVOLUTION, OdriveConnection
 import serial
 import time
 import sys
@@ -37,6 +37,7 @@ import argparse
 from multiprocessing import Process
 import os
 import fibre
+import collections
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
@@ -61,15 +62,17 @@ _ACCELERATION_COUNTS_SEC = 0.5
 _USE_JOYSTICK = True
 
 
+
 class AcornMotorInterface():
 
-    def __init__(self, manual_control):
-        self.odrive_devices = {
-        "front_right":"335E31483536",
-        "front_left":"335B314C3536",
-        "rear_right":"3352316E3536",
-        "rear_left":"205332784D4B"
-        }
+    def __init__(self, manual_control=False):
+
+        self.odrive_connections = [
+        OdriveConnection(name='front_right', serial="335E31483536", path="/dev/ttySC1"),
+        OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0"),
+        OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2"),
+        OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3")
+        ]
 
         self.command_socket = self.create_socket()
         self.odrives_connected = False
@@ -77,11 +80,8 @@ class AcornMotorInterface():
         self.steering_adjusted = False
         self.manual_control=manual_control
 
-
         self.setup_GPIO(GPIO)
-        # self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
-        # self.square_wave.start()
-        #p.join()
+
 
     def create_socket(self, port=5590):
         context = zmq.Context()
@@ -140,42 +140,42 @@ class AcornMotorInterface():
 
             drive.update_actuator(0.0, speed)
 
-    def connect_to_motors(self):
-        front_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_right'], name='front_right', path="/dev/ttySC1", GPIO=GPIO)
-        front_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['front_left'], name='front_left', path="/dev/ttySC0", GPIO=GPIO)
-        rear_right = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_right'], name='rear_right', path="/dev/ttySC2", GPIO=GPIO)
-        rear_left = corner_actuator.CornerActuator(serial_number=self.odrive_devices['rear_left'], name='rear_left', path="/dev/ttySC3", GPIO=GPIO)
-
-        self.odrives = [front_left, front_right, rear_right, rear_left]
+    def connect_to_motors(self, enable_steering=True, enable_traction=True):
+        self.odrives = []
+        for drive in self.odrive_connections:
+            corner = corner_actuator.CornerActuator(GPIO=GPIO, connection_definition=drive, enable_steering=enable_steering, enable_traction=enable_traction)
+            self.odrives.append(corner)
         self.odrives_connected = True
 
     def initialize_motors(self):
         for drive in self.odrives:
             drive.print_errors(clear_errors=True)
         for drive in self.odrives:
-            steering = 0.0
-            if "rear" in drive.name:
-                drive.initialize_steering(steering_flipped=True, skip_homing=self.manual_control)
-            else:
-                drive.initialize_steering(steering_flipped=False, skip_homing=self.manual_control)
-            drive.update_actuator(steering, 0.0)
+            if drive.enable_steering:
+                steering = 0.0
+                if "rear" in drive.name:
+                    drive.initialize_steering(steering_flipped=True, skip_homing=self.manual_control)
+                else:
+                    drive.initialize_steering(steering_flipped=False, skip_homing=self.manual_control)
+                drive.update_actuator(steering, 0.0)
         for drive in self.odrives:
-            if "rear_left" in drive.name:
-                drive.enable_thermistor()
-                continue
-            drive.initialize_traction()
+            if drive.enable_traction:
+                if "rear_left" in drive.name:
+                    drive.enable_thermistor()
+                    continue
+                drive.initialize_traction()
         self.motors_initialized = True
 
-    def check_errors(self):
+    def check_odrive_errors(self):
         for drive in self.odrives:
             try:
-                #if "rear_left" in drive.name and drive.odrv0.axis0.error==False:
-                #    continue
-                if drive.odrv0.axis0.error or drive.odrv0.axis1.error:
-                    return True
+                drive.check_errors()
             except fibre.protocol.ChannelBrokenException as e:
                 print("Exception in {} odrive.".format(drive.name))
                 raise e
+            except RuntimeError as e:
+                print("RuntimeError in {} odrive.".format(drive.name))
+                return True
         return False
 
     def communicate_message(self, state, voltages=None, ibus=None, temperatures=None):
@@ -192,6 +192,40 @@ class AcornMotorInterface():
         except zmq.error.ZMQError as e:
             print("Error with motor command socket: {}".format(e))
             raise e
+
+
+    def run_debug_control(self, enable_steering=True, enable_traction=True):
+        motor_error = False
+        tick_time = time.time()
+        print("RUN_MAIN_MOTORS")
+        while True:
+            try:
+                if not self.odrives_connected:
+                    self.connect_to_motors(enable_steering=enable_steering, enable_traction=enable_traction)
+                    print("CONNECTED TO MOTORS")
+                    print(self.odrives)
+                elif not self.motors_initialized:
+                    try:
+                        print("BEGIN INTIALIZE MOTORS")
+                        self.initialize_motors()
+                        print("SUCCESS INTIALIZE MOTORS")
+                    except ValueError as e:
+                        print("Unrecoverable error initializing steering.")
+                        raise e
+                    except RuntimeError as e:
+                        print("Motor problem while initializing steering.")
+                elif not self.steering_adjusted:
+                    try:
+                        self.steering_adjusted = True
+                        self.ask_if_adjust_steering()
+                        print("Initialized Steering")
+                    except RuntimeError as e:
+                        print("Motor problem while adjusting steering.")
+            except Exception as e:
+                print("Exception:")
+                print(e)
+                time.sleep(1)
+
 
     def run_main(self):
         motor_error = False
@@ -239,7 +273,7 @@ class AcornMotorInterface():
                 #
                 # print(velocities)
 
-                if self.check_errors():
+                if self.check_odrive_errors():
                     if motor_error != True:
                         time.sleep(1) # Intentionally break the e-stop loop to stop all motors.
                     motor_error = True
@@ -260,7 +294,7 @@ class AcornMotorInterface():
                     if motor_error:
                         for odrive in self.odrives:
                             odrive.recover_from_estop()
-                        if not self.check_errors():
+                        if not self.check_odrive_errors():
                             print("Recovered from e-stop.")
                             motor_error = False
 
@@ -344,8 +378,6 @@ def e_stop_square_wave(GPIO):
 
 
 if __name__ == '__main__':
-    #import sys
-    #sys.exit()
     parser = argparse.ArgumentParser(description='Run the Acorn motors process.')
     parser.add_argument('--manual', dest='manual_control', default=False, action='store_true')
     args = parser.parse_args()

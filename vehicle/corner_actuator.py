@@ -24,9 +24,6 @@ limitations under the License.
 """
 Control one corner of the Acorn robot via the Odrive motor controller.
 """
-
-from __future__ import print_function
-
 import odrive_manager
 from odrive.enums import *
 from odrive.utils import _VT100Colors
@@ -35,9 +32,13 @@ import math
 import sys
 import fibre
 import random
+import collections
 
-_ADC_PORT_STEERING_POT = 4
-_ADC_PORT_STEERING_HOME = 3
+THERMISTOR_ADC_CHANNEL = 3
+_ADC_PORT_STEERING_POT = 5
+_ADC_PORT_STEERING_HOME = 6
+
+
 _VCC = 3.3
 _VOLTAGE_MIDPOINT = _VCC/2
 _POT_VOLTAGE_LOW = _VCC/6
@@ -51,7 +52,7 @@ _FAST_POLLING_SLEEP_S = 0.01
 _SLOW_POLLING_SLEEP_S = 0.5
 _ODRIVE_CONNECT_TIMEOUT = 75
 _MAX_HOMING_ATTEMPTS = 10
-THERMISTOR_ADC_CHANNEL = 4
+
 
 COMMAND_VALUE_MINIMUM = 0.001
 
@@ -59,7 +60,7 @@ COUNTS_PER_REVOLUTION = 9797.0
 
 ESTOP_PIN = 6
 
-
+OdriveConnection = collections.namedtuple('OdriveConnection', 'name serial path')
 
 # class PowerSample:
 #     def init(self, volts, amps, duration):
@@ -73,22 +74,23 @@ ESTOP_PIN = 6
 
 class CornerActuator:
 
-    def __init__(self, serial_number=None, name=None, path=None, GPIO=None):
+    def __init__(self, serial_number=None, name=None, path=None, GPIO=None, connection_definition=None, enable_steering=True, enable_traction=True):
+        if connection_definition:
+            serial_number = connection_definition.serial
+            name = connection_definition.name
+            path = connection_definition.path
         if serial_number and not isinstance(serial_number, str):
             raise ValueError("serial_number must be of type str but got type: {}".format(type(serial_number)))
 
         self.GPIO=GPIO
 
         self.odrv0 = odrive_manager.OdriveManager(path=path, serial_number=serial_number).find_odrive()
-
-        # if path:
-        #     self.odrv0 = odrive.find_any(path=path, timeout=_ODRIVE_CONNECT_TIMEOUT)
-        # elif not serial_number:
-        #     self.odrv0 = odrive.find_any(timeout=_ODRIVE_CONNECT_TIMEOUT)
-        # else:
-        #     self.odrv0 = odrive.find_any(serial_number=serial_number, timeout=_ODRIVE_CONNECT_TIMEOUT)
-        #     #self.odrv0 = odrive.find_any(path="usb:1-1.1.3.4", timeout=_ODRIVE_CONNECT_TIMEOUT)
+        
         self.name = name
+        self.enable_steering=enable_steering
+        self.enable_traction=enable_traction
+        self.steering_axis = self.odrv0.axis0
+        self.traction_axis = self.odrv0.axis1
         self.steering_initialized = False
         self.traction_initialized = False
         self.position = 0.0
@@ -96,7 +98,6 @@ class CornerActuator:
         self.voltage = 0.0
         self.has_thermistor = False
         self.temperature_c = None
-
 
     def enable_thermistor(self):
         self.has_thermistor = True
@@ -259,14 +260,17 @@ class CornerActuator:
                 toggling_sleep(self.GPIO, 5)  # TODO: Is this sleep time reasonable? Should also make it a variable.
 
     def check_errors(self):
-        self.voltage = self.odrv0.vbus_voltage
         gpio_toggle(self.GPIO)
-        if self.odrv0.axis0.error or self.odrv0.axis1.error:
-            # if "rear_left" in self.name and self.odrv0.axis0.error==False:
-            #     return
+        if self.enable_traction and self.traction_axis.error:
             gpio_toggle(self.GPIO)
             self.dump_errors()
-            raise RuntimeError("odrive error state detected.")
+            self.update_voltage()
+            raise RuntimeError("Odrive traction motor error state detected.")
+        if self.enable_steering and self.steering_axis.error:
+            gpio_toggle(self.GPIO)
+            self.dump_errors()
+            self.update_voltage()
+            raise RuntimeError("Odrive steering motor error state detected.")
 
 
     def update_voltage(self):

@@ -9,11 +9,13 @@ from adafruit_mcp230xx.mcp23017 import MCP23017
 
 ESTOP_PIN = 6
 VOLT_OUT_PIN = 5
+NVIDIA_ENABLE_PIN = 16
 
 GPIO.setmode(GPIO.BCM)
 
 GPIO.setup(ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
+GPIO.setup(NVIDIA_ENABLE_PIN, GPIO.OUT, initial=GPIO.LOW)
 
 #
 #
