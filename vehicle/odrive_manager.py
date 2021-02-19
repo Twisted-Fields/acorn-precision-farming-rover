@@ -21,6 +21,13 @@ limitations under the License.
 *********************************************************************
 """
 
+"""
+This script was originally shared on the ODrive community discussion board by
+user marcelrobitaille.
+
+https://discourse.odriverobotics.com/t/fw-0-4-1-why-does-odrive-instance-takes-30s-to-be-created/791/14
+"""
+
 import json
 import logging
 import threading
