@@ -78,6 +78,8 @@ _SEC_IN_ONE_MINUTE = 60
 _WIFI_SETTLING_SLEEP_SEC = 5
 _SERVER_PING_DELAY_SEC = 2
 
+_USE_FAKE_HARDWARE = False
+
 
 def kill_master_procs():
     for proc in psutil.process_iter():
@@ -205,12 +207,12 @@ class MasterProcess():
         remote_control_parent_conn = context.socket(zmq.PAIR)
         remote_control_parent_conn.bind("tcp://*:%s" % port)
 
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=())
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(_USE_FAKE_HARDWARE, ))
         remote_control_proc.start()
 
 
         voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
-        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn,))
+        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, _USE_FAKE_HARDWARE, ))
         voltage_proc.start()
 
         self.message_tracker = []

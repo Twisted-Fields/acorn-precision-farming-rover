@@ -25,6 +25,7 @@ limitations under the License.
 Control one corner of the Acorn robot via the Odrive motor controller.
 """
 import odrive_manager
+import fake_odrive_manager
 from odrive.enums import *
 from odrive.utils import _VT100Colors
 import time
@@ -53,6 +54,14 @@ _SLOW_POLLING_SLEEP_S = 0.5
 _ODRIVE_CONNECT_TIMEOUT = 75
 _MAX_HOMING_ATTEMPTS = 10
 
+try:
+    CTRL_MODE_POSITION_CONTROL
+    CTRL_MODE_VELOCITY_CONTROL
+except:
+    print("WARNING: potentially incompatible odrive library version!")
+    CTRL_MODE_POSITION_CONTROL = CONTROL_MODE_POSITION_CONTROL
+    CTRL_MODE_VELOCITY_CONTROL = CONTROL_MODE_VELOCITY_CONTROL
+
 
 COMMAND_VALUE_MINIMUM = 0.001
 
@@ -74,7 +83,7 @@ OdriveConnection = collections.namedtuple('OdriveConnection', 'name serial path'
 
 class CornerActuator:
 
-    def __init__(self, serial_number=None, name=None, path=None, GPIO=None, connection_definition=None, enable_steering=True, enable_traction=True):
+    def __init__(self, serial_number=None, name=None, path=None, GPIO=None, connection_definition=None, enable_steering=True, enable_traction=True, make_fake=False):
         if connection_definition:
             serial_number = connection_definition.serial
             name = connection_definition.name
@@ -83,9 +92,11 @@ class CornerActuator:
             raise ValueError("serial_number must be of type str but got type: {}".format(type(serial_number)))
 
         self.GPIO=GPIO
+        if make_fake:
+            self.odrv0 = fake_odrive_manager.FakeOdriveManager(path=path, serial_number=serial_number).find_odrive()
+        else:
+            self.odrv0 = odrive_manager.OdriveManager(path=path, serial_number=serial_number).find_odrive()
 
-        self.odrv0 = odrive_manager.OdriveManager(path=path, serial_number=serial_number).find_odrive()
-        
         self.name = name
         self.enable_steering=enable_steering
         self.enable_traction=enable_traction

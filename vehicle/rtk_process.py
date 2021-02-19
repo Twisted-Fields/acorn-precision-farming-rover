@@ -34,6 +34,7 @@ import gps_tools
 import sys
 import psutil
 import struct
+import random
 
 TCP_IP = "127.0.0.1"
 TCP_PORT1 = 10001
@@ -321,7 +322,25 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
 
 
 
-def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=None, retries=3):
+def fake_data(print_gps):
+    lat = 37.3540865905 #+ random() * 0.0001
+    lon = -122.333349927 #+ random() * 0.0001
+    height_m = 80 + random.random() * 10
+    azimuth_degrees = -22 + random.random() * 360.0
+    rtk_age = 1.0
+    latest_sample = gps_tools.GpsSample(lat, lon, height_m, ("fix", "fix"), (21, 23), azimuth_degrees, time.time(), rtk_age)
+    d = 2.8
+    if print_gps:
+        print("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fix1: {}, Fix2: {}, Period: {}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, "Fix", "Fix", 0.121))
+
+    return [], latest_sample
+
+
+
+def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=None, retries=3, return_fake_data=False):
+    if return_fake_data:
+        return fake_data(print_gps)
+
     print_gps_counter = 0
     errors = 0
     # print(buffers)

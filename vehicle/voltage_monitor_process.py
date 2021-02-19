@@ -47,11 +47,21 @@ MAX_VAL = 2^16
 
 class VoltageSampler():
 
-    def __init__(self, master_conn):
+    def __init__(self, master_conn, make_fake=False):
         self.adc = None
+        self.fake_device = make_fake
         self.master_conn = master_conn
 
     def read_loop(self):
+        if self.fake_device:
+            while True:
+                cell1 = 14.5
+                cell2 = 14.3
+                cell3 = 14.6
+                total = cell1 + cell2 + cell3
+                if self.master_conn is not None:
+                    self.master_conn.send((cell1, cell2, cell3, total),)
+                time.sleep(1)
         self.adc = Adafruit_ADS1x15.ADS1115(address=0x48)
         while True:
             # Read all the ADC channel values in a list.
@@ -93,8 +103,8 @@ class VoltageSampler():
             # Pause for half a second.
             time.sleep(1)
 
-def sampler_loop(master_conn):
-    sampler = VoltageSampler(master_conn)
+def sampler_loop(master_conn, make_fake=False):
+    sampler = VoltageSampler(master_conn, make_fake)
     sampler.read_loop()
 
 if __name__=="__main__":

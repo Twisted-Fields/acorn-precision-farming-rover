@@ -59,7 +59,7 @@ _SHUT_DOWN_MOTORS_COMMS_DELAY_S = 1.0
 _ERROR_RECOVERY_DELAY_S = 5
 _ACCELERATION_COUNTS_SEC = 0.5
 
-_USE_JOYSTICK = True
+_USE_FAKE_HARDWARE = False
 
 
 
@@ -143,7 +143,7 @@ class AcornMotorInterface():
     def connect_to_motors(self, enable_steering=True, enable_traction=True):
         self.odrives = []
         for drive in self.odrive_connections:
-            corner = corner_actuator.CornerActuator(GPIO=GPIO, connection_definition=drive, enable_steering=enable_steering, enable_traction=enable_traction)
+            corner = corner_actuator.CornerActuator(GPIO=GPIO, connection_definition=drive, enable_steering=enable_steering, enable_traction=enable_traction, make_fake=_USE_FAKE_HARDWARE)
             self.odrives.append(corner)
         self.odrives_connected = True
 

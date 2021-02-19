@@ -132,8 +132,9 @@ class EnergySegment():
 
 class RemoteControl():
 
-    def __init__(self, ):
+    def __init__(self, make_fake=False):
         self.joy = None
+        self.fake_device = make_fake
         self.motor_socket = None
         self.robot_object = None
         self.next_point_heading = -180
@@ -146,15 +147,23 @@ class RemoteControl():
         self.master_conn.connect("tcp://localhost:%s" % port)
 
     def run_setup(self):
-        i2c = busio.I2C(board.SCL, board.SDA)
-        mcp = MCP23017(i2c)#, address=0x20)  # MCP23017
-        self.alarm1 = mcp.get_pin(0)
-        self.alarm2 = mcp.get_pin(1)
-        self.alarm3 = mcp.get_pin(2)
+        if self.fake_device:
+            class FakeAlarm():
+                def __init__(self):
+                    self.value = 0
+            self.alarm1 = FakeAlarm()
+            self.alarm2 = FakeAlarm()
+            self.alarm3 = FakeAlarm()
+        else:
+            i2c = busio.I2C(board.SCL, board.SDA)
+            mcp = MCP23017(i2c)#, address=0x20)  # MCP23017
+            self.alarm1 = mcp.get_pin(0)
+            self.alarm2 = mcp.get_pin(1)
+            self.alarm3 = mcp.get_pin(2)
 
-        self.alarm1.switch_to_output(value=False)
-        self.alarm2.switch_to_output(value=False)
-        self.alarm3.switch_to_output(value=False)
+            self.alarm1.switch_to_output(value=False)
+            self.alarm2.switch_to_output(value=False)
+            self.alarm3.switch_to_output(value=False)
         self.connect_to_motors()
         self.connect_joystick()
 
@@ -267,8 +276,12 @@ class RemoteControl():
         self.temperatures = []
         autonomy_vel_cmd = 0
 
-        rtk_process.launch_rtk_sub_procs()
-        rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()
+        if self.fake_device:
+            rtk_socket1 = None
+            rtk_socket2 = None
+        else:
+            rtk_process.launch_rtk_sub_procs()
+            rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()
         allowed_rtk_errors = 60
         rtk_error_count = 0
         print_gps_counter = 0
@@ -283,7 +296,7 @@ class RemoteControl():
                 # if loop_count >= 80:
                 #     time.sleep(0.5) #DEBUGGING
                 #print("rtk_loop_once_start")
-                self.gps_buffers, self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, buffers=self.gps_buffers, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample, retries=_GPS_ERROR_RETRIES)
+                self.gps_buffers, self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, buffers=self.gps_buffers, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample, retries=_GPS_ERROR_RETRIES, return_fake_data=self.fake_device)
                 debug_time = time.time()
                 # print(type(self.latest_gps_sample))
                 if self.latest_gps_sample is not None:
@@ -469,7 +482,10 @@ class RemoteControl():
 
 
                 # Get joystick value
-                joy_steer, joy_throttle, joy_strafe = self.get_joystick_values(joy_steer, joy_throttle, joy_strafe)
+                if self.fake_device:
+                    joy_steer, joy_throttle, joy_strafe = 0.0, 0.0, 0.0
+                else:
+                    joy_steer, joy_throttle, joy_strafe = self.get_joystick_values(joy_steer, joy_throttle, joy_strafe)
                 #print(joy_throttle)
                 if abs(joy_steer) > 0.1 or abs(joy_throttle) > 0.1 or abs(joy_strafe) > 0.1:
                     print("DISABLED AUTONOMY Steer: {}, Joy {}".format(joy_steer, joy_throttle))
@@ -822,8 +838,8 @@ class RemoteControl():
 
 
 
-def run_control():
-    remote_control = RemoteControl()
+def run_control(make_fake=False):
+    remote_control = RemoteControl(make_fake)
     remote_control.run_setup()
     remote_control.run_loop()
 
