@@ -1,0 +1,6 @@
+H1  Yellow
+H2  Blue
+H3  Green
++   Red
+-   Black
+ST  White
