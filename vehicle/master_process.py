@@ -41,15 +41,11 @@ import psutil
 import pipe_relay
 import fcntl
 import server_comms
+import rtk_process
+import argparse
 
-_USE_FAKE_GPS = False
-
-if _USE_FAKE_GPS:
-    import fake_rtk_process as rtk_process
-else:
-    import rtk_process
-
-_YAML_NAME="/home/pi/vehicle/server_config.yaml"
+_YAML_NAME_LOCAL="vehicle/server_config.yaml"
+_YAML_NAME_RASPBERRY="/home/pi/vehicle/server_config.yaml"
 
 _CMD_WRITE_KEY = bytes('w', encoding='ascii')
 _CMD_READ_KEY = bytes('readkey', encoding='ascii')
@@ -78,7 +74,6 @@ _SEC_IN_ONE_MINUTE = 60
 _WIFI_SETTLING_SLEEP_SEC = 5
 _SERVER_PING_DELAY_SEC = 2
 
-_USE_FAKE_HARDWARE = False
 
 
 def kill_master_procs():
@@ -124,10 +119,12 @@ class Robot:
         self.gps_angles = []
         self.gps_path_lateral_error_rates = []
         self.gps_path_angular_error_rates = []
-        self.strafe = []
-        self.rotation = []
+        self.strafeP = []
+        self.steerP = []
         self.strafeD = []
         self.steerD = []
+        self.autonomy_steer_cmd = []
+        self.autonomy_strafe_cmd = []
         self.cpu_temperature_c = 0.0
         self.energy_segment_list = []
         self.motor_temperatures = []
@@ -135,13 +132,13 @@ class Robot:
     def __repr__(self):
         return 'Robot'
 
-    def setup(self):
-        self.load_yaml_config()
+    def setup(self, yaml_path):
+        self.load_yaml_config(yaml_path)
         self.key = bytes("{}:robot:{}:key".format(self.site, self.name), encoding='ascii')
         self.voltage = 0.0
 
-    def load_yaml_config(self):
-        with open(_YAML_NAME, 'r') as stream:
+    def load_yaml_config(self, yaml_path):
+        with open(yaml_path, 'r') as stream:
             try:
                 config = yaml.safe_load(stream)
                 self.name = str(config["vehicle_name"])
@@ -168,13 +165,19 @@ def AppendFIFO(list, value, max_values):
     return list
 
 class MasterProcess():
-    def __init__(self):
-        pass
+    def __init__(self, fake_hardware):
+        self.fake_hardware = fake_hardware
+        if fake_hardware:
+            import fake_rtk_process as rtk_process
+            self.yaml_path = _YAML_NAME_LOCAL
+        else:
+            self.yaml_path = _YAML_NAME_RASPBERRY
+
     def run(self):
 
         # Initialize robot object.
         acorn = Robot()
-        acorn.setup()
+        acorn.setup(self.yaml_path)
         connected = False
 
         # Setup and start wifi config and monitor process.
@@ -207,12 +210,12 @@ class MasterProcess():
         remote_control_parent_conn = context.socket(zmq.PAIR)
         remote_control_parent_conn.bind("tcp://*:%s" % port)
 
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(_USE_FAKE_HARDWARE, ))
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(self.fake_hardware, ))
         remote_control_proc.start()
 
 
         voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
-        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, _USE_FAKE_HARDWARE, ))
+        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, self.fake_hardware, ))
         voltage_proc.start()
 
         self.message_tracker = []
@@ -248,7 +251,7 @@ class MasterProcess():
 
             read_okay = False
             try:
-                acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafe, rotation, strafeD, steerD, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
+                acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD, autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
                 read_okay = True
                 send_robot_object = True
                 if acorn_location != None:
@@ -261,12 +264,14 @@ class MasterProcess():
             if read_okay:
                 if gps_fix:
                     #print("GPS_FIX")
+                    acorn.autonomy_steer_cmd = AppendFIFO(acorn.autonomy_steer_cmd, autonomy_steer_cmd, _MAX_GPS_DISTANCES)
+                    acorn.autonomy_strafe_cmd = AppendFIFO(acorn.autonomy_strafe_cmd, autonomy_strafe_cmd, _MAX_GPS_DISTANCES)
                     acorn.gps_distances = AppendFIFO(acorn.gps_distances, gps_distance, _MAX_GPS_DISTANCES)
                     acorn.gps_angles = AppendFIFO(acorn.gps_angles, gps_angle, _MAX_GPS_DISTANCES)
                     acorn.gps_path_lateral_error_rates = AppendFIFO(acorn.gps_path_lateral_error_rates, gps_lateral_rate, _MAX_GPS_DISTANCES)
                     acorn.gps_path_angular_error_rates = AppendFIFO(acorn.gps_path_angular_error_rates, gps_angular_rate, _MAX_GPS_DISTANCES)
-                    acorn.strafe = AppendFIFO(acorn.strafe, strafe, _MAX_GPS_DISTANCES)
-                    acorn.rotation = AppendFIFO(acorn.rotation, rotation, _MAX_GPS_DISTANCES)
+                    acorn.strafeP = AppendFIFO(acorn.strafeP, strafeP, _MAX_GPS_DISTANCES)
+                    acorn.steerP = AppendFIFO(acorn.steerP, steerP, _MAX_GPS_DISTANCES)
                     acorn.strafeD = AppendFIFO(acorn.strafeD, strafeD, _MAX_GPS_DISTANCES)
                     acorn.steerD = AppendFIFO(acorn.steerD, steerD, _MAX_GPS_DISTANCES)
 
@@ -304,7 +309,7 @@ class MasterProcess():
 
 
             while self.server_comms_parent_conn.poll():
-                print("Got new data from server.")
+                #print("Got new data from server.")
                 command, msg = self.server_comms_parent_conn.recv()
                 #print('Client received command {} with message {}'.format(command, msg))
                 acorn.last_server_communication_stamp = time.time()
@@ -370,11 +375,14 @@ class MasterProcess():
                 attempts+=1
 
 
-def run_master():
+def run_master(fake_hardware):
     kill_master_procs()
     #sys.exit()
-    master = MasterProcess()
+    master = MasterProcess(fake_hardware)
     master.run()
 
 if __name__ == "__main__":
-    run_master()
+    parser = argparse.ArgumentParser(description='Run the Acorn vehicle coordinator process.')
+    parser.add_argument('--fake_hardware', dest='fake_hardware', default=False, action='store_true')
+    args = parser.parse_args()
+    run_master(args.fake_hardware)

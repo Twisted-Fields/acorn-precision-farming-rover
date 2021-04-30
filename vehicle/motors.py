@@ -68,10 +68,10 @@ class AcornMotorInterface():
     def __init__(self, manual_control=False):
 
         self.odrive_connections = [
-        OdriveConnection(name='front_right', serial="335E31483536", path="/dev/ttySC1"),
-        OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0"),
-        OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2"),
-        OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3")
+        OdriveConnection(name='front_right', serial="335E31483536", path="/dev/ttySC1", enable_steering=False, enable_traction=False),
+        OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0", enable_steering=False, enable_traction=False),
+        OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2", enable_steering=False, enable_traction=False),
+        OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3", enable_steering=True, enable_traction=False)
         ]
 
         self.command_socket = self.create_socket()
@@ -143,7 +143,7 @@ class AcornMotorInterface():
     def connect_to_motors(self, enable_steering=True, enable_traction=True):
         self.odrives = []
         for drive in self.odrive_connections:
-            corner = corner_actuator.CornerActuator(GPIO=GPIO, connection_definition=drive, enable_steering=enable_steering, enable_traction=enable_traction, make_fake=_USE_FAKE_HARDWARE)
+            corner = corner_actuator.CornerActuator(GPIO=GPIO, connection_definition=drive, enable_steering=drive.enable_steering, enable_traction=drive.enable_traction, make_fake=_USE_FAKE_HARDWARE)
             self.odrives.append(corner)
         self.odrives_connected = True
 
@@ -315,9 +315,9 @@ class AcornMotorInterface():
                             #     this_vel_cmd = 0
 
 
-                            if "rear_left" in drive.name:
+                        #    if "rear_left" in drive.name:
                                 # this_vel_cmd *= 0.63
-                                this_vel_cmd *= 0.70
+                            #    this_vel_cmd *= 0.70
                             #     drive.odrv0.axis1.controller.config.vel_gain = 0 # 0.02
                             #     drive.odrv0.axis1.controller.config.vel_integrator_gain = 0 # 0.1
                             # else:

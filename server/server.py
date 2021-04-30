@@ -132,10 +132,12 @@ def robots_to_json(keys):
         'gps_angles' : robot.gps_angles,
         'gps_distance_rates' : robot.gps_path_lateral_error_rates,
         'gps_angle_rates' : robot.gps_path_angular_error_rates,
-        'strafe' : robot.strafe,
-        'rotation' : robot.rotation,
+        'strafeP' : robot.strafeP,
+        'steerP' : robot.steerP,
         'strafeD' : robot.strafeD,
-        'steerD' : robot.steerD
+        'steerD' : robot.steerD,
+        'autonomy_steer_cmd' : robot.autonomy_steer_cmd,
+        'autonomy_strafe_cmd' : robot.autonomy_strafe_cmd
         # 'front_lat': debug_points[0].lat,
         # 'front_lon': debug_points[0].lat,
         # 'rear_lat': debug_points[1].lat,

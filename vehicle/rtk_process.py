@@ -57,6 +57,7 @@ RTK_CMD1 = ['/usr/local/bin/rtkrcv','-s','-d','/dev/null','-o','/home/pi/vehicle
 RTK_CMD2 = ['/usr/local/bin/rtkrcv','-s','-d','/dev/null','-o','/home/pi/vehicle/twisted2.conf']
 
 #/usr/local/bin/rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted.conf
+#/usr/local/bin/rtkrcv -s -o /home/pi/vehicle/twisted.conf
 
 
 """
@@ -80,7 +81,7 @@ def digest_data(buffer):
             data = line_buffer[index]
             data = data.splitlines()[0]
             data = data.split(' ')
-            # print(data)
+            #print(data)
             data = [a for a in data if a] # Remove empty string entries.
             # print(data)
             # print(index)
@@ -92,11 +93,11 @@ def digest_data(buffer):
             status = "fix" if data[5] is "1" else "no fix"
             num_sats = data[6]
             base_rtk_age = float(data[13])
-            # print("Good GPS data recieved: {}".format(data))
+            #print("Good GPS data recieved: {}".format(data))
             sample = gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
             if index < len(line_buffer) - 1:
                 buffer = "".join(line_buffer[index+1:])
-                # print(buffer)
+                #print(buffer)
             else:
                 buffer = ""
             if index > 2:
@@ -343,17 +344,22 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=No
 
     print_gps_counter = 0
     errors = 0
-    # print(buffers)
+    #print(buffers)
     blocking_exception = None
     while True:
         try:
-            buffers[0] += tcp_sock1.recv(TCP_BUFFER_SIZE).decode('utf-8')
-            buffers[1] += tcp_sock2.recv(TCP_BUFFER_SIZE).decode('utf-8')
+            start_time = time.time()
+            data0 = tcp_sock1.recv(TCP_BUFFER_SIZE).decode('utf-8')
+            data1 = tcp_sock2.recv(TCP_BUFFER_SIZE).decode('utf-8')
+            buffers[0] += data0
+            buffers[1] += data1
             buffers[0], data1 = digest_data(buffers[0])
             buffers[1], data2 = digest_data(buffers[1])
+            #print("Read GPS duration {}".format(time.time() - start_time))
             break
         except BlockingIOError as e:
             blocking_exception = e
+            #print("GPS BlockingIOError")
         except Exception as e:
             print("GPS ERROR DURING READ: {}".format(e))
         errors += 1

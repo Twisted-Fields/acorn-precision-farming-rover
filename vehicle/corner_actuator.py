@@ -69,7 +69,7 @@ COUNTS_PER_REVOLUTION = 9797.0
 
 ESTOP_PIN = 6
 
-OdriveConnection = collections.namedtuple('OdriveConnection', 'name serial path')
+OdriveConnection = collections.namedtuple('OdriveConnection', 'name serial path enable_steering enable_traction')
 
 # class PowerSample:
 #     def init(self, volts, amps, duration):
@@ -107,6 +107,8 @@ class CornerActuator:
         self.position = 0.0
         self.velocity = 0.0
         self.voltage = 0.0
+        self.home_position = 0
+        self.steering_flipped = False
         self.has_thermistor = False
         self.temperature_c = None
 
@@ -134,6 +136,7 @@ class CornerActuator:
 
     def initialize_traction(self):
         gpio_toggle(self.GPIO)
+        self.odrv0.axis1.controller.vel_integrator_current = 0
         self.odrv0.axis1.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
         self.odrv0.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
         self.traction_initialized = True
@@ -153,7 +156,7 @@ class CornerActuator:
 
         self.steering_flipped = steering_flipped
 
-        self.home_position = self.odrv0.axis0.encoder.shadow_count
+        self.home_position = self.odrv0.axis0.encoder.count_in_cpr
         home_position = None
         if not skip_homing:
             last_home_sensor_val = self.sample_home_sensor()
@@ -177,10 +180,10 @@ class CornerActuator:
                 gpio_toggle(self.GPIO)
                 home_sensor_val = self.sample_home_sensor()
                 if home_sensor_val == True:
-                    self.home_position = self.odrv0.axis0.encoder.shadow_count
+                    self.home_position = self.odrv0.axis0.encoder.count_in_cpr
                     break
                 if home_sensor_val != last_home_sensor_val:
-                    transitions.append(self.odrv0.axis0.encoder.shadow_count)
+                    transitions.append(self.odrv0.axis0.encoder.count_in_cpr)
                     print(transitions)
                     attempts += 1
                 rotation_sensor_val = self.sample_steering_pot()
@@ -215,7 +218,7 @@ class CornerActuator:
             # Save values.
             #self.home_position = (transitions[0] + transitions[1])/2
         else:
-            self.home_position = self.odrv0.axis0.encoder.shadow_count
+            self.home_position = self.odrv0.axis0.encoder.count_in_cpr
         self.odrv0.axis0.controller.move_to_pos(self.home_position)
         self.odrv0.axis0.trap_traj.config.vel_limit = 12000
 
@@ -226,9 +229,9 @@ class CornerActuator:
         self.odrv0.axis0.encoder.config.use_index=False
         self.odrv0.axis0.motor.config.direction = 1
         self.odrv0.axis0.motor.config.motor_type = 4 # MOTOR_TYPE_BRUSHED_VOLTAGE
-        self.odrv0.axis0.motor.config.current_lim = 35.0
+        self.odrv0.axis0.motor.config.current_lim = 20.0
         gpio_toggle(self.GPIO)
-        self.odrv0.axis0.controller.config.vel_gain = 0.005
+        self.odrv0.axis0.controller.config.vel_gain = 0.05
         self.odrv0.axis0.controller.config.pos_gain = -10
         self.odrv0.axis0.encoder.config.cpr = 2000
         self.odrv0.axis0.encoder.config.mode = ENCODER_MODE_INCREMENTAL
@@ -270,6 +273,7 @@ class CornerActuator:
                     raise RuntimeError("Could not initialize steering. Error was: {}".format(error_message))
                 toggling_sleep(self.GPIO, 5)  # TODO: Is this sleep time reasonable? Should also make it a variable.
 
+
     def check_errors(self):
         gpio_toggle(self.GPIO)
         if self.enable_traction and self.traction_axis.error:
@@ -303,12 +307,14 @@ class CornerActuator:
         #     pos_counts = self.home_position + (180 + steering_pos_deg) * COUNTS_PER_REVOLUTION / 360.0
         # else:
         pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
+        if self.name=='rear_left':
+            print("pos_counts: {}, shadow_count: {}, count_in_cpr: {}".format(pos_counts, self.odrv0.axis0.encoder.shadow_count,self.odrv0.axis0.encoder.count_in_cpr))
         #self.odrv0.axis0.controller.pos_setpoint = pos_counts
         self.odrv0.axis0.controller.move_to_pos(pos_counts)
         gpio_toggle(self.GPIO)
         # TODO: Setting vel_integrator_current to zero every time we update
         # means we just don't get integrator control. But that would be nice.
-        self.odrv0.axis1.controller.vel_integrator_current = 0
+        #self.odrv0.axis1.controller.vel_integrator_current = 0
         self.odrv0.axis1.controller.vel_setpoint = self.velocity
         self.check_errors()
 
