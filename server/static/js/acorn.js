@@ -302,7 +302,9 @@ $(document).ready(function(){
                           <button type="button" class="btn btn-secondary" id="${robot.name}-vel-1">0.1</button>
                           <button type="button" class="btn btn-success" id="${robot.name}-vel-2">0.2</button>
                           <button type="button" class="btn btn-secondary" id="${robot.name}-vel-3">0.3</button>
-                          <!--button type="button" class="btn btn-secondary" id="${robot.name}-vel-4">0.4</button-->
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-4">0.4</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-5">0.5</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-6">0.6</button>
                         </div>
                       </li>
                       <li class="list-group-item"><button type="button" class="btn btn-lg btn-secondary mr-1 disabled" id="${robot.name}-activate-button">Activate Autonomy</button></li>

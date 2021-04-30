@@ -190,14 +190,14 @@ function setup_map(access_token_data) {
                         y: robot.gps_distances,
                         type: 'scatter',
                         mode: 'lines',
-                        name: 'Distances m'
+                        name: 'Distance error m'
                       };
 
                       var angles = {
                           y: robot.gps_angles,
                           type: 'scatter',
                           mode: 'lines',
-                          name: 'Angles deg'
+                          name: 'Angle error deg'
                         };
 
 
@@ -205,14 +205,14 @@ function setup_map(access_token_data) {
                         y: robot.gps_distance_rates,
                         type: 'scatter',
                         mode: 'lines',
-                        name: 'Distance rates'
+                        name: 'Distance error rate'
                       };
 
                       var angle_rates = {
                           y: robot.gps_angle_rates,
                           type: 'scatter',
                           mode: 'lines',
-                          name: 'Angle rates'
+                          name: 'Angle error rate'
                         };
 
                         var strafeD = {
@@ -229,18 +229,37 @@ function setup_map(access_token_data) {
                             name: 'steerD'
                           };
 
-                        var rotation = {
-                            y: robot.rotation,
+                        var steerP = {
+                            y: robot.steerP,
                             type: 'scatter',
                             mode: 'lines',
-                            name: 'rotation'
+                            name: 'steerP'
                           };
 
-                        var strafe = {
-                            y: robot.strafe,
+                        var strafeP = {
+                            y: robot.strafeP,
                             type: 'scatter',
                             mode: 'lines',
-                            name: 'strafe'
+                            name: 'strafeP'
+                          };
+
+
+                          for (let i = 0; i < robot.autonomy_steer_cmd.length; i++) {
+                              robot.autonomy_steer_cmd[i] = robot.autonomy_steer_cmd[i] * 30
+                          }
+
+                        var autonomy_steer_cmd = {
+                            y: robot.autonomy_steer_cmd,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'autonomy_steer_cmd'
+                          };
+
+                        var autonomy_strafe_cmd = {
+                            y: robot.autonomy_strafe_cmd,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'autonomy_strafe_cmd'
                           };
 
 
@@ -295,8 +314,8 @@ function setup_map(access_token_data) {
                               },
                             };
 
-                    Plotly.newPlot('plot_div_distance_rates', [strafe, strafeD], layout_lateral_rates);
-                    Plotly.newPlot('plot_div_angle_rates', [rotation, steerD], layout_angle_rates);
+                    Plotly.newPlot('plot_div_distance_rates', [distances, distance_rates, strafeP, strafeD, autonomy_strafe_cmd], layout_lateral_rates);
+                    Plotly.newPlot('plot_div_angle_rates', [angles, angle_rates, steerP, steerD, autonomy_steer_cmd], layout_angle_rates);
 
                     Plotly.newPlot('plot_div_distance', [distances], layout_lateral);
                     Plotly.newPlot('plot_div_angles', [angles], layout_angle);
@@ -325,7 +344,9 @@ function setup_map(access_token_data) {
                           <button type="button" class="btn btn-secondary" id="${robot.name}-vel-1">0.1</button>
                           <button type="button" class="btn btn-success" id="${robot.name}-vel-2">0.2</button>
                           <button type="button" class="btn btn-secondary" id="${robot.name}-vel-3">0.3</button>
-                          <!--button type="button" class="btn btn-secondary" id="${robot.name}-vel-4">0.4</button-->
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-4">0.4</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-5">0.5</button>
+                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-6">0.6</button>
                         </div>
                       </li>
                       <li class="list-group-item"><button type="button" class="btn btn-lg btn-secondary mr-1 disabled" id="${robot.name}-activate-button">Activate Autonomy</button></li>
