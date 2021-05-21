@@ -200,3 +200,6 @@ def run_hid_process():
             #     sample_time = time.time()
                 #print(time.time())
         time.sleep(0.001)
+
+if __name__ == "__main__":
+    run_hid_process()

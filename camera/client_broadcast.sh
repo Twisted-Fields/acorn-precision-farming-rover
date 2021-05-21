@@ -1,0 +1,1 @@
+gst-launch-1.0 udpsrc port=12345 caps="application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, sprop-parameter-sets=(string)\"Z0JAMpWgHgCJ+VA\\=\\,aM48gA\\=\\=\", payload=(int)96" ! rtph264depay ! decodebin ! autovideosink sync=false
