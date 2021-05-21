@@ -68,10 +68,10 @@ class AcornMotorInterface():
     def __init__(self, manual_control=False):
 
         self.odrive_connections = [
-        OdriveConnection(name='front_right', serial="335E31483536", path="/dev/ttySC1", enable_steering=False, enable_traction=False),
-        OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0", enable_steering=False, enable_traction=False),
-        OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2", enable_steering=False, enable_traction=False),
-        OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3", enable_steering=True, enable_traction=False)
+        OdriveConnection(name='front_right', serial="335E31483536", path="/dev/ttySC1", enable_steering=True, enable_traction=True),
+        OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0", enable_steering=True, enable_traction=True),
+        OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2", enable_steering=True, enable_traction=True),
+        OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3", enable_steering=True, enable_traction=True)
         ]
 
         self.command_socket = self.create_socket()

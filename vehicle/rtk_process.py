@@ -40,7 +40,7 @@ TCP_IP = "127.0.0.1"
 TCP_PORT1 = 10001
 TCP_PORT2 = 10002
 TCP_BUFFER_SIZE = 1024
-VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 39.0
+VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 45.0
 _FAST_POLLING_DELAY_S = 0.05
 SOCKET_TIMEOUT_SECONDS = 1
 _GPS_ERRORS_ALLOWED = 4
@@ -375,6 +375,7 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=No
             d = gps_tools.get_distance(data1,data2)
             lat = (data1.lat + data2.lat) / 2.0
             lon = (data1.lon + data2.lon) / 2.0
+            #print("HEIGHT DIFFERENCE {}".format(data1.height_m - data2.height_m))
             height_m = (data1.height_m + data2.height_m) / 2.0
             rtk_age = max([data1.rtk_age, data2.rtk_age])
             latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data1.status, data2.status), (data1.num_sats, data2.num_sats), azimuth_degrees, data1.time_stamp, rtk_age)

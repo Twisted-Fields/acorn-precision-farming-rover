@@ -43,6 +43,7 @@ import fcntl
 import server_comms
 import rtk_process
 import argparse
+import nvidia_power_process
 
 _YAML_NAME_LOCAL="vehicle/server_config.yaml"
 _YAML_NAME_RASPBERRY="/home/pi/vehicle/server_config.yaml"
@@ -184,6 +185,11 @@ class MasterProcess():
         wifi_parent_conn, wifi_child_conn = mp.Pipe()
         wifi_proc = mp.Process(target=wifi.wifi_process, args=(wifi_child_conn,))
         wifi_proc.start()
+
+        # Setup and start vision config and monitor process.
+        vision_parent_conn, vision_child_conn = mp.Pipe()
+        vision_proc = mp.Process(target=nvidia_power_process.nvidia_power_loop, args=(vision_child_conn, self.fake_hardware,))
+        vision_proc.start()
 
         # Setup and start server communications process.
         self.server_comms_parent_conn, server_comms_child_conn = mp.Pipe()

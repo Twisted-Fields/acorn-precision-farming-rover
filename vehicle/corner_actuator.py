@@ -66,6 +66,7 @@ except:
 COMMAND_VALUE_MINIMUM = 0.001
 
 COUNTS_PER_REVOLUTION = 9797.0
+COUNTS_PER_REVOLUTION_NEW_STEERING = COUNTS_PER_REVOLUTION * 520.0/2000.0
 
 ESTOP_PIN = 6
 
@@ -156,7 +157,7 @@ class CornerActuator:
 
         self.steering_flipped = steering_flipped
 
-        self.home_position = self.odrv0.axis0.encoder.count_in_cpr
+        self.home_position = self.odrv0.axis0.encoder.pos_estimate
         home_position = None
         if not skip_homing:
             last_home_sensor_val = self.sample_home_sensor()
@@ -179,22 +180,28 @@ class CornerActuator:
                 time.sleep(_FAST_POLLING_SLEEP_S)
                 gpio_toggle(self.GPIO)
                 home_sensor_val = self.sample_home_sensor()
+
+                rotation_sensor_val = self.sample_steering_pot()
+                print("{} Home: {}, Rotation: {}".format(self.name, home_sensor_val, rotation_sensor_val))
                 if home_sensor_val == True:
-                    self.home_position = self.odrv0.axis0.encoder.count_in_cpr
+                    self.home_position = self.odrv0.axis0.encoder.pos_estimate
                     break
                 if home_sensor_val != last_home_sensor_val:
-                    transitions.append(self.odrv0.axis0.encoder.count_in_cpr)
+                    transitions.append(self.odrv0.axis0.encoder.pos_estimate)
                     print(transitions)
                     attempts += 1
-                rotation_sensor_val = self.sample_steering_pot()
-                print(rotation_sensor_val)
+                #rotation_sensor_val = self.sample_steering_pot()
+                #print("{} Home: {}, Rotation: {}".format(self.name, home_sensor_val, rotation_sensor_val))
 
                 #print(home_sensor_val)
 
                 if time.time() - last_tick_time > tick_time_s:
                     last_tick_time = time.time()
                     position *= -1
-                    pos_counts = self.home_position + position * COUNTS_PER_REVOLUTION / 360.0
+                    if self.name=='rear_left':
+                        pos_counts = self.home_position + position * COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
+                    else:
+                        pos_counts = self.home_position + position * COUNTS_PER_REVOLUTION / 360.0
                     self.odrv0.axis0.controller.move_to_pos(pos_counts)
                     #self.odrv0.axis0.controller.pos_setpoint = pos_counts
 
@@ -218,9 +225,8 @@ class CornerActuator:
             # Save values.
             #self.home_position = (transitions[0] + transitions[1])/2
         else:
-            self.home_position = self.odrv0.axis0.encoder.count_in_cpr
+            self.home_position = self.odrv0.axis0.encoder.pos_estimate
         self.odrv0.axis0.controller.move_to_pos(self.home_position)
-        self.odrv0.axis0.trap_traj.config.vel_limit = 12000
 
         self.steering_initialized = True
 
@@ -231,9 +237,24 @@ class CornerActuator:
         self.odrv0.axis0.motor.config.motor_type = 4 # MOTOR_TYPE_BRUSHED_VOLTAGE
         self.odrv0.axis0.motor.config.current_lim = 20.0
         gpio_toggle(self.GPIO)
-        self.odrv0.axis0.controller.config.vel_gain = 0.05
-        self.odrv0.axis0.controller.config.pos_gain = -10
-        self.odrv0.axis0.encoder.config.cpr = 2000
+        if self.name=='rear_left':
+            self.odrv0.axis0.controller.config.vel_gain = 0.020
+            self.odrv0.axis0.controller.config.pos_gain = -40
+            self.odrv0.axis0.encoder.config.cpr = 520
+            self.odrv0.axis0.controller.config.vel_ramp_rate = 80
+            self.odrv0.axis0.trap_traj.config.vel_limit = 32000
+            self.odrv0.axis0.trap_traj.config.accel_limit = 12000
+            self.odrv0.axis0.trap_traj.config.decel_limit = 12000
+            self.odrv0.axis0.trap_traj.config.A_per_css = 0
+        else:
+            self.odrv0.axis0.controller.config.vel_gain = 0.005
+            self.odrv0.axis0.controller.config.pos_gain = -10
+            self.odrv0.axis0.encoder.config.cpr = 2000
+            self.odrv0.axis0.controller.config.vel_ramp_rate = 20
+            self.odrv0.axis0.trap_traj.config.vel_limit = 8000
+            self.odrv0.axis0.trap_traj.config.accel_limit = 3000
+            self.odrv0.axis0.trap_traj.config.decel_limit = 3000
+            self.odrv0.axis0.trap_traj.config.A_per_css = 0
         self.odrv0.axis0.encoder.config.mode = ENCODER_MODE_INCREMENTAL
         self.odrv0.axis0.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
 
@@ -246,14 +267,7 @@ class CornerActuator:
                 self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
                 self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
                 self.odrv0.axis0.controller.vel_ramp_enable = True
-                self.odrv0.axis0.controller.config.vel_ramp_rate = 20
-
                 # self.odrv0.axis0.controller.config.vel_limit_tolerance = 2.5
-                self.odrv0.axis0.trap_traj.config.vel_limit = 8000
-                self.odrv0.axis0.trap_traj.config.accel_limit = 3000
-                self.odrv0.axis0.trap_traj.config.decel_limit = 3000
-                self.odrv0.axis0.trap_traj.config.A_per_css = 0
-
                 toggling_sleep(self.GPIO, _SLOW_POLLING_SLEEP_S)
                 errors = self.odrv0.axis0.error
                 if errors == 0:
@@ -306,9 +320,12 @@ class CornerActuator:
         # if self.steering_flipped:
         #     pos_counts = self.home_position + (180 + steering_pos_deg) * COUNTS_PER_REVOLUTION / 360.0
         # else:
-        pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
         if self.name=='rear_left':
-            print("pos_counts: {}, shadow_count: {}, count_in_cpr: {}".format(pos_counts, self.odrv0.axis0.encoder.shadow_count,self.odrv0.axis0.encoder.count_in_cpr))
+            pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
+        else:
+            pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
+        #if self.name=='rear_left':
+        #    print("pos_counts: {}, shadow_count: {}, count_in_cpr: {}".format(pos_counts, self.odrv0.axis0.encoder.shadow_count,self.odrv0.axis0.encoder.count_in_cpr))
         #self.odrv0.axis0.controller.pos_setpoint = pos_counts
         self.odrv0.axis0.controller.move_to_pos(pos_counts)
         gpio_toggle(self.GPIO)

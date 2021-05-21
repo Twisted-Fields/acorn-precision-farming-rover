@@ -78,6 +78,8 @@ CONTROL_MOTOR_ERROR = "Motor error detected."
 
 GPS_PRINT_INTERVAL = 40
 
+_NUM_GPS_SUBSAMPLES = 10
+
 _LOOP_RATE = 10
 
 _ERROR_RATE_AVERAGING_COUNT = 4
@@ -116,7 +118,7 @@ def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
 class EnergySegment():
     def __init__(self, sequence_num, start_gps, end_gps, distance_sum,
                  total_watt_seconds, avg_watts, per_motor_total_watt_seconds,
-                 per_motor_watt_average):
+                 per_motor_watt_average, subsampled_points, autonomy_operating):
         self.sequence_num = sequence_num
         self.time_stamp = end_gps.time_stamp
         self.start_gps = start_gps
@@ -129,6 +131,8 @@ class EnergySegment():
         self.avg_watts = avg_watts
         self.per_motor_total_watt_seconds = per_motor_total_watt_seconds
         self.per_motor_watt_average = per_motor_watt_average
+        self.subsampled_points = subsampled_points
+        self.autonomy_operating = autonomy_operating
 
 
 class RemoteControl():
@@ -416,7 +420,7 @@ class RemoteControl():
                                 self.nav_path = []
 
 
-                        closest_u = self.nav_spline.closestUOnSplinePointsNearU(self.latest_gps_sample, last_closest_u)
+                        closest_u = self.nav_spline.closestUOnSpline(self.latest_gps_sample)#, last_closest_u, search_range=1.0)
                         closest_point = self.nav_spline.coordAtU(closest_u)
                         #print("closest_point {}".format(closest_point))
                         spline_angle_rad = self.nav_spline.slopeRadiansAtU(closest_u)
@@ -430,7 +434,7 @@ class RemoteControl():
 
                         if abs(_gps_lateral_distance_error) < _MAXIMUM_ALLOWED_DISTANCE_METERS:
                             distance_from_path_okay = True
-                        #print("DISTANCE: {}".format(abs(distance_from_line)))
+#                        print("DISTANCE: {}".format(abs(_gps_lateral_distance_error)))
 
 
                         closest_front = projected_point
@@ -519,7 +523,7 @@ class RemoteControl():
                     # strafeD = self.gps_path_lateral_error_rate * -0.2
 
                     calculated_rotation *= 0.9
-                    calculated_strafe *= -0.15
+                    calculated_strafe *= -0.25
                     steerD = self.gps_path_angular_error_rate * 0.3
                     strafeD = self.gps_path_lateral_error_rate * -0.05
 
@@ -826,6 +830,8 @@ class RemoteControl():
                         last_sample_gps = None
                         motor_total_watt_seconds = [0, 0, 0, 0]
                         motor_watt_average = [0, 0, 0, 0]
+                        list_subsamples = []
+                        sample_collector_index = 0
                         for sample_num in range(1, len(self.power_consumption_list)):
                             sample1 = self.power_consumption_list[sample_num - 1]
                             sample2 = self.power_consumption_list[sample_num]
@@ -834,6 +840,12 @@ class RemoteControl():
                             sample_distance = gps_tools.get_distance(sample1[0], sample2[0])
                             sample_duration = sample2[0].time_stamp - sample1[0].time_stamp
                             sample_avg_watts = (sample1[1] + sample2[1])/2.0
+                            if sample_num > sample_collector_index:
+                                list_subsamples.append(sample1[0])
+                                if len(self.power_consumption_list) > _NUM_GPS_SUBSAMPLES:
+                                    sample_collector_index+=int(len(self.power_consumption_list)/_NUM_GPS_SUBSAMPLES)
+                                else:
+                                    sample_collector_index+=1
                             #print(sample1[2])
                             try:
                                 for idx in range(len(sample1[2])):
@@ -853,9 +865,10 @@ class RemoteControl():
 
                         height_change = last_sample_gps.height_m - oldest_power_sample_gps.height_m
                         avg_watts = (watt_average)/len(self.power_consumption_list)
+                        list_subsamples.append(last_sample_gps)
 
 
-                        self.last_energy_segment = EnergySegment(loop_count, oldest_power_sample_gps, last_sample_gps, distance_sum, total_watt_seconds, avg_watts, motor_total_watt_seconds, motor_watt_average)
+                        self.last_energy_segment = EnergySegment(loop_count, oldest_power_sample_gps, last_sample_gps, distance_sum, total_watt_seconds, avg_watts, motor_total_watt_seconds, motor_watt_average, list_subsamples, self.activate_autonomy)
 
                         # Reset power consumption list.
                         self.power_consumption_list = []
