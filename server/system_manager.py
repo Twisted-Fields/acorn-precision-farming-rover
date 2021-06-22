@@ -34,7 +34,6 @@ from zmq_server_pirate import REDIS_PORT
 from server import active_site
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
-
 from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY
 from remote_control_process import CONTROL_ONLINE, CONTROL_AUTONOMY
 
@@ -54,6 +53,7 @@ _CLEAR_AUTONOMY_HOLD_COMMAND_OBJECT_TIME_SEC = 5
 _LONG_PAUSE_SEC = 10
 
 _LOOP_DELAY_SEC = 2
+
 
 def main():
     r = redis.Redis(

@@ -1,2 +1,2 @@
-docker kill acornserver_docker
-docker rm acornserver_docker
+docker kill acorn_server
+docker rm acorn_server

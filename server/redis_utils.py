@@ -25,7 +25,6 @@ import sys
 sys.path.append('../vehicle')
 import pickle
 from gps_tools import GpsPoint, GpsSample
-
 from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY
 
 def get_energy_segment_key(robot_key):

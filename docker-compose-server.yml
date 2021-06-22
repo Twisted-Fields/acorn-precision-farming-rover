@@ -1,0 +1,18 @@
+version: "3.7"
+
+services:
+  acorn_server:
+    build: .
+    container_name: acorn_server
+    image: acorn_docker:1.0
+    ports:
+       - 80:80
+       - 5570:5570
+       - 6379:6379
+    working_dir: /acorn/server
+    volumes:
+      - .:/acorn
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    privileged: true
+    command: sh -c /acorn/server/autolaunch_server.sh

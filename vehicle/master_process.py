@@ -47,6 +47,7 @@ import nvidia_power_process
 
 _YAML_NAME_LOCAL="vehicle/server_config.yaml"
 _YAML_NAME_RASPBERRY="/home/pi/vehicle/server_config.yaml"
+_YAML_NAME_DOCKER="/acorn/vehicle/server_config.yaml"
 
 _CMD_WRITE_KEY = bytes('w', encoding='ascii')
 _CMD_READ_KEY = bytes('readkey', encoding='ascii')
@@ -77,7 +78,7 @@ _SERVER_PING_DELAY_SEC = 2
 
 
 
-def kill_master_procs():
+def kill_main_procs():
     for proc in psutil.process_iter():
     # check whether the process name matches
         #print(proc.cmdline())
@@ -165,14 +166,17 @@ def AppendFIFO(list, value, max_values):
         list.pop(0)
     return list
 
-class MasterProcess():
+class MainProcess():
     def __init__(self, fake_hardware):
         self.fake_hardware = fake_hardware
         if fake_hardware:
             import fake_rtk_process as rtk_process
             self.yaml_path = _YAML_NAME_LOCAL
         else:
-            self.yaml_path = _YAML_NAME_RASPBERRY
+            if os.path.isfile(_YAML_NAME_DOCKER):
+                self.yaml_path = _YAML_NAME_DOCKER
+            else:
+                self.yaml_path = _YAML_NAME_RASPBERRY
 
     def run(self):
 
@@ -381,14 +385,14 @@ class MasterProcess():
                 attempts+=1
 
 
-def run_master(fake_hardware):
-    kill_master_procs()
+def run_main(fake_hardware):
+    kill_main_procs()
     #sys.exit()
-    master = MasterProcess(fake_hardware)
-    master.run()
+    main_process = MainProcess(fake_hardware)
+    main_process.run()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the Acorn vehicle coordinator process.')
     parser.add_argument('--fake_hardware', dest='fake_hardware', default=False, action='store_true')
     args = parser.parse_args()
-    run_master(args.fake_hardware)
+    run_main(args.fake_hardware)

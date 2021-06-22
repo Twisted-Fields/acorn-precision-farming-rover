@@ -1,1 +1,1 @@
-docker exec -it acornserver_docker /bin/sh
+docker exec -it acorn_server /bin/sh
