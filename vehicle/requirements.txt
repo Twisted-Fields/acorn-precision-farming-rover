@@ -1,6 +1,6 @@
 svgpathtools
 zmq
-odrive
+odrive==0.4.12
 evdev
 geopy==1.22.0
 Adafruit_ADS1x15
@@ -11,3 +11,4 @@ psutil
 netifaces
 RPi.GPIO
 adafruit-blinka
+csaps

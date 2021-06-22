@@ -35,6 +35,7 @@ import sys
 import psutil
 import struct
 import random
+import fcntl
 
 TCP_IP = "127.0.0.1"
 TCP_PORT1 = 10001
@@ -43,7 +44,7 @@ TCP_BUFFER_SIZE = 1024
 VEHICLE_AZIMUTH_OFFSET_DEG = 90 + 45.0
 _FAST_POLLING_DELAY_S = 0.05
 SOCKET_TIMEOUT_SECONDS = 1
-_GPS_ERRORS_ALLOWED = 4
+_GPS_ERRORS_ALLOWED = 3
 
 
 if sys.maxsize > 2**32:
@@ -218,11 +219,15 @@ def reset_and_reconnect_rtk(sock1, sock2, single=False):
 
 def connect_rtk_procs(single=False):
     tcp_sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
     tcp_sock1.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, TCP_TIMEOUT)
+    #tcp_sock1.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO)
     # tcp_sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if single == False:
         tcp_sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
         tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, TCP_TIMEOUT)
+        #tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO)
         # tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     else:
         tcp_sock2 = None
@@ -233,9 +238,11 @@ def connect_rtk_procs(single=False):
       try:
         # Connect to socket.
         tcp_sock1.connect((TCP_IP, TCP_PORT1))
+        fcntl.fcntl(tcp_sock1, fcntl.F_SETFL, os.O_NONBLOCK)
         if single == False:
             print("SINGLE IS FALSE")
             tcp_sock2.connect((TCP_IP, TCP_PORT2))
+            fcntl.fcntl(tcp_sock2, fcntl.F_SETFL, os.O_NONBLOCK)
         print('Connected to RTK subprocesses.')
         break
       except Exception as e:
@@ -363,6 +370,7 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=No
         except Exception as e:
             print("GPS ERROR DURING READ: {}".format(e))
         errors += 1
+        time.sleep(_FAST_POLLING_DELAY_S)
         if errors > retries:
             if blocking_exception is not None:
                 print("ERROR GPS DATA NOT AVAILABLE")

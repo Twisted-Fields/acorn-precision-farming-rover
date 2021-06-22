@@ -29,12 +29,15 @@ from collections import namedtuple
 import numpy as np
 from scipy.interpolate import splprep, splev
 
+
 _SMOOTH_MULTIPLIER = 0.00000000001
 _GPS_DISTANCE_SCALAR = 100000
 
 GpsSample = namedtuple('GpsSample', 'lat lon height_m status num_sats azimuth_degrees time_stamp rtk_age')
 
 GpsPoint = namedtuple('GpsPoint', 'lat lon')
+
+GpsPoint3D = namedtuple('GpsPoint', 'lat lon height_m')
 
 geod = Geodesic.WGS84  # define the WGS84 ellipsoid
 
@@ -46,7 +49,7 @@ def get_distance(point1, point2):
 
 def check_point(point):
     if isinstance(point, dict):
-        point = GpsPoint(point['lat'], point['lon'])
+        point = GpsPoint(point['lat'], point['lon'], 0.0)
     return point
 
 def get_closest_point(point, point_list):

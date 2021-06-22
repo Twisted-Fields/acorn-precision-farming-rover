@@ -76,7 +76,7 @@ CONTROL_OVERRIDE = "Remote control override."
 CONTROL_SERVER_ERROR = "Server communication error."
 CONTROL_MOTOR_ERROR = "Motor error detected."
 
-GPS_PRINT_INTERVAL = 40
+GPS_PRINT_INTERVAL = 10
 
 _NUM_GPS_SUBSAMPLES = 10
 
@@ -105,6 +105,8 @@ _ERROR_SKIP_RATE = 40
 
 _DISENGAGEMENT_RETRY_DELAY_MINUTES = 1
 _DISENGAGEMENT_RETRY_DELAY_SEC = _DISENGAGEMENT_RETRY_DELAY_MINUTES * _SEC_IN_ONE_MINUTE
+
+_JOYSTICK_MIN = 0.02
 
 
 def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
@@ -498,6 +500,10 @@ class RemoteControl():
                     joy_steer, joy_throttle, joy_strafe = 0.0, 0.0, 0.0
                 else:
                     joy_steer, joy_throttle, joy_strafe = self.get_joystick_values(joy_steer, joy_throttle, joy_strafe)
+                    if abs(joy_throttle) < _JOYSTICK_MIN:
+                        joy_throttle = 0.0
+                    if abs(joy_steer) < _JOYSTICK_MIN:
+                        joy_steer = 0.0
                 #print(joy_throttle)
                 if abs(joy_steer) > 0.1 or abs(joy_throttle) > 0.1 or abs(joy_strafe) > 0.1:
                     print("DISABLED AUTONOMY Steer: {}, Joy {}".format(joy_steer, joy_throttle))
@@ -747,6 +753,8 @@ class RemoteControl():
                     else:
                         strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
 
+                vel_cmd = vel_cmd * 1.0/(1.0 + abs(steer_cmd)) # Slow Vel down by 50% when steering is at max.
+                #print("Vel {}, Steer {}".format(vel_cmd, steer_cmd))
 
                 # Update master on latest calculations.
                 send_data = (self.latest_gps_sample,self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate, strafeP, steerP, strafeD, steerD, user_web_page_plot_steer_cmd, user_web_page_plot_strafe_cmd, gps_fix, self.voltage_average, self.last_energy_segment, self.temperatures)
@@ -764,6 +772,8 @@ class RemoteControl():
 
                 #print("Final values: Steer {}, Vel {}".format(steer_cmd, vel_cmd))
                 calc = calculate_steering(steer_cmd, vel_cmd, strafe)
+
+                # print("TICK")
 
                 if not self.motor_socket:
                     print("Connect to motor control socket")
@@ -808,12 +818,6 @@ class RemoteControl():
                     print("ZMQ error with motor command socket. Resetting.")
                     self.motor_state = STATE_DISCONNECTED
                     self.close_motor_socket()
-                # if time.time() - self.motor_last_send_time > _ALLOWED_MOTOR_SEND_LAPSE_SEC:
-                #     # If this occurrs its worth trying to send again.
-                #     self.motor_send_okay = True
-                #     print("DOES THIS LINE CAUSE A ZMQ ERROR?")
-
-
 
 
                 if gps_fix:

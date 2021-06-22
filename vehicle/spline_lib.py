@@ -26,6 +26,7 @@ import scipy.interpolate as si, scipy.optimize as so, scipy.spatial.distance as 
 import functools
 import math
 import gps_tools
+from csaps import csaps
 
 """
 Do some work with splines. Modified from original copy.
@@ -48,11 +49,95 @@ def distToP(u, tck, p):
 
 class GpsSpline():
 
-    def __init__(self, gps_coords, smooth_factor, num_points):
-        self.tck, self.u = self.smooth_track(gps_coords, smooth_factor)
+    def __init__(self, gps_coords, smooth_factor, num_points, degree=3):
+        self.tck, self.u = self.smooth_track(gps_coords, smooth_factor,degree)
         self.points = self.get_array(num_points)
 
-    def smooth_track(self, gps_coords, smooth_factor):
+    def calc_distance_2D(self,p1, p2):
+        return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+    def filter_data(self, data, radius=5.0):
+        filtered = []
+        sample_point = data[0]
+        filtered.append(sample_point)
+        while len(data) > 2:
+            # Remove close points
+            for index in range(len(data)-1, -1, -1):
+                if self.calc_distance_2D(sample_point[:2], data[index][:2]) < radius:
+                    # data.pop(index)
+                    data = np.delete(data, index, axis=0)
+            # Find a nearby point:
+            adjust = 0.1
+            next_point = None
+            done = False
+            while not done and len(data) > 2:
+                for index in range(len(data)-1, -1, -1):
+                    if self.calc_distance_2D(sample_point, data[index]) < (radius + adjust):
+                        next_point = data[index]
+                        filtered.append(next_point)
+                        done = True
+                        break
+                adjust += 0.2
+                #print(adjust)
+            sample_point = next_point
+        return filtered
+
+    def get_2d_spline(self, x, y, z):
+        # print("BOOP")
+
+
+        # try:
+            # fit = np.polyfit()
+        # fit = np.polynomial.polynomial.Polynomial.fit(x,y,7)
+        # #print(fit.linspace(100))
+        # spline = np.stack(fit.linspace(50), axis=1)
+        # return spline
+        # except Exception as e:
+        #     print(e)
+        #     raise e
+
+
+        # spline = si.SmoothBivariateSpline(x,y,z)
+        # xs = np.linspace(np.array(x).min(), np.array(x).max(), 150)
+        # ys = spline(xs)
+        # return xs, ys
+
+        # bbox = (np.array(x).min(), np.array(x).max())
+        #
+        # spline = si.UnivariateSpline(x,y,bbox=bbox,k=5)
+        # xs = np.linspace(np.array(x).min(), np.array(x).max(), 150)
+        # ys = spline(xs)
+        # return xs, ys
+
+
+
+        sp = csaps(x, y, smooth=0.05)
+        xs = np.linspace(np.array(x).min(), np.array(x).max(), 150)
+        ys = sp(xs)
+        # return xs, ys
+        spline = np.stack((xs, ys), axis=1)
+        return spline
+        # return si.CloughTocher2DInterpolator(points, values, tol=1e-06)
+        # rbfi = si.Rbf(x, y, z, function='thin_plate', smooth = 1)
+        # xi = yi = zi = np.linspace(0, 1, 100)
+        # print(xi.shape)
+        # print(zi.shape)
+        # di = rbfi(xi, yi, zi) # interpolated values
+        # return di
+
+        # return x_new, y_new
+        # np_points = np.empty((len(points), 2))
+        # # print(points[:,:1][0])
+        # # print(points[:,1:2][0])
+        # #return si.splrep(points[:,:1][0], points[:,1:2][0])
+        # # for idx in range(len(points)):
+        # #     # print(points[0])
+        # #     np_points[idx] = (points[idx][0], points[idx][1])
+        # return si.SmoothBivariateSpline(points[:,:1][0], points[:,1:2][0])
+
+
+
+    def smooth_track(self, gps_coords, smooth_factor, degree=3):
         """ Calculated a spline based on a gps track.
         Args:
             gps_coords: A list of GpsSample or GpsPoint objects
@@ -60,20 +145,19 @@ class GpsSpline():
             num_points: The number of points
         Returns: A list of GpsPoints representing the smoothed track.
         """
-        np_points = np.empty((len(gps_coords), 2))
+        np_points = np.empty((len(gps_coords), 3))
         for idx in range(len(gps_coords)):
             line = gps_tools.check_point(gps_coords[idx])
-            np_points[idx] = (line.lat, line.lon)
-
-        return si.splprep(np_points.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10)
-
+            np_points[idx] = (line.lat, line.lon, line.height_m)
+        #print(np_points)
+        return si.splprep(np_points.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10, k=degree)
 
     def get_array(self, num_points):
         u_new = np.linspace(self.u.min(), self.u.max(), num_points)
-        lat_smooth, lon_smooth = si.splev(u_new, self.tck, der=0)
+        lat_smooth, lon_smooth, h_smooth = si.splev(u_new, self.tck, der=0)
         smoothed = []
-        for lat, lon in zip(lat_smooth, lon_smooth):
-            smoothed.append(gps_tools.GpsPoint(lat, lon))
+        for lat, lon, height in zip(lat_smooth, lon_smooth, h_smooth):
+            smoothed.append(gps_tools.GpsPoint(lat, lon, height))
         return smoothed
 
     # Return the magnitude of the gradient of the spline at u

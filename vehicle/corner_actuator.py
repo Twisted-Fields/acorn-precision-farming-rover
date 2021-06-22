@@ -53,6 +53,7 @@ _FAST_POLLING_SLEEP_S = 0.01
 _SLOW_POLLING_SLEEP_S = 0.5
 _ODRIVE_CONNECT_TIMEOUT = 75
 _MAX_HOMING_ATTEMPTS = 10
+_ZERO_VEL_COUNTS_THRESHOLD = 2
 
 try:
     CTRL_MODE_POSITION_CONTROL
@@ -112,6 +113,7 @@ class CornerActuator:
         self.steering_flipped = False
         self.has_thermistor = False
         self.temperature_c = None
+        self.zero_vel_timestamp = None
 
     def enable_thermistor(self):
         self.has_thermistor = True
@@ -138,6 +140,7 @@ class CornerActuator:
     def initialize_traction(self):
         gpio_toggle(self.GPIO)
         self.odrv0.axis1.controller.vel_integrator_current = 0
+        self.odrv0.axis1.controller.config.vel_integrator_gain = 0.5
         self.odrv0.axis1.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
         self.odrv0.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
         self.traction_initialized = True
@@ -316,6 +319,7 @@ class CornerActuator:
             drive_velocity *= -1
         self.position = steering_pos_deg
         self.velocity = drive_velocity
+        #print(drive_velocity)
         self.update_voltage()
         # if self.steering_flipped:
         #     pos_counts = self.home_position + (180 + steering_pos_deg) * COUNTS_PER_REVOLUTION / 360.0
@@ -331,7 +335,15 @@ class CornerActuator:
         gpio_toggle(self.GPIO)
         # TODO: Setting vel_integrator_current to zero every time we update
         # means we just don't get integrator control. But that would be nice.
-        #self.odrv0.axis1.controller.vel_integrator_current = 0
+
+        if abs(self.velocity) > _ZERO_VEL_COUNTS_THRESHOLD:
+            self.zero_vel_timestamp = None
+        else:
+            if self.zero_vel_timestamp is None:
+                self.zero_vel_timestamp = time.time()
+            else:
+                if time.time() - self.zero_vel_timestamp > 5.0:
+                    self.odrv0.axis1.controller.vel_integrator_current = 0
         self.odrv0.axis1.controller.vel_setpoint = self.velocity
         self.check_errors()
 
