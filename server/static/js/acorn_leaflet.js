@@ -66,6 +66,7 @@ $(document).ready(function(){
 
 var data = {'username': 'taylor', 'password': 'taylor'};
 
+var userPolygon;
 
 $.ajax({
   type: "POST",
@@ -103,8 +104,10 @@ function setup_map(access_token_data) {
   map = L.map('map_canvas', {
       center: [37.353720, -122.333377],
       zoom: 20,
-      layers: [open_drone_map_layer]
+      layers: [open_drone_map_layer],
+      editable: true
   });
+
 
   var baseLayers = {
       "Drone Map": open_drone_map_layer,
@@ -132,6 +135,7 @@ function setup_map(access_token_data) {
     var gps_path = [];
     var displayed_path = [];
     var displayed_path_name = "";
+    var displayed_dense_path = [];
     var path_start = -1;
     var path_end = -1;
     var path_point_to_remove = -1;
@@ -370,10 +374,15 @@ function setup_map(access_token_data) {
                       livePathName = robot.loaded_path_name;
                     }
 
-                    if(robot.debug_points)
+                    // if(robot.debug_points)
+                    // {
+                    //   renderPathDebug(robot.debug_points);
+                    //   debugPointsLength = robot.debug_points.length;
+                    // }
+
+                    if(displayed_dense_path)
                     {
-                      renderPathDebug(robot.debug_points);
-                      debugPointsLength = robot.debug_points.length;
+                      renderPathDebug(displayed_dense_path);
                     }
 
                     if(robot.gps_path_data.length != gpsPathLength)
@@ -443,7 +452,6 @@ function setup_map(access_token_data) {
                             updateVehiclePath(displayed_path_name, `${robot.name}`);
 
                           });
-
 
                     $(`[id^=${robot.name}-vel-]`).on('click', function (event) {
 
@@ -609,11 +617,58 @@ function setup_map(access_token_data) {
     }
 
 
-    function updateServerPath(pathname, pathData) {
+    function loadDensePath() {
+        //request circle data from server API
+        fetch('http://' + ipAddress + '/api/get_dense_path')
+            .then((resp) => resp.json())
+            .then(function (densePathData) {
+                //check data from server in console
+                console.log(densePathData);
+                displayed_dense_path = densePathData;
+                // path_start = 0;
+                // path_end = displayed_path.length-1;
+                // path_point_to_remove =  displayed_path.length;
+                //
+                // console.log("pathData Length: ", pathData.length)
+                renderPathDebug(displayed_dense_path);
+                //displayed_path_name = pathname
+
+            })
+            //catch any errors
+            .catch(function (error) {
+                console.log(error);
+            });
+
+    }
+
+
+        function updateServerPath(pathname, pathData) {
+            //push path to server with the specified name
+            fetch('http://' + ipAddress + '/api/save_path/' + pathname, {
+              method: 'POST', // or 'PUT'
+              body: JSON.stringify(pathData), // data can be `string` or {object}!
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            })
+                .then(function (reply) {
+                    //check data from server in console
+                    console.log(reply);
+
+                })
+                //catch any errors
+                .catch(function (error) {
+                    console.log(error);
+                });
+        }
+
+
+
+    function savePolygonToServer(polygonName, polygonData) {
         //push path to server with the specified name
-        fetch('http://' + ipAddress + '/api/save_path/' + pathname, {
+        fetch('http://' + ipAddress + '/api/save_polygon/' + polygonName, {
           method: 'POST', // or 'PUT'
-          body: JSON.stringify(pathData), // data can be `string` or {object}!
+          body: JSON.stringify(polygonData), // data can be `string` or {object}!
           headers: {
             'Content-Type': 'application/json'
           }
@@ -762,7 +817,7 @@ function setup_map(access_token_data) {
                       }
 
                       var marker = new L.Circle(new L.LatLng(pathData[i].lat, pathData[i].lon), {
-                          radius: 0.5, // in meters
+                          radius: 0.2, // in meters
                           fillColor: color,
                           fillOpacity: 1.0,
                           color: "#FFF",
@@ -862,10 +917,31 @@ function setup_map(access_token_data) {
      loadPathList();
    });
 
-       $("#save-as").on('click', function () {
-        //console.log("You clicked the drop downs ", event.target.innerText)
-        updateServerPath($("#path-name").val(), displayed_path)
-        console.log(displayed_path)
+   $("#save-as").on('click', function () {
+    //console.log("You clicked the drop downs ", event.target.innerText)
+    updateServerPath($("#path-name").val(), displayed_path)
+    console.log(displayed_path)
+
+   });
+
+      $("#btn-load-dense-points").on('click', function () {
+       console.log("CLICK")
+       loadDensePath()
+      });
+
+       $("#btn-start-polygon").on('click', function () {
+         console.log($("#btn-start-polygon"))
+         if($("#btn-start-polygon").html() === "Start Polygon")
+         {
+           userPolygon = map.editTools.startPolygon();
+           $("#btn-start-polygon").html("Stop Polygon")
+         } else {
+           map.editTools.stopDrawing();
+           $("#btn-start-polygon").html("Start Polygon")
+           console.log(userPolygon.toGeoJSON(10))
+           savePolygonToServer("default", userPolygon.toGeoJSON(10))
+           // console.log(map.editTools)
+         }
 
        });
 

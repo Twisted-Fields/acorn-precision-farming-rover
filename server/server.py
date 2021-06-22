@@ -37,6 +37,7 @@ while True:
         import redis_utils
         sys.path.append('../vehicle')
         from master_process import Robot, RobotCommand
+        from gps_tools import GpsPoint, GpsSample
         break
     except Exception as e:
         print(e)
@@ -166,6 +167,18 @@ def save_current_path(pathname=None):
     redis_client.set(key, pickle.dumps(pathdata))
     return "Saved Path {}".format(key)
 
+@app.route('/api/save_polygon', methods = ['POST'])
+@app.route('/api/save_polygon/<polygon_name>', methods = ['POST'])
+def save_polygon(polygon_name="default"):
+    if request.method == 'POST':
+        polygon_data = request.json
+        print(polygon_data)
+    if not polygon_data:
+        return "Missing something. No polygon saved."
+    key = get_polygon_key(polygon_name)
+    redis_client.set(key, pickle.dumps(polygon_data))
+    return "Saved Polygon {}".format(key)
+
 @app.route('/api/delete_path/<pathname>')
 def delete_path(pathname=None):
     if not pathname:
@@ -217,6 +230,10 @@ def get_path_key(pathname):
     print(active_site)
     return "{}:gpspath:{}:key".format(active_site, pathname)
 
+def get_polygon_key(polygon_name):
+    print(active_site)
+    return "{}:gpspolygon:{}:key".format(active_site, polygon_name)
+
 @app.route('/api/get_path/')
 @app.route('/api/get_path/<pathname>')
 def show_path(pathname=None):
@@ -225,6 +242,8 @@ def show_path(pathname=None):
     else:
         print(get_path_key(pathname))
         path = pickle.loads(redis_client.get(get_path_key(pathname)))
+        print(type(path))
+        print(type(path[0]))
         return jsonify(path)
 
 @app.route('/api/get_path_names')
@@ -251,6 +270,18 @@ def send_arrow_paths():
 def send_robot_icon():
     return send_from_directory('../', "robot.svg")
 
+# @app.route('/api/get_dense_path/<start>/<end>')
+@app.route('/api/get_dense_path')
+def get_dense_path():
+    robot_keys = redis_utils.get_robot_keys(redis_client)
+    if len(robot_keys) > 0:
+        # TODO(tlalexander): support multiple robots in database
+        path = redis_utils.get_dense_path(redis_client=redis_client, robot_key=robot_keys[0])
+        path = [point._asdict() for point in path]
+        print(type(path))
+        print(type(path[0]))
+        return jsonify(path)
+    return "No keys found"
 
 if __name__ == "__main__":
     while True:

@@ -5,9 +5,10 @@ RUN apk add cmake gcc libxml2 automake g++ subversion libxml2-dev libxslt-dev gf
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install wheel
 RUN python3 -m pip install certifi==2020.06.20
+RUN apk add py3-scipy py3-numpy-dev
 COPY server/requirements.txt /install/server/
-COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/server/requirements.txt
+COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/vehicle/requirements.txt
 RUN apk add tmux vim mercurial
 RUN python3 -m pip install adafruit-circuitpython-mcp230xx
