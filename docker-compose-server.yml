@@ -9,6 +9,7 @@ services:
        - 80:80
        - 5570:5570
        - 6379:6379
+       - 6799:6799
     working_dir: /acorn/server
     volumes:
       - .:/acorn
