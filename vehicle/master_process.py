@@ -200,6 +200,17 @@ class MainProcess():
         server_comms_proc = mp.Process(target=server_comms.AcornServerComms, args=(server_comms_child_conn, 'tcp://{}:5570'.format(acorn.server), ))
         server_comms_proc.start()
 
+        acorn.last_server_communication_stamp = time.time()
+
+        port = "5996"
+        context = zmq.Context()
+        remote_control_parent_conn = context.socket(zmq.PAIR)
+        remote_control_parent_conn.bind("tcp://*:%s" % port)
+
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(self.fake_hardware, ))
+        remote_control_proc.start()
+
+        remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
 
         # Let wifi settle before moving to ping test.
         time.sleep(_WIFI_SETTLING_SLEEP_SEC)
@@ -213,17 +224,6 @@ class MainProcess():
             print("Ping failed. Will wait and retry.")
             time.sleep(_SERVER_PING_DELAY_SEC)
 
-        acorn.last_server_communication_stamp = time.time()
-
-        port = "5996"
-        context = zmq.Context()
-        remote_control_parent_conn = context.socket(zmq.PAIR)
-        remote_control_parent_conn.bind("tcp://*:%s" % port)
-
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(self.fake_hardware, ))
-        remote_control_proc.start()
-
-
         voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
         voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, self.fake_hardware, ))
         voltage_proc.start()
@@ -234,7 +234,7 @@ class MainProcess():
         robot_id = bytes(acorn.name, encoding='ascii')
         updated_object = False
         gps_count = 0
-        send_robot_object = True
+        send_robot_object = False
 
         while True:
 

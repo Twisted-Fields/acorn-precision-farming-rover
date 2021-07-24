@@ -59,6 +59,7 @@ _SEC_IN_ONE_MINUTE = 60
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 3.5
 _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 120 #20
 _VOLTAGE_CUTOFF = 30
+_VOLTAGE_RESUME_MANUAL_CONTROL = 35
 
 _GPS_ERROR_RETRIES = 3
 
@@ -746,15 +747,22 @@ class RemoteControl():
                         steer_cmd = autonomy_steer_cmd
                         strafe = autonomy_strafe_cmd
                 else:
-                    vel_cmd = joy_throttle
-                    steer_cmd = joy_steer
-                    if math.fabs(joy_strafe) < 0.1:
+                    if self.voltage_average < _VOLTAGE_CUTOFF:
+                        vel_cmd = 0.0
+                        steer_cmd = 0.0
                         strafe = 0
+                        if loop_count % _ERROR_SKIP_RATE == 0:
+                            print("LOW VOLTAGE PAUSE: {}".format(self.voltage_average))
                     else:
-                        strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
+                        vel_cmd = joy_throttle
+                        steer_cmd = joy_steer
+                        if math.fabs(joy_strafe) < 0.1:
+                            strafe = 0
+                        else:
+                            strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
 
                 vel_cmd = vel_cmd * 1.0/(1.0 + abs(steer_cmd)) # Slow Vel down by 50% when steering is at max.
-                #print("Vel {}, Steer {}".format(vel_cmd, steer_cmd))
+
 
                 # Update master on latest calculations.
                 send_data = (self.latest_gps_sample,self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate, strafeP, steerP, strafeD, steerD, user_web_page_plot_steer_cmd, user_web_page_plot_strafe_cmd, gps_fix, self.voltage_average, self.last_energy_segment, self.temperatures)

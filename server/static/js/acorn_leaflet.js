@@ -385,6 +385,8 @@ function setup_map(access_token_data) {
                       renderPathDebug(displayed_dense_path);
                     }
 
+                    console.log(robot.gps_path_data.length)
+
                     if(robot.gps_path_data.length != gpsPathLength)
                     {
                       gps_path = robot.gps_path_data
@@ -884,7 +886,7 @@ function setup_map(access_token_data) {
 
                     var color = '#FFFF00';
 
-                    var offset = 0.000005 ;
+                    var offset = 0.000025 ;
 
                     var triangleCoords = [
                       [pathData[i].lat + offset * 0.7, pathData[i].lon - offset],

@@ -73,7 +73,7 @@ def wifi_process(master_conn):
         if wlan0_ip and wlan1_ip:
             print("Found IP addresses for wlan0 and wlan1 so turning off wlan0.")
             print("wlan1 IP is {}".format(wlan1_ip))
-            subprocess.check_call("sudo ifconfig wlan0 down", shell=True)
+            subprocess.check_call("ifconfig wlan0 down", shell=True)
             print("Turned off wlan0.")
         else:
             print("Two connected wifi adapters present but both not connected " +

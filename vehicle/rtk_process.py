@@ -372,9 +372,9 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=No
         errors += 1
         time.sleep(_FAST_POLLING_DELAY_S)
         if errors > retries:
-            if blocking_exception is not None:
-                print("ERROR GPS DATA NOT AVAILABLE")
-            print("TOO MANY GPS ERRORS")
+            # if blocking_exception is not None:
+            #     print("ERROR GPS DATA NOT AVAILABLE")
+            # print("TOO MANY GPS ERRORS")
             return buffers, None
 
     try:

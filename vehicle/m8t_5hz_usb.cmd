@@ -59,6 +59,8 @@
 !UBX CFG-MSG 10 38 0 0 0 0 0 0
 
 # Set sample rate to 5 Hz
+#!UBX CFG-RATE 250 1 1
 #!UBX CFG-RATE 200 1 1
 #!UBX CFG-RATE 200 1 1
-
+#!UBX CFG-RATE 200 1 1
+#

@@ -12,3 +12,4 @@ COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/vehicle/requirements.txt
 RUN apk add tmux vim mercurial
 RUN python3 -m pip install adafruit-circuitpython-mcp230xx
+RUN apk add iw raspberrypi

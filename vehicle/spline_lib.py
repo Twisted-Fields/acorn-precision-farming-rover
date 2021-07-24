@@ -50,8 +50,12 @@ def distToP(u, tck, p):
 class GpsSpline():
 
     def __init__(self, gps_coords, smooth_factor, num_points, degree=3):
-        self.tck, self.u = self.smooth_track(gps_coords, smooth_factor,degree)
+        self.tck, self.u = self.smooth_track(gps_coords, smooth_factor, degree)
         self.points = self.get_array(num_points)
+        self.num_points = num_points
+
+    def calculate_3D_factors(self, gps_coords, smooth_factor, num_points, degree=3):
+        self.tck_3D, self.u_3D = self.smooth_track3D(gps_coords, smooth_factor,degree)
 
     def calc_distance_2D(self,p1, p2):
         return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
@@ -145,19 +149,44 @@ class GpsSpline():
             num_points: The number of points
         Returns: A list of GpsPoints representing the smoothed track.
         """
+        np_points = np.empty((len(gps_coords), 2))
+        for idx in range(len(gps_coords)):
+            line = gps_tools.check_point(gps_coords[idx])
+            np_points[idx] = (line.lat, line.lon)
+        return si.splprep(np_points.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10, k=degree)
+
+
+
+    def smooth_track3D(self, gps_coords, smooth_factor, degree=3):
+        """ Calculated a spline based on a gps track.
+        Args:
+            gps_coords: A list of GpsSample or GpsPoint objects
+            smooth_factor: Any float, but recommend 1-10.
+            num_points: The number of points
+        Returns: A list of GpsPoints representing the smoothed track.
+        """
         np_points = np.empty((len(gps_coords), 3))
         for idx in range(len(gps_coords)):
             line = gps_tools.check_point(gps_coords[idx])
             np_points[idx] = (line.lat, line.lon, line.height_m)
-        #print(np_points)
         return si.splprep(np_points.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10, k=degree)
 
     def get_array(self, num_points):
         u_new = np.linspace(self.u.min(), self.u.max(), num_points)
-        lat_smooth, lon_smooth, h_smooth = si.splev(u_new, self.tck, der=0)
+        lat_smooth, lon_smooth = si.splev(u_new, self.tck, der=0)
+        smoothed = []
+        for lat, lon in zip(lat_smooth, lon_smooth):
+            smoothed.append(gps_tools.GpsPoint(lat, lon))
+        return smoothed
+
+    def get_array3D(self, num_points=None):
+        if not num_points:
+            num_points = self.num_points
+        u_new = np.linspace(self.u_3D.min(), self.u_3D.max(), num_points)
+        lat_smooth, lon_smooth, h_smooth = si.splev(u_new, self.tck_3D, der=0)
         smoothed = []
         for lat, lon, height in zip(lat_smooth, lon_smooth, h_smooth):
-            smoothed.append(gps_tools.GpsPoint(lat, lon, height))
+            smoothed.append(gps_tools.GpsPoint3D(lat, lon, height))
         return smoothed
 
     # Return the magnitude of the gradient of the spline at u

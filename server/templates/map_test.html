@@ -7,13 +7,12 @@
               <title>Acorn vehicle interface.</title>
       <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
 
-
       <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
          <!-- Make sure you put this AFTER Leaflet's CSS -->
          <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+         <script src="{{ url_for('static', filename='js/Leaflet.Editable.js') }}"></script>
 
           <script src="{{ url_for('static', filename='js/leaflet.rotatedMarker.js') }}"></script>
-
 
           <link rel="stylesheet" href="{{ url_for('static', filename='css/map.css') }}">
 
@@ -34,8 +33,10 @@
                 <h1>Acorn control</h1>
               </div>
               <div class="col-sm">
-
                   <div class="input-group" id=dropdown-container>
+                  <button type="button" class="btn btn-info mr-1" id="btn-collapse1" data-toggle="collapse" data-target="#collapseExample">Collapse Plots</button>
+                  <button type="button" class="btn btn-primary mr-1" id="btn-load-dense-points">Load Dense Points</button>
+                  <button type="button" class="btn btn-primary mr-1" id="btn-start-polygon">Start Polygon</button>
                   <button type="button" class="btn btn-danger mr-1" id="btn-delete" data-toggle="modal" data-target="#deleteModal">Delete Path</button>
                   <button class="btn btn-secondary dropdown-toggle mr-1" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     Select a path
@@ -77,17 +78,17 @@
 
               </div>
             </div>
-            <div class="row">
-              <div class="col-lg">
-                <div id="plot_div_distance" style="width:100%;height:500px;"></div>
-                <div id="plot_div_angles" style="width:100%;height:500px;"></div>
+            <div class="collapse" id="collapseExample">
+              <div class="col-sm">
+                <div id="plot_div_distance" style="width:40%;height:300px;"></div>
+                <div id="plot_div_angles" style="width:40%;height:300px;"></div>
 
                   </div>
 
-                  <div class="col-lg">
+                  <div class="col-sm">
 
-                <div id="plot_div_distance_rates" style="width:100%;height:500px;"></div>
-                <div id="plot_div_angle_rates" style="width:100%;height:500px;"></div>
+                <div id="plot_div_distance_rates" style="width:40%;height:300px;"></div>
+                <div id="plot_div_angle_rates" style="width:40%;height:300px;"></div>
 
               </div>
             </div>

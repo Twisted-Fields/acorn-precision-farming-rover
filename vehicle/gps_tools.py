@@ -37,7 +37,7 @@ GpsSample = namedtuple('GpsSample', 'lat lon height_m status num_sats azimuth_de
 
 GpsPoint = namedtuple('GpsPoint', 'lat lon')
 
-GpsPoint3D = namedtuple('GpsPoint', 'lat lon height_m')
+GpsPoint3D = namedtuple('GpsPoint3D', 'lat lon height_m')
 
 geod = Geodesic.WGS84  # define the WGS84 ellipsoid
 
@@ -49,7 +49,7 @@ def get_distance(point1, point2):
 
 def check_point(point):
     if isinstance(point, dict):
-        point = GpsPoint(point['lat'], point['lon'], 0.0)
+        point = GpsPoint(point['lat'], point['lon'])
     return point
 
 def get_closest_point(point, point_list):
