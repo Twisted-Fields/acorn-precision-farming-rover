@@ -8,12 +8,12 @@ services:
     working_dir: /home/pi
     volumes:
       - /dev:/dev
-      - /home/pi/acorn:/home/pi/
-      - /home/pi/.bashrc:/home/pi/.bashrc
+      - /home/taylor/Software/twistedfields/acorn:/home/pi/
+      - /home/taylor/.bashrc:/home/pi/.bashrc
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /usr/local/bin:/usr/local/bin
     privileged: true
-    command: sh -c /home/pi/vehicle/autolaunch_vehicle.sh
+    command: sh -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
     restart: unless-stopped
     network_mode: "host"

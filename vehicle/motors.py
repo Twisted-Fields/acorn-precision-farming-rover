@@ -277,6 +277,8 @@ class AcornMotorInterface():
                     if motor_error != True:
                         time.sleep(1) # Intentionally break the e-stop loop to stop all motors.
                     motor_error = True
+                    time.sleep(0.5)
+                    corner_actuator.toggling_sleep(GPIO, 0.2)
                     print("ERROR DETECTED IN ODRIVES.")
                     for drive in self.odrives:
                         print("Drive: {}:".format(drive.name))
