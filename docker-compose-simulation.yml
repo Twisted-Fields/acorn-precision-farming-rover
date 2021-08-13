@@ -8,8 +8,8 @@ services:
     working_dir: /home/pi
     volumes:
       - /dev:/dev
-      - /home/taylor/Software/twistedfields/acorn:/home/pi/
-      - /home/taylor/.bashrc:/home/pi/.bashrc
+      - .:/home/pi/
+      - ./.bashrc:/home/pi/.bashrc
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /usr/local/bin:/usr/local/bin
