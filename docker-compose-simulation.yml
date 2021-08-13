@@ -17,3 +17,19 @@ services:
     command: sh -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
     restart: unless-stopped
     network_mode: "host"
+  acorn_server:
+    build: .
+    container_name: acorn_server
+    image: acorn_docker:1.0
+    ports:
+       - 80:80
+       - 5570:5570
+       - 6379:6379
+       - 6799:6799
+    working_dir: /acorn/server
+    volumes:
+      - .:/acorn
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    privileged: true
+    command: sh -c /acorn/server/autolaunch_server.sh
