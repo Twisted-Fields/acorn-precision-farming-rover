@@ -44,8 +44,6 @@ _VCC = 3.3
 _VOLTAGE_MIDPOINT = _VCC/2
 _POT_VOLTAGE_LOW = _VCC/6
 _POT_VOLTAGE_HIGH = 5*_VCC/6
-_POT_VOLTAGE_LOW_WARN = _VCC/5
-_POT_VOLTAGE_HIGH_WARN = 4*_VCC/5
 _HOMING_VELOCITY_STEERING_COUNTS = 800
 _HOMING_POT_DEADBAND_VOLTS = 0.2
 _HOMING_POT_HALF_DEADBAND_V = _HOMING_POT_DEADBAND_VOLTS/2
@@ -85,7 +83,9 @@ OdriveConnection = collections.namedtuple('OdriveConnection', 'name serial path 
 
 class CornerActuator:
 
-    def __init__(self, serial_number=None, name=None, path=None, GPIO=None, connection_definition=None, enable_steering=True, enable_traction=True, make_fake=False):
+    def __init__(self, serial_number=None, name=None, path=None, GPIO=None,
+        connection_definition=None, enable_steering=True, enable_traction=True,
+        simulated_hardware=False, disable_steering_limits=False):
         if connection_definition:
             serial_number = connection_definition.serial
             name = connection_definition.name
@@ -94,7 +94,7 @@ class CornerActuator:
             raise ValueError("serial_number must be of type str but got type: {}".format(type(serial_number)))
 
         self.GPIO=GPIO
-        if make_fake:
+        if simulated_hardware:
             self.odrv0 = fake_odrive_manager.FakeOdriveManager(path=path, serial_number=serial_number).find_odrive()
         else:
             self.odrv0 = odrive_manager.OdriveManager(path=path, serial_number=serial_number).find_odrive()
@@ -114,6 +114,11 @@ class CornerActuator:
         self.has_thermistor = False
         self.temperature_c = None
         self.zero_vel_timestamp = None
+        self.disable_steering_limits = disable_steering_limits
+        self.simulated_hardware = simulated_hardware
+
+        if self.simulated_hardware:
+            self.odrv0.vbus_voltage = 45.5 + random.random() * 2.0
 
     def enable_thermistor(self):
         self.has_thermistor = True
@@ -145,6 +150,17 @@ class CornerActuator:
         self.odrv0.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
         self.traction_initialized = True
 
+    def check_steering_limits(self):
+        rotation_sensor_val = self.sample_steering_pot()
+        if self.disable_steering_limits:
+            print("{} steering sensor {}".format(self.name,rotation_sensor_val))
+        if rotation_sensor_val < _POT_VOLTAGE_LOW or rotation_sensor_val > _POT_VOLTAGE_HIGH:
+            if self.disable_steering_limits:
+                print("WARNING POTENTIOMETER VOLTAGE OUT OF RANGE DAMAGE " +
+                      "MAY OCCUR: {}".format(rotation_sensor_val))
+            else:
+                raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
+
     def recover_from_estop(self):
         gpio_toggle(self.GPIO)
         self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
@@ -153,9 +169,7 @@ class CornerActuator:
 
     def initialize_steering(self, steering_flipped=False, skip_homing=False):
         gpio_toggle(self.GPIO)
-        rotation_sensor_val = self.odrv0.get_adc_voltage(_ADC_PORT_STEERING_POT)
-        if rotation_sensor_val < _POT_VOLTAGE_LOW or rotation_sensor_val > _POT_VOLTAGE_HIGH:
-            raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
+        self.check_steering_limits()
         self.enable_steering_control()
 
         self.steering_flipped = steering_flipped
@@ -220,9 +234,12 @@ class CornerActuator:
                     raise RuntimeError("ODrive threw error during homing.")
 
                 last_home_sensor_val = home_sensor_val
-                if rotation_sensor_val < _POT_VOLTAGE_LOW_WARN or rotation_sensor_val > _POT_VOLTAGE_HIGH_WARN:
-                  self.stop_actuator()
-                  raise ValueError("POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
+                try:
+                    self.check_steering_limits()
+                except Exception as e:
+                    raise e  # Finally will be called before the raise.
+                finally:
+                    self.stop_actuator()
 
 
             # Save values.
@@ -307,6 +324,8 @@ class CornerActuator:
 
     def update_voltage(self):
         gpio_toggle(self.GPIO)
+        if self.simulated_hardware:
+            self.odrv0.vbus_voltage = 45.5 + random.random() * 2.0
         self.voltage = self.odrv0.vbus_voltage
         self.ibus_0 = self.odrv0.axis0.motor.current_control.Ibus
         gpio_toggle(self.GPIO)
@@ -314,6 +333,7 @@ class CornerActuator:
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
         #print("Update {}".format(self.name))
+        self.check_steering_limits()
         gpio_toggle(self.GPIO)
         if self.steering_flipped:
             drive_velocity *= -1

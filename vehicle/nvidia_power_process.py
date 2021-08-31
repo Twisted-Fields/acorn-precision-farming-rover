@@ -38,12 +38,12 @@ NVIDIA_ENABLE_PIN = 16
 
 class NvidiaPowerProcess:
 
-    def __init__(self, master_conn, make_fake):
-        self.make_fake=make_fake
+    def __init__(self, master_conn, simulated_hardware):
+        self.simulated_hardware=simulated_hardware
         self.connection=master_conn
 
     def process_loop(self):
-        if self.make_fake==False:
+        if self.simulated_hardware==False:
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(NVIDIA_ENABLE_PIN, GPIO.OUT, initial=GPIO.HIGH)
             # Turn off computer
@@ -56,8 +56,8 @@ class NvidiaPowerProcess:
             time.sleep(1)
 
 
-def nvidia_power_loop(master_conn, make_fake=False):
-    power_process = NvidiaPowerProcess(master_conn, make_fake)
+def nvidia_power_loop(master_conn, simulated_hardware=False):
+    power_process = NvidiaPowerProcess(master_conn, simulated_hardware)
     power_process.process_loop()
 
 if __name__=="__main__":

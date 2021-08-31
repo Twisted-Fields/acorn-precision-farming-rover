@@ -26,6 +26,7 @@ limitations under the License.
 # Author: Tony DiCola
 # License: Public Domain
 
+
 import time
 
 # Import the ADS1x15 module.
@@ -47,13 +48,13 @@ MAX_VAL = 2^16
 
 class VoltageSampler():
 
-    def __init__(self, master_conn, make_fake=False):
+    def __init__(self, master_conn, simulated_hardware=False):
         self.adc = None
-        self.fake_device = make_fake
+        self.simulated_hardware = simulated_hardware
         self.master_conn = master_conn
 
     def read_loop(self):
-        if self.fake_device:
+        if self.simulated_hardware:
             while True:
                 cell1 = 14.5
                 cell2 = 14.3
@@ -103,8 +104,8 @@ class VoltageSampler():
             # Pause for half a second.
             time.sleep(1)
 
-def sampler_loop(master_conn, make_fake=False):
-    sampler = VoltageSampler(master_conn, make_fake)
+def sampler_loop(master_conn, simulated_hardware=False):
+    sampler = VoltageSampler(master_conn, simulated_hardware)
     sampler.read_loop()
 
 if __name__=="__main__":

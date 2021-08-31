@@ -214,7 +214,7 @@ def handle_command(r, command, key, msg):
 
 
 def update_robot(r, key, robot):
-    if len(robot.energy_segment_list) > 0:
+    if robot.simulated_data==False and len(robot.energy_segment_list) > 0:
         key = redis_utils.get_energy_segment_key(key)
         for segment in robot.energy_segment_list:
             r.rpush(key, pickle.dumps(segment))

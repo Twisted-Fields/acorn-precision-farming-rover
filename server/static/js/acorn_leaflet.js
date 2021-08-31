@@ -72,12 +72,14 @@ $.ajax({
   type: "POST",
   url: 'http://192.168.1.170:8090/api/token-auth/',
   data: data,
-  success: setup_map
+  timeout: 500,
+  success: setup_map_with_opendronemap,
+  error: setup_map_only_mapbox
 });
 
 var map;
 
-function setup_map(access_token_data) {
+function setup_map_with_opendronemap(access_token_data) {
 
   var token = access_token_data['token']
   var open_drone_map_layer = L.tileLayer('http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}', {
@@ -116,6 +118,34 @@ function setup_map(access_token_data) {
 
   L.control.layers(baseLayers).addTo(map);
 
+}
+
+function setup_map_only_mapbox() {
+
+
+  var mapbox_layer = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+      attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+      maxZoom: 22,
+      id: 'mapbox/satellite-v9',
+      tileSize: 512,
+      zoomOffset: -1,
+      accessToken: 'pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g'
+  });
+
+
+  map = L.map('map_canvas', {
+      center: [37.353, -122.332],
+      zoom: 18,
+      layers: [mapbox_layer],
+      editable: true
+  });
+
+
+  var baseLayers = {
+      "Mapbox": mapbox_layer
+  };
+
+  L.control.layers(baseLayers).addTo(map);
 }
 
 

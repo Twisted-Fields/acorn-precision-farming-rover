@@ -256,6 +256,7 @@ def send_path_names():
             global active_site
             active_site = str(str(key).split(":")[0]).replace('b\'','')
             print(active_site)
+    names.sort()
     return jsonify(names)
 
 @app.route('/api/getRobotIcon')

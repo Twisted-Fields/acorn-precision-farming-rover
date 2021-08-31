@@ -330,9 +330,9 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
 
 
 
-def fake_data(print_gps):
-    lat = 37.3540865905 #+ random() * 0.0001
-    lon = -122.333349927 #+ random() * 0.0001
+def simulated_data(print_gps):
+    lat = 37.353 + random.random() * 0.0001
+    lon = -122.332 + random.random() * 0.0001
     height_m = 80 + random.random() * 10
     azimuth_degrees = -22 + random.random() * 360.0
     rtk_age = 1.0
@@ -345,9 +345,10 @@ def fake_data(print_gps):
 
 
 
-def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False, last_sample=None, retries=3, return_fake_data=False):
-    if return_fake_data:
-        return fake_data(print_gps)
+def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False,
+                  last_sample=None, retries=3, return_simulated_data=False):
+    if return_simulated_data:
+        return simulated_data(print_gps)
 
     print_gps_counter = 0
     errors = 0

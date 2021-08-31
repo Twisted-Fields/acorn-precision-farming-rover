@@ -98,6 +98,7 @@ _PATH_END_PAUSE_SEC = 5.0
 
 _SLOW_POLLING_SLEEP_S = 0.5
 
+_MILLISECONDS_PER_SECOND = 1000
 _POLL_MILLISECONDS = 100
 _FAST_POLL_MILLISECONDS = 20
 _VERY_FAST_POLL_MILLISECONDS = 5
@@ -140,22 +141,27 @@ class EnergySegment():
 
 class RemoteControl():
 
-    def __init__(self, make_fake=False):
+    def __init__(self, remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, simulated_hardware=False):
         self.joy = None
-        self.fake_device = make_fake
+        self.simulated_hardware = simulated_hardware
         self.motor_socket = None
         self.robot_object = None
         self.next_point_heading = -180
         self.activate_autonomy = False
         self.autonomy_velocity = 0
         self.resume_motion_timer = 0
-        port = "5996"
-        context = zmq.Context()
-        self.master_conn = context.socket(zmq.PAIR)
-        self.master_conn.connect("tcp://localhost:%s" % port)
+        self.remote_to_main_lock = remote_to_main_lock
+        self.main_to_remote_lock = main_to_remote_lock
+        self.remote_to_main_string = remote_to_main_string
+        self.main_to_remote_string = main_to_remote_string
+
+        # port = "5996"
+        # context = zmq.Context()
+        # self.master_conn = context.socket(zmq.PAIR)
+        # self.master_conn.connect("tcp://localhost:%s" % port)
 
     def run_setup(self):
-        if self.fake_device:
+        if self.simulated_hardware:
             class FakeAlarm():
                 def __init__(self):
                     self.value = 0
@@ -284,7 +290,7 @@ class RemoteControl():
         self.temperatures = []
         autonomy_vel_cmd = 0
 
-        if self.fake_device:
+        if self.simulated_hardware:
             rtk_socket1 = None
             rtk_socket2 = None
         else:
@@ -305,7 +311,13 @@ class RemoteControl():
                 # if loop_count >= 80:
                 #     time.sleep(0.5) #DEBUGGING
                 #print("rtk_loop_once_start")
-                self.gps_buffers, self.latest_gps_sample = rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2, buffers=self.gps_buffers, print_gps=loop_count % GPS_PRINT_INTERVAL == 0, last_sample=self.latest_gps_sample, retries=_GPS_ERROR_RETRIES, return_fake_data=self.fake_device)
+                self.gps_buffers, self.latest_gps_sample = (
+                    rtk_process.rtk_loop_once(rtk_socket1, rtk_socket2,
+                    buffers=self.gps_buffers,
+                    print_gps=loop_count % GPS_PRINT_INTERVAL == 0,
+                    last_sample=self.latest_gps_sample,
+                    retries=_GPS_ERROR_RETRIES,
+                    return_simulated_data=self.simulated_hardware))
                 debug_time = time.time()
                 # print(type(self.latest_gps_sample))
                 if self.latest_gps_sample is not None:
@@ -319,17 +331,24 @@ class RemoteControl():
                         #rtk_socket1, rtk_socket2 = rtk_process.reset_and_reconnect_rtk(rtk_socket1, rtk_socket2)
                 #print("rtk_loop_once_completed")
 
-
+                # print(self.main_to_remote_string["value"])
+                # import sys
+                # sys.exit()
 
 
                 try:
                     recieved_robot_object = None
                     time1 = time.time() - debug_time
-                    while self.master_conn.poll(_FAST_POLL_MILLISECONDS):
-                        recieved_robot_object = pickle.loads(self.master_conn.recv_pyobj())
+                    # while self.master_conn.poll(_FAST_POLL_MILLISECONDS):
+                    #     recieved_robot_object = pickle.loads(self.master_conn.recv_pyobj())
+                    with self.main_to_remote_lock:
+                        #print(self.main_to_remote_string["value"])
+                        recieved_robot_object = pickle.loads(self.main_to_remote_string["value"])
+                        #print(recieved_robot_object)
                     time2 = time.time() - debug_time
                 except Exception as e:
-                    print(e)
+                    print("Exception reading remote string.")
+                    raise(e)
                 if recieved_robot_object:
                     if str(type(recieved_robot_object))=="<class '__main__.Robot'>":
                         self.robot_object = recieved_robot_object
@@ -497,7 +516,7 @@ class RemoteControl():
 
 
                 # Get joystick value
-                if self.fake_device:
+                if self.simulated_hardware:
                     joy_steer, joy_throttle, joy_strafe = 0.0, 0.0, 0.0
                 else:
                     joy_steer, joy_throttle, joy_strafe = self.get_joystick_values(joy_steer, joy_throttle, joy_strafe)
@@ -763,10 +782,15 @@ class RemoteControl():
 
                 vel_cmd = vel_cmd * 1.0/(1.0 + abs(steer_cmd)) # Slow Vel down by 50% when steering is at max.
 
-
+                time8b = time.time() - debug_time
                 # Update master on latest calculations.
                 send_data = (self.latest_gps_sample,self.nav_path,self.next_point_heading, debug_points, self.control_state, self.motor_state, self.autonomy_hold, self.gps_path_lateral_error, self.gps_path_angular_error, self.gps_path_lateral_error_rate, self.gps_path_angular_error_rate, strafeP, steerP, strafeD, steerD, user_web_page_plot_steer_cmd, user_web_page_plot_strafe_cmd, gps_fix, self.voltage_average, self.last_energy_segment, self.temperatures)
-                self.master_conn.send_pyobj(pickle.dumps(send_data))
+
+                with self.remote_to_main_lock:
+                    self.remote_to_main_string["value"] = pickle.dumps(send_data)
+
+
+                #self.master_conn.send_pyobj(pickle.dumps(send_data))
                 period = time.time() - tick_time
                 self.last_energy_segment = None
 
@@ -884,17 +908,18 @@ class RemoteControl():
 
                         # Reset power consumption list.
                         self.power_consumption_list = []
-                        print("                                                                                                                                                                                       Avg watts {}, watt seconds per meter: {}, meters per second: {}, height change {}".format(self.last_energy_segment.avg_watts, self.last_energy_segment.watt_seconds_per_meter, self.last_energy_segment.meters_per_second, self.last_energy_segment.height_change))
+                        print("                                                                                                                                               Avg watts {}, watt seconds per meter: {}, meters per second: {}, height change {}".format(self.last_energy_segment.avg_watts, self.last_energy_segment.watt_seconds_per_meter, self.last_energy_segment.meters_per_second, self.last_energy_segment.height_change))
 
-
-                #print("Took {} sec to get here. {} {} {} {} {} {} {} {} {} {}".format(time.time()-debug_time, time1, time2, time3, time4, time5, time6, time7, time8, time9, time10))
+                if self.simulated_hardware:
+                    time.sleep(_POLL_MILLISECONDS/_MILLISECONDS_PER_SECOND)
+                #print("Took {} sec to get here. {} {} {} {} {} {} {} {} {} {} {} {}".format(time.time()-debug_time, time1, time2, time3, time4, time5, time6, time7, time8, time8b, time9, time10, self.robot_object.wifi_ap_name))
         except KeyboardInterrupt:
             pass
 
 
 
-def run_control(make_fake=False):
-    remote_control = RemoteControl(make_fake)
+def run_control(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, simulated_hardware=False):
+    remote_control = RemoteControl(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, simulated_hardware,)
     remote_control.run_setup()
     remote_control.run_loop()
 

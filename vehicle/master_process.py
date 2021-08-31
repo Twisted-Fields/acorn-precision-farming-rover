@@ -44,6 +44,7 @@ import server_comms
 import rtk_process
 import argparse
 import nvidia_power_process
+from ctypes import c_char_p
 
 _YAML_NAME_LOCAL="vehicle/server_config.yaml"
 _YAML_NAME_RASPBERRY="/home/pi/vehicle/server_config.yaml"
@@ -76,6 +77,9 @@ _SEC_IN_ONE_MINUTE = 60
 _WIFI_SETTLING_SLEEP_SEC = 5
 _SERVER_PING_DELAY_SEC = 2
 
+_SIMULATION_IGNORE_YAML_SERVER_IP = True
+_SIMULATION_SERVER_IP_ADDRESS = "127.0.0.1"
+
 
 
 def kill_main_procs():
@@ -89,7 +93,7 @@ def kill_main_procs():
 
 
 class Robot:
-    def __init__(self):
+    def __init__(self, simulated_data=False):
         self.key = ""
         self.location = gps_tools.GpsSample(0, 0, 0, ("", ""), (0, 0), 0, time.time(), 0)
         self.voltage = 0.0
@@ -130,6 +134,7 @@ class Robot:
         self.cpu_temperature_c = 0.0
         self.energy_segment_list = []
         self.motor_temperatures = []
+        self.simulated_data = simulated_data
 
     def __repr__(self):
         return 'Robot'
@@ -167,10 +172,9 @@ def AppendFIFO(list, value, max_values):
     return list
 
 class MainProcess():
-    def __init__(self, fake_hardware):
-        self.fake_hardware = fake_hardware
-        if fake_hardware:
-            import fake_rtk_process as rtk_process
+    def __init__(self, simulated_hardware):
+        self.simulated_hardware = simulated_hardware
+        if self.simulated_hardware:
             self.yaml_path = _YAML_NAME_LOCAL
         else:
             if os.path.isfile(_YAML_NAME_DOCKER):
@@ -181,7 +185,7 @@ class MainProcess():
     def run(self):
 
         # Initialize robot object.
-        acorn = Robot()
+        acorn = Robot(self.simulated_hardware)
         acorn.setup(self.yaml_path)
         connected = False
 
@@ -192,8 +196,11 @@ class MainProcess():
 
         # Setup and start vision config and monitor process.
         vision_parent_conn, vision_child_conn = mp.Pipe()
-        vision_proc = mp.Process(target=nvidia_power_process.nvidia_power_loop, args=(vision_child_conn, self.fake_hardware,))
+        vision_proc = mp.Process(target=nvidia_power_process.nvidia_power_loop, args=(vision_child_conn, self.simulated_hardware,))
         vision_proc.start()
+
+        if _SIMULATION_IGNORE_YAML_SERVER_IP:
+            acorn.server = _SIMULATION_SERVER_IP_ADDRESS
 
         # Setup and start server communications process.
         self.server_comms_parent_conn, server_comms_child_conn = mp.Pipe()
@@ -204,13 +211,25 @@ class MainProcess():
 
         port = "5996"
         context = zmq.Context()
-        remote_control_parent_conn = context.socket(zmq.PAIR)
-        remote_control_parent_conn.bind("tcp://*:%s" % port)
+        # remote_control_parent_conn = context.socket(zmq.PAIR)
+        # remote_control_parent_conn.bind("tcp://*:%s" % port)
 
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(self.fake_hardware, ))
+        remote_control_manager = mp.Manager()
+        remote_to_main_lock = remote_control_manager.Lock()
+        main_to_remote_lock = remote_control_manager.Lock()
+
+        remote_to_main_string = remote_control_manager.dict()
+        main_to_remote_string = remote_control_manager.dict()
+
+        main_to_remote_string["value"] = pickle.dumps(acorn)
+
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, self.simulated_hardware))
         remote_control_proc.start()
 
-        remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
+        # main_to_remote_lock.acquire()
+        # main_to_remote_string = pickle.dumps(acorn)
+        # main_to_remote_lock.release()
+        # remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
 
         # Let wifi settle before moving to ping test.
         time.sleep(_WIFI_SETTLING_SLEEP_SEC)
@@ -225,7 +244,7 @@ class MainProcess():
             time.sleep(_SERVER_PING_DELAY_SEC)
 
         voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
-        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, self.fake_hardware, ))
+        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, self.simulated_hardware, ))
         voltage_proc.start()
 
         self.message_tracker = []
@@ -238,13 +257,15 @@ class MainProcess():
 
         while True:
 
-            # print("3333")
+            #print("3333")
 
-            if send_robot_object:
-                remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
-                send_robot_object = False
+            # if send_robot_object:
+            #     remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
+            #     send_robot_object = False
+            with main_to_remote_lock:
+                main_to_remote_string["value"] = pickle.dumps(acorn)
 
-            # print("4444")
+            #print("4444")
 
             if voltage_monitor_parent_conn.poll():
                 cell1, cell2, cell3, total = voltage_monitor_parent_conn.recv()
@@ -257,20 +278,22 @@ class MainProcess():
             while wifi_parent_conn.poll():
                 acorn.wifi_strength, acorn.wifi_ap_name, acorn.cpu_temperature_c = wifi_parent_conn.recv()
 
-            # print("5555")
+            #print("5555")
 
             read_okay = False
             try:
-                acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD, autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
+                with remote_to_main_lock:
+                    #acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD, autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
+                    acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points, acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle, gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD, autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, acorn.voltage, energy_segment, acorn.motor_temperatures = pickle.loads(remote_to_main_string["value"])
                 read_okay = True
                 send_robot_object = True
                 if acorn_location != None:
                     acorn.location = acorn_location
-                # print("44444")
+                #print("44444")
             except Exception as e:
                 pass
                 # time.sleep(2)
-                # print(e)
+                print(e)
             if read_okay:
                 if gps_fix:
                     #print("GPS_FIX")
@@ -303,7 +326,7 @@ class MainProcess():
 
 
 
-            # print("6666")
+            #print("6666")
             seconds_since_update = (datetime.now() - acorn.time_stamp).total_seconds()
             if updated_object and seconds_since_update > _UPDATE_PERIOD:
                 acorn.time_stamp = datetime.now()
@@ -315,7 +338,7 @@ class MainProcess():
                     print("Remote server unreachable.")
                 updated_object = False
 
-            # print("$$$$$$")
+            #print("$$$$$$")
 
 
             while self.server_comms_parent_conn.poll():
@@ -325,7 +348,7 @@ class MainProcess():
                 acorn.last_server_communication_stamp = time.time()
                 send_robot_object = True
 
-            #    print("7777")
+                #print("7777")
                 if command == _CMD_ROBOT_COMMAND:
                     robot_command = pickle.loads(msg)
                     #print("GOT COMMAND: {}".format(robot_command))
@@ -385,14 +408,14 @@ class MainProcess():
                 attempts+=1
 
 
-def run_main(fake_hardware):
+def run_main(simulated_hardware):
     kill_main_procs()
     #sys.exit()
-    main_process = MainProcess(fake_hardware)
+    main_process = MainProcess(simulated_hardware)
     main_process.run()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the Acorn vehicle coordinator process.')
-    parser.add_argument('--fake_hardware', dest='fake_hardware', default=False, action='store_true')
+    parser.add_argument('--simulated_hardware', dest='simulated_hardware', default=False, action='store_true')
     args = parser.parse_args()
-    run_main(args.fake_hardware)
+    run_main(args.simulated_hardware)
