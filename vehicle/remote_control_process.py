@@ -39,7 +39,6 @@ import datetime
 from motors import _STATE_ENABLED, STATE_DISCONNECTED
 import rtk_process
 import coloredlogs
-from master_process import _LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL
 import subprocess
 
 # This file gets imported by server but we should only import GPIO on raspi.
