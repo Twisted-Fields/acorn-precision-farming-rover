@@ -11,5 +11,6 @@ RUN python3 -m pip install -r /install/server/requirements.txt
 COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/vehicle/requirements.txt
 RUN apk add tmux vim mercurial
-RUN python3 -m pip install adafruit-circuitpython-mcp230xx
-RUN apk add iw raspberrypi
+RUN python3 -m pip install adafruit-circuitpython-mcp230xx coloredlogs
+RUN apk add iw
+RUN apk add raspberrypi; exit 0 # Only succeeds on raspberry pi but not needed otherwise.

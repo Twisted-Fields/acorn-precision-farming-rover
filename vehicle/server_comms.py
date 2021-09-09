@@ -24,35 +24,38 @@ limitations under the License.
 # Lazy Pirate poll by  Daniel Lundin <dln(at)eintr(dot)org>
 
 import itertools
-import logging
 import sys
 import zmq
-
+import coloredlogs
 import time
 
 
 _POLL_TIMEOUT_SEC = 2.5
 
 
-def AcornServerComms(acorn_pipe, server_endpoint):
-
-    logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
+def AcornServerComms(acorn_pipe, server_endpoint, logging, logging_details):
+    logger = logging.getLogger('main.comms')
+    _LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL = logging_details
+    coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
+                        datefmt=_LOGGER_DATE_FORMAT,
+                        level=_LOGGER_LEVEL,
+                        logger=logger)
 
     REQUEST_TIMEOUT = 4500
     REQUEST_RETRIES = 30
 
     context = zmq.Context()
 
-    logging.info("Connecting to server…")
+    logger.info("Connecting to server…")
     client = context.socket(zmq.REQ)
     client.connect(server_endpoint)
 
     for sequence in itertools.count():
         while not acorn_pipe.poll(timeout=_POLL_TIMEOUT_SEC):
-            print("No data from master.")
+            logger.error("No data from master.")
 
         seq_string = str(sequence).encode()
-        # logging.info("Sending (%s)", seq_string)
+        logger.debug("Sending (%s)", seq_string)
         request = acorn_pipe.recv()
         request.insert(0, seq_string)
         client.send_multipart(request)
@@ -66,25 +69,25 @@ def AcornServerComms(acorn_pipe, server_endpoint):
                 # print(reply)
 
                 if int(reply[0]) == sequence:
-                    #logging.info("Server replied OK (%s)", reply)
+                    logger.debug("Server replied OK (%s)", reply)
                     acorn_pipe.send(reply[1:])
                     break
                 else:
-                    logging.error("Malformed reply from server: %s", reply)
+                    logger.error("Malformed reply from server: %s", reply)
                     continue
 
             retries_left -= 1
-            logging.warning("No response from server")
+            logger.warning("No response from server")
             # Socket is confused. Close and remove it.
             client.setsockopt(zmq.LINGER, 0)
             client.close()
             if retries_left == 0:
-                logging.error("Server seems to be offline, abandoning")
+                logger.error("Server seems to be offline, abandoning")
                 #sys.exit()
 
-            logging.info("Reconnecting to server…")
+            logger.info("Reconnecting to server…")
             # Create new connection
             client = context.socket(zmq.REQ)
             client.connect(server_endpoint)
-            logging.info("Resending (%s)", seq_string)
+            logger.info("Resending (%s)", seq_string)
             client.send_multipart(request)

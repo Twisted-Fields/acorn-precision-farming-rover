@@ -24,7 +24,9 @@ limitations under the License.
 import netifaces
 import subprocess
 import time
+import coloredlogs
 
+_LOG_SKIP_COUNT = 20
 
 access_points = {
 '78:8a:20:2d:9d:f9':'Barn Interior',
@@ -54,10 +56,18 @@ access_points = {
 '74:ac:b9:64:36:a1':'Back of Farmhouse',
 '74:ac:b9:63:36:a1':'Back of Farmhouse',
 '74:ac:b9:34:fd:08':'Farm Store',
-'76:ac:b9:35:fd:08':'Farm Store'
+'76:ac:b9:35:fd:08':'Farm Store',
+'78:8a:20:23:58:9b':'Mobile Tower Middle Ag',
+'78:8a:20:24:58:9b':'Mobile Tower Middle Ag'
 }
 
-def wifi_process(master_conn):
+def wifi_process(master_conn, logging, logging_details):
+    logger = logging.getLogger('main.wifi')
+    _LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL = logging_details
+    coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
+                        datefmt=_LOGGER_DATE_FORMAT,
+                        level=_LOGGER_LEVEL,
+                        logger=logger)
     interfaces = netifaces.interfaces()
     if "wlan0" in interfaces and "wlan1" in interfaces:
         wlan0_ip = None
@@ -71,14 +81,15 @@ def wifi_process(master_conn):
         except KeyError:
             pass
         if wlan0_ip and wlan1_ip:
-            print("Found IP addresses for wlan0 and wlan1 so turning off wlan0.")
-            print("wlan1 IP is {}".format(wlan1_ip))
+            logger.info("Found IP addresses for wlan0 and wlan1 so turning off wlan0.")
+            logger.info("wlan1 IP is {}".format(wlan1_ip))
             subprocess.check_call("ifconfig wlan0 down", shell=True)
-            print("Turned off wlan0.")
+            logger.info("Turned off wlan0.")
         else:
-            print("Two connected wifi adapters present but both not connected " +
+            logger.info("Two connected wifi adapters present but both not connected " +
                   "so did not turn off wlan0.")
-            print("wlan0 IP: {}  | wlan1 IP: {}".format(wlan0_ip, wlan1_ip))
+            logger.info("wlan0 IP: {}  | wlan1 IP: {}".format(wlan0_ip, wlan1_ip))
+        log_counter = 0
         while True:
             linkdata = subprocess.check_output("iw dev wlan1 link", shell=True)
             linkdata = linkdata.splitlines()
@@ -97,9 +108,13 @@ def wifi_process(master_conn):
 
                 if master_conn:
                     master_conn.send((signal, station_name, temp))
+                    log_counter += 1
+                    if log_counter >= _LOG_SKIP_COUNT:
+                        logger.info("Wifi RSSI: {} dBm, Station: {}, CPU Temp {}".format(signal, station_name, temp))
+                        log_counter = 0
                 else:
-                    print(station_name)
-                    print("Wifi RSSI: {} dBm".format(signal))
+                    logger.info(station_name)
+                    logger.info("Wifi RSSI: {} dBm".format(signal))
             except Exception as e:
                 print(e)
                 #raise e

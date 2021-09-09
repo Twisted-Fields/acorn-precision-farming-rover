@@ -38,7 +38,9 @@ import os
 import datetime
 from motors import _STATE_ENABLED, STATE_DISCONNECTED
 import rtk_process
-
+import coloredlogs
+from master_process import _LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL
+import subprocess
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
@@ -91,6 +93,7 @@ _ALLOWED_SOLUTION_AGE_SEC = 1.0
 _ALLOWED_MOTOR_SEND_LAPSE_SEC = 5
 
 SERVER_COMMUNICATION_DELAY_LIMIT_SEC = 10
+_SERVER_DELAY_RECONNECT_WIFI_SECONDS = 120
 
 _BEGIN_AUTONOMY_SPEED_RAMP_SEC = 3.0
 
@@ -122,7 +125,8 @@ def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
 class EnergySegment():
     def __init__(self, sequence_num, start_gps, end_gps, distance_sum,
                  total_watt_seconds, avg_watts, per_motor_total_watt_seconds,
-                 per_motor_watt_average, subsampled_points, autonomy_operating):
+                 per_motor_watt_average, subsampled_points, autonomy_operating,
+                 wifi_ap_name, wifi_signal_strength):
         self.sequence_num = sequence_num
         self.time_stamp = end_gps.time_stamp
         self.start_gps = start_gps
@@ -137,11 +141,13 @@ class EnergySegment():
         self.per_motor_watt_average = per_motor_watt_average
         self.subsampled_points = subsampled_points
         self.autonomy_operating = autonomy_operating
+        self.wifi_ap_name = wifi_ap_name
+        self.wifi_signal_strength = wifi_signal_strength
 
 
 class RemoteControl():
 
-    def __init__(self, remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, simulated_hardware=False):
+    def __init__(self, remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, logging, logging_details, simulated_hardware=False):
         self.joy = None
         self.simulated_hardware = simulated_hardware
         self.motor_socket = None
@@ -154,6 +160,12 @@ class RemoteControl():
         self.main_to_remote_lock = main_to_remote_lock
         self.remote_to_main_string = remote_to_main_string
         self.main_to_remote_string = main_to_remote_string
+        self.logger = logging.getLogger('main.remote')
+        _LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL = logging_details
+        coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
+                            datefmt=_LOGGER_DATE_FORMAT,
+                            level=_LOGGER_LEVEL,
+                            logger=self.logger)
 
         # port = "5996"
         # context = zmq.Context()
@@ -206,7 +218,7 @@ class RemoteControl():
             try:
                 event = self.joy.read_one()
             except Exception as e:
-                print("Joystick read exception: {}".format(e))
+                self.logger.error("Joystick read exception: {}".format(e))
             if event == None:
                 break
             #print(event)
@@ -289,13 +301,13 @@ class RemoteControl():
         self.last_energy_segment = None
         self.temperatures = []
         autonomy_vel_cmd = 0
-
+        last_wifi_restart_time = 0
         if self.simulated_hardware:
             rtk_socket1 = None
             rtk_socket2 = None
         else:
-            rtk_process.launch_rtk_sub_procs()
-            rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs()
+            rtk_process.launch_rtk_sub_procs(self.logger)
+            rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs(self.logger)
         allowed_rtk_errors = 60
         rtk_error_count = 0
         print_gps_counter = 0
@@ -317,7 +329,8 @@ class RemoteControl():
                     print_gps=loop_count % GPS_PRINT_INTERVAL == 0,
                     last_sample=self.latest_gps_sample,
                     retries=_GPS_ERROR_RETRIES,
-                    return_simulated_data=self.simulated_hardware))
+                    return_simulated_data=self.simulated_hardware,
+                    logger=self.logger))
                 debug_time = time.time()
                 # print(type(self.latest_gps_sample))
                 if self.latest_gps_sample is not None:
@@ -347,7 +360,7 @@ class RemoteControl():
                         #print(recieved_robot_object)
                     time2 = time.time() - debug_time
                 except Exception as e:
-                    print("Exception reading remote string.")
+                    self.logger.error("Exception reading remote string.")
                     raise(e)
                 if recieved_robot_object:
                     if str(type(recieved_robot_object))=="<class '__main__.Robot'>":
@@ -382,7 +395,7 @@ class RemoteControl():
                             self.disengagement_time  = time.time() - _DISENGAGEMENT_RETRY_DELAY_SEC
 
                 if str(type(self.robot_object))!="<class '__main__.Robot'>":
-                    print("Waiting for valid robot object before running remote control code.")
+                    self.logger.info("Waiting for valid robot object before running remote control code.")
                     time.sleep(_SLOW_POLLING_SLEEP_S)
                     continue
 
@@ -422,8 +435,8 @@ class RemoteControl():
                         # print("solution age average: {}".format(age_avg))
                         solution_age_okay = True
                     if not solution_age_okay:
-                        print("SOLUTION AGE {} NOT OKAY AND LATEST GPS SAMPLE IS: {}".format(time.time() - self.latest_gps_sample.time_stamp, self.latest_gps_sample))
-                        print("Took {} sec to get here. {} {} {} {}".format(time.time()-debug_time, time1, time2, time3, time4))
+                        self.logger.error("SOLUTION AGE {} NOT OKAY AND LATEST GPS SAMPLE IS: {}".format(time.time() - self.latest_gps_sample.time_stamp, self.latest_gps_sample))
+                        self.logger.error("Took {} sec to get here. {} {} {} {}".format(time.time()-debug_time, time1, time2, time3, time4))
 
                     time5 = time.time() - debug_time
 
@@ -526,7 +539,7 @@ class RemoteControl():
                         joy_steer = 0.0
                 #print(joy_throttle)
                 if abs(joy_steer) > 0.1 or abs(joy_throttle) > 0.1 or abs(joy_strafe) > 0.1:
-                    print("DISABLED AUTONOMY Steer: {}, Joy {}".format(joy_steer, joy_throttle))
+                    self.logger.info("DISABLED AUTONOMY Steer: {}, Joy {}".format(joy_steer, joy_throttle))
                     self.autonomy_hold = True
                     self.activate_autonomy = False
                     self.control_state = CONTROL_OVERRIDE
@@ -618,7 +631,7 @@ class RemoteControl():
                     joy_steer = 0.0 # ensures that vel goes to zero when autonomy disabled
                     if loop_count % 10 == 0:
                         #print(loop_count)
-                        print("calc rotation: {}, calc strafe: {}, steer: {}, strafe: {}, vel_cmd: {}".format(steerP, strafeP, steer_cmd, strafeP, vel_cmd))
+                        self.logger.info("calc rotation: {:.2f}, calc strafe: {:.2f}, steer: {:.2f}, strafe: {:.2f}, vel_cmd: {:.2f}".format(steerP, strafeP, steer_cmd, strafeP, vel_cmd))
                     #print("Steer: {}, Throttle: {}".format(steer_cmd, vel_cmd))
                 zero_output = False
 
@@ -677,21 +690,36 @@ class RemoteControl():
                     server_communication_okay = False
                     zero_output = True
                     self.resume_motion_timer = time.time()
-                    error_messages.append("Server communication error so zeroing out autonomy commands. Last stamp age {} exceeds allowed age of {} seconds. AP name: {}".format(time.time() - self.robot_object.last_server_communication_stamp, SERVER_COMMUNICATION_DELAY_LIMIT_SEC, self.robot_object.wifi_ap_name))
+                    error_messages.append("Server communication error so zeroing out autonomy commands. Last stamp age {} exceeds allowed age of {} seconds. AP name: {}, Signal Strength {} dbm\r\n".format(time.time() - self.robot_object.last_server_communication_stamp, SERVER_COMMUNICATION_DELAY_LIMIT_SEC, self.robot_object.wifi_ap_name, self.robot_object.wifi_strength))
 
                 if loop_count % _ERROR_SKIP_RATE == 0:
                     for error in error_messages:
-                        print(error)
+                        self.logger.error(error)
+
+                if time.time() > last_wifi_restart_time + 500 and time.time() - self.robot_object.last_server_communication_stamp > _SERVER_DELAY_RECONNECT_WIFI_SECONDS and self.robot_object.last_server_communication_stamp > 0:
+                    self.logger.error("Last Wifi signal strength: {} dbm\r\n".format(self.robot_object.wifi_strength))
+                    self.logger.error("Last Wifi AP associated: {}\r\n".format(self.robot_object.wifi_ap_name))
+                    self.logger.error("Restarting wlan1...")
+                    try:
+                        subprocess.check_call("ifconfig wlan1 down", shell=True)
+                        subprocess.check_call("ifconfig wlan1 up", shell=True)
+                    except:
+                        pass
+                    last_wifi_restart_time = time.time()
+                    self.logger.error("Restarted wlan1.")
 
 
                 if zero_output == True:
                     if self.activate_autonomy and time.time() - self.disengagement_time > _DISENGAGEMENT_RETRY_DELAY_SEC:
                         self.disengagement_time = time.time()
-                        print("Disengaging Autonomy.")
+                        self.logger.error("Disengaging Autonomy.")
                         # Ensure we always print errors if we are deactivating autonomy.
                         if loop_count % _ERROR_SKIP_RATE != 0:
                             for error in error_messages:
-                                print(error)
+                                self.logger.error(error)
+                        self.logger.error("Last Wifi signal strength: {} dbm\r\n".format(self.robot_object.wifi_strength))
+                        self.logger.error("Last Wifi AP associated: {}\r\n".format(self.robot_object.wifi_ap_name))
+                        self.logger.error("Last CPU Temp: {}\r\n".format(self.robot_object.cpu_temperature_c))
                         with open("error_log.txt", 'a+') as file1:
                             file1.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n")
                             file1.write("Disegagement Log\r\n")
@@ -718,8 +746,8 @@ class RemoteControl():
                 if self.robot_object.wifi_ap_name == 'Farmhouse Exterior HP':
                     if self.robot_object.loaded_path_name == 'new_big_field_row':
                         if self.activate_autonomy:
-                            print("WARNING BAD ACCESS POINT DETECTED!")
-                            print("SIGNAL STRENGTH --  {}".format(self.robot_object.wifi_strength))
+                            self.logger.error("WARNING BAD ACCESS POINT DETECTED!")
+                            self.logger.error("SIGNAL STRENGTH --  {}".format(self.robot_object.wifi_strength))
 
 
 
@@ -731,13 +759,13 @@ class RemoteControl():
                     zero_output = True
                     # Don't use the motion timer here as it reactivates alarm.
                     if loop_count % 10 == 0:
-                        print("Taking a short delay at the end of the path so zeroing out autonomy commands.")
+                        self.logger.info("Taking a short delay at the end of the path so zeroing out autonomy commands.")
 
                 if time.time() - self.disengagement_time < _DISENGAGEMENT_RETRY_DELAY_SEC:
                     zero_output = True
                     self.resume_motion_timer = time.time()
                     if loop_count % 10 == 0:
-                        print("Disengaged for {} more seconds so zeroing out autonomy commands.".format(_DISENGAGEMENT_RETRY_DELAY_SEC - (time.time() - self.disengagement_time)))
+                        self.logger.info("Disengaged for {:.1f} more seconds so zeroing out autonomy commands.".format(_DISENGAGEMENT_RETRY_DELAY_SEC - (time.time() - self.disengagement_time)))
 
                 if self.activate_autonomy == True and zero_output == False and time.time() - self.resume_motion_timer < _RESUME_MOTION_WARNING_TIME_SEC:
                     zero_output = True
@@ -771,7 +799,7 @@ class RemoteControl():
                         steer_cmd = 0.0
                         strafe = 0
                         if loop_count % _ERROR_SKIP_RATE == 0:
-                            print("LOW VOLTAGE PAUSE: {}".format(self.voltage_average))
+                            self.logger.error("LOW VOLTAGE PAUSE. Voltage average: {:.2f}".format(self.voltage_average))
                     else:
                         vel_cmd = joy_throttle
                         steer_cmd = joy_steer
@@ -808,7 +836,7 @@ class RemoteControl():
                 # print("TICK")
 
                 if not self.motor_socket:
-                    print("Connect to motor control socket")
+                    self.logger.error("Connect to motor control socket")
                     self.connect_to_motors()
 
                 time10 = 0
@@ -841,13 +869,13 @@ class RemoteControl():
                                 self.total_watts += volt * current
                             #print("Drawing {} Watts.".format(int(self.total_watts)))
                         except Exception as e:
-                            print("Error reading motor state message.")
-                            print(e)
+                            self.logger.error("Error reading motor state message.")
+                            self.logger.error(e)
                             self.motor_state = STATE_DISCONNECTED
                 except zmq.error.Again as e:
-                    print("Remote server unreachable.")
+                    self.logger.error("Remote server unreachable.")
                 except zmq.error.ZMQError as e:
-                    print("ZMQ error with motor command socket. Resetting.")
+                    self.logger.error("ZMQ error with motor command socket. Resetting.")
                     self.motor_state = STATE_DISCONNECTED
                     self.close_motor_socket()
 
@@ -888,9 +916,9 @@ class RemoteControl():
                                     motor_watt_average[idx] = (sample1[2][idx] * sample1[3][idx] + sample2[2][idx] * sample2[3][idx]) * 0.5
                                     motor_total_watt_seconds[idx] = motor_watt_average[idx] * sample_duration
                             except Exception as e:
-                                print(e)
-                                print(sample1[2])
-                                print(sample1[3])
+                                self.logger.error(e)
+                                self.logger.error(sample1[2])
+                                self.logger.error(sample1[3])
                             watt_average += sample2[1]
                             watt_seconds = sample_avg_watts * sample_duration
                             total_watt_seconds += watt_seconds
@@ -904,11 +932,11 @@ class RemoteControl():
                         list_subsamples.append(last_sample_gps)
 
 
-                        self.last_energy_segment = EnergySegment(loop_count, oldest_power_sample_gps, last_sample_gps, distance_sum, total_watt_seconds, avg_watts, motor_total_watt_seconds, motor_watt_average, list_subsamples, self.activate_autonomy)
+                        self.last_energy_segment = EnergySegment(loop_count, oldest_power_sample_gps, last_sample_gps, distance_sum, total_watt_seconds, avg_watts, motor_total_watt_seconds, motor_watt_average, list_subsamples, self.activate_autonomy, self.robot_object.wifi_ap_name, self.robot_object.wifi_strength)
 
                         # Reset power consumption list.
                         self.power_consumption_list = []
-                        print("                                                                                                                                               Avg watts {}, watt seconds per meter: {}, meters per second: {}, height change {}".format(self.last_energy_segment.avg_watts, self.last_energy_segment.watt_seconds_per_meter, self.last_energy_segment.meters_per_second, self.last_energy_segment.height_change))
+                        self.logger.info("                                                                                                                                      Avg watts {:.1f}, watt seconds per meter: {:.1f}, meters per second: {:.2f}, height change {:.2f}".format(self.last_energy_segment.avg_watts, self.last_energy_segment.watt_seconds_per_meter, self.last_energy_segment.meters_per_second, self.last_energy_segment.height_change))
 
                 if self.simulated_hardware:
                     time.sleep(_POLL_MILLISECONDS/_MILLISECONDS_PER_SECOND)
@@ -918,8 +946,8 @@ class RemoteControl():
 
 
 
-def run_control(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, simulated_hardware=False):
-    remote_control = RemoteControl(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, simulated_hardware,)
+def run_control(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, logging, logging_details, simulated_hardware=False):
+    remote_control = RemoteControl(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, logging, logging_details, simulated_hardware)
     remote_control.run_setup()
     remote_control.run_loop()
 

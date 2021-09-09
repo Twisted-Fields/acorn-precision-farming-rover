@@ -45,6 +45,8 @@ import rtk_process
 import argparse
 import nvidia_power_process
 from ctypes import c_char_p
+import coloredlogs
+import logging
 
 _YAML_NAME_LOCAL="vehicle/server_config.yaml"
 _YAML_NAME_RASPBERRY="/home/pi/vehicle/server_config.yaml"
@@ -80,6 +82,11 @@ _SERVER_PING_DELAY_SEC = 2
 _SIMULATION_IGNORE_YAML_SERVER_IP = True
 _SIMULATION_SERVER_IP_ADDRESS = "127.0.0.1"
 
+_LOGGER_FORMAT_STRING = '%(asctime)s - %(name)-11s - %(levelname)-4s - %(message)s'
+_LOGGER_DATE_FORMAT = '%m/%d/%Y %I:%M:%S %p'
+_LOGGER_LEVEL = 'DEBUG'
+
+logging_details = (_LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL)
 
 
 def kill_main_procs():
@@ -93,7 +100,7 @@ def kill_main_procs():
 
 
 class Robot:
-    def __init__(self, simulated_data=False):
+    def __init__(self, simulated_data=False, logger=None):
         self.key = ""
         self.location = gps_tools.GpsSample(0, 0, 0, ("", ""), (0, 0), 0, time.time(), 0)
         self.voltage = 0.0
@@ -135,6 +142,7 @@ class Robot:
         self.energy_segment_list = []
         self.motor_temperatures = []
         self.simulated_data = simulated_data
+        self.logger = logger
 
     def __repr__(self):
         return 'Robot'
@@ -145,14 +153,16 @@ class Robot:
         self.voltage = 0.0
 
     def load_yaml_config(self, yaml_path):
+        self.logger.info("Opening yaml file: {}".format(yaml_path))
         with open(yaml_path, 'r') as stream:
             try:
                 config = yaml.safe_load(stream)
                 self.name = str(config["vehicle_name"])
                 self.server = str(config["server"])
                 self.site = str(config["site"])
+                self.logger.info("Using server from yaml {}".format(self.server))
             except yaml.YAMLError as exc:
-                print("Error! Problem Loading Yaml File. Does it exist?/n"
+                self.logger.error("Error! Problem Loading Yaml File. Does it exist?/n"
                       "Actual error thrown was: {}".format(exc))
 
 class RobotCommand:
@@ -184,27 +194,42 @@ class MainProcess():
 
     def run(self):
 
+        self.logger = logging.getLogger('main')
+        coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
+                            datefmt=_LOGGER_DATE_FORMAT,
+                            level=_LOGGER_LEVEL,
+                            logger=self.logger)
+
+        # This module throws out debug messages so we change its logger level.
+        i2c_logger = logging.getLogger('Adafruit_I2C')
+        i2c_logger.setLevel(logging.CRITICAL)
+
+
         # Initialize robot object.
-        acorn = Robot(self.simulated_hardware)
+        acorn = Robot(self.simulated_hardware, self.logger)
         acorn.setup(self.yaml_path)
         connected = False
 
         # Setup and start wifi config and monitor process.
         wifi_parent_conn, wifi_child_conn = mp.Pipe()
-        wifi_proc = mp.Process(target=wifi.wifi_process, args=(wifi_child_conn,))
+        wifi_proc = mp.Process(target=wifi.wifi_process,
+                               args=(wifi_child_conn, logging, logging_details,))
         wifi_proc.start()
 
         # Setup and start vision config and monitor process.
         vision_parent_conn, vision_child_conn = mp.Pipe()
-        vision_proc = mp.Process(target=nvidia_power_process.nvidia_power_loop, args=(vision_child_conn, self.simulated_hardware,))
+        vision_proc = mp.Process(target=nvidia_power_process.nvidia_power_loop,
+                                 args=(vision_child_conn,
+                                       self.simulated_hardware,))
         vision_proc.start()
 
-        if _SIMULATION_IGNORE_YAML_SERVER_IP:
+        if self.simulated_hardware and _SIMULATION_IGNORE_YAML_SERVER_IP:
             acorn.server = _SIMULATION_SERVER_IP_ADDRESS
 
         # Setup and start server communications process.
         self.server_comms_parent_conn, server_comms_child_conn = mp.Pipe()
-        server_comms_proc = mp.Process(target=server_comms.AcornServerComms, args=(server_comms_child_conn, 'tcp://{}:5570'.format(acorn.server), ))
+        self.logger.warning("Using custom logging level for server comms process.")
+        server_comms_proc = mp.Process(target=server_comms.AcornServerComms, args=(server_comms_child_conn, 'tcp://{}:5570'.format(acorn.server), logging, (_LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, "INFO"), ))
         server_comms_proc.start()
 
         acorn.last_server_communication_stamp = time.time()
@@ -223,7 +248,7 @@ class MainProcess():
 
         main_to_remote_string["value"] = pickle.dumps(acorn)
 
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, self.simulated_hardware))
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, logging, logging_details, self.simulated_hardware))
         remote_control_proc.start()
 
         # main_to_remote_lock.acquire()
@@ -236,11 +261,11 @@ class MainProcess():
 
         while True:
             # Check to make sure we can at least reach the server.
-            print("trying to ping server...")
+            self.logger.info("trying to ping server...")
             if os.system("ping -c 1 " + acorn.server) == 0:
-                print("Ping Successful")
+                self.logger.info("Ping Successful")
                 break
-            print("Ping failed. Will wait and retry.")
+            self.logger.error("Ping failed. Will wait and retry.")
             time.sleep(_SERVER_PING_DELAY_SEC)
 
         voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
@@ -293,7 +318,7 @@ class MainProcess():
             except Exception as e:
                 pass
                 # time.sleep(2)
-                print(e)
+                # print(e)
             if read_okay:
                 if gps_fix:
                     #print("GPS_FIX")
@@ -317,7 +342,7 @@ class MainProcess():
                     updated_object = True
                     if acorn.record_gps_command == _GPS_RECORDING_ACTIVATE:
                         acorn.gps_path_data.append(acorn.location)
-                        print("APPEND GPS. TEMP PATH LENGTH {}".format(len(acorn.gps_path_data)))
+                        self.logger.info("APPEND GPS. TEMP PATH LENGTH {}".format(len(acorn.gps_path_data)))
                         #print(acorn.gps_path_data)
                 if acorn.record_gps_command == _GPS_RECORDING_PAUSE:
                     pass
@@ -335,7 +360,7 @@ class MainProcess():
                     self.server_comms_parent_conn.send([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)])
                     acorn.energy_segment_list = []
                 except zmq.error.Again as e:
-                    print("Remote server unreachable.")
+                    self.logger.error("Remote server unreachable.")
                 updated_object = False
 
             #print("$$$$$$")
@@ -353,13 +378,13 @@ class MainProcess():
                     robot_command = pickle.loads(msg)
                     #print("GOT COMMAND: {}".format(robot_command))
                     if robot_command.load_path != acorn.loaded_path_name and len(robot_command.load_path)>0:
-                        print("GETTING PATH DATA")
+                        self.logger.info("GETTING PATH DATA")
                         path = self.get_path(robot_command.load_path, acorn)
                     #    print("8888")
                         if path:
                             acorn.loaded_path_name = robot_command.load_path
                             acorn.loaded_path = path
-                            print(acorn.loaded_path_name)
+                            self.logger.info(acorn.loaded_path_name)
                             updated_object = True
                             #print(path)
 
@@ -370,7 +395,7 @@ class MainProcess():
                     acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
                     # if acorn.activate_autonomy == True:
                     #     acorn.request_autonomy_at_startup = False
-                    print("GPS Path: {}, Autonomy Hold: {}, Activate Autonomy: {}, Autonomy Velocity: {}, Clear Autonomy Hold: {}".format(robot_command.record_gps_path, acorn.autonomy_hold, robot_command.activate_autonomy, robot_command.autonomy_velocity, acorn.clear_autonomy_hold ))
+                    self.logger.info("GPS Path: {}, Autonomy Hold: {}, Activate Autonomy: {}, Autonomy Velocity: {}, Clear Autonomy Hold: {}".format(robot_command.record_gps_path, acorn.autonomy_hold, robot_command.activate_autonomy, robot_command.autonomy_velocity, acorn.clear_autonomy_hold ))
 
             #print(time.time())
 
@@ -386,14 +411,14 @@ class MainProcess():
 
     def get_path(self, pathkey, robot):
         #TODO: Boy this function sure got complicated. Is there a better way?
-        print("SEND REQUEST FOR PATH DATA")
+        self.logger.info("SEND REQUEST FOR PATH DATA")
         while True:
             attempts = 0
             self.server_comms_parent_conn.send([_CMD_READ_PATH_KEY, bytes(pathkey, encoding='ascii'), robot.key])
             time.sleep(0.5)
             while attempts < 5:
                 if self.server_comms_parent_conn.poll(timeout=_SERVER_REPLY_TIMEOUT_MILLISECONDS / 1000.0):
-                    print("READING PATH DATA")
+                    self.logger.info("READING PATH DATA")
                     command, msg = self.server_comms_parent_conn.recv()
                     if command == _CMD_READ_KEY_REPLY:
                         msg = pickle.loads(msg)
@@ -402,9 +427,9 @@ class MainProcess():
                             if key == bytes(pathkey, encoding='ascii'):
                                 return pickle.loads(msg[1])
                             else:
-                                print("{} and {} dont match".format(key, pathkey))
+                                self.logger.error("{} and {} dont match".format(key, pathkey))
                         else:
-                            print(msg)
+                            self.logger.info(msg)
                 attempts+=1
 
 
