@@ -331,28 +331,28 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
 
 
 
-def simulated_data(logger, print_gps):
-    lat = 37.353 + random.random() * 0.0001
-    lon = -122.332 + random.random() * 0.0001
-    height_m = 80 + random.random() * 10
-    azimuth_degrees = -22 + random.random() * 360.0
-    rtk_age = 1.0
-    latest_sample = gps_tools.GpsSample(lat, lon, height_m, ("fix", "fix"), (21, 23), azimuth_degrees, time.time(), rtk_age)
-    d = 2.8
-    if print_gps:
-        logger.info("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fixes: ({}, {}), Period: {:.2f}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, True, True, 0.121))
-
-    return [], latest_sample
+# def simulated_data(logger, print_gps):
+#     lat = 37.353 + random.random() * 0.0001
+#     lon = -122.332 + random.random() * 0.0001
+#     height_m = 80 + random.random() * 10
+#     azimuth_degrees = -22 + random.random() * 360.0
+#     rtk_age = 1.0
+#     latest_sample = gps_tools.GpsSample(lat, lon, height_m, ("fix", "fix"), (21, 23), azimuth_degrees, time.time(), rtk_age)
+#     d = 2.8
+#     if print_gps:
+#         logger.info("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fixes: ({}, {}), Period: {:.2f}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, True, True, 0.121))
+#
+#     return [], latest_sample
 
 
 
 def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False,
-                  last_sample=None, retries=3, return_simulated_data=False, logger=None):
+                  last_sample=None, retries=3, logger=None):
     if not logger:
         raise RuntimeError("No Logger Specified")
 
-    if return_simulated_data:
-        return simulated_data(logger, print_gps)
+    # if return_simulated_data:
+    #     return simulated_data(logger, print_gps)
 
     print_gps_counter = 0
     errors = 0

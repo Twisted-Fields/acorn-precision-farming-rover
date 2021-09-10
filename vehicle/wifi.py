@@ -120,7 +120,7 @@ def wifi_process(master_conn, logging, logging_details):
                 #raise e
             time.sleep(0.5)
     else:
-        print("Did not find two wifi adapters so wlan0 will not be disabled.")
+        logger.info("Did not find two wifi adapters so wlan0 will not be disabled.")
         # while True:
         #     linkdata = subprocess.check_output("iw dev wlp2s0 link", shell=True)
         #     linkdata = linkdata.splitlines()

@@ -47,6 +47,7 @@ import nvidia_power_process
 from ctypes import c_char_p
 import coloredlogs
 import logging
+import subprocess
 
 _YAML_NAME_LOCAL="vehicle/server_config.yaml"
 _YAML_NAME_RASPBERRY="/home/pi/vehicle/server_config.yaml"
@@ -84,7 +85,7 @@ _SIMULATION_SERVER_IP_ADDRESS = "127.0.0.1"
 
 _LOGGER_FORMAT_STRING = '%(asctime)s - %(name)-11s - %(levelname)-4s - %(message)s'
 _LOGGER_DATE_FORMAT = '%m/%d/%Y %I:%M:%S %p'
-_LOGGER_LEVEL = 'DEBUG'
+_LOGGER_LEVEL = 'INFO'
 
 logging_details = (_LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL)
 
@@ -204,6 +205,33 @@ class MainProcess():
         i2c_logger = logging.getLogger('Adafruit_I2C')
         i2c_logger.setLevel(logging.CRITICAL)
 
+        for _ in range(10):
+            self.logger.info("")
+
+        banner = r"""
+                                  _____           _
+     /\                          / ____|         | |
+    /  \   ___ ___  _ __ _ __   | (___  _   _ ___| |_ ___ _ __ ___
+   / /\ \ / __/ _ \| '__| '_ \   \___ \| | | / __| __/ _ \ '_ ` _ \
+  / ____ \ (_| (_) | |  | | | |  ____) | |_| \__ \ ||  __/ | | | | |
+ /_/    \_\___\___/|_|  |_| |_| |_____/ \__, |___/\__\___|_| |_| |_|
+                                         __/ |
+                                        |___/
+                      _
+                    _(_)_                          wWWWw   _
+        @@@@       (_)@(_)   vVVVv     _     @@@@  (___) _(_)_
+       @@()@@ wWWWw  (_)\    (___)   _(_)_  @@()@@   Y  (_)@(_)
+        @@@@  (___)     `|/    Y    (_)@(_)  @@@@   \|/   (_)\
+         /      Y       \|    \|/    /(_)    \|      |/      |
+      \ |     \ |/       | / \ | /  \|/       |/    \|      \|/
+  jgs \\|//   \\|///  \\\|//\\\|/// \|///  \\\|//  \\|//  \\\|//
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        """
+        # Flower art by joan stark via https://www.asciiart.eu/plants/flowers
+
+        for line in banner.split('\n'):
+            self.logger.info(line)
+
 
         # Initialize robot object.
         acorn = Robot(self.simulated_hardware, self.logger)
@@ -234,11 +262,6 @@ class MainProcess():
 
         acorn.last_server_communication_stamp = time.time()
 
-        port = "5996"
-        context = zmq.Context()
-        # remote_control_parent_conn = context.socket(zmq.PAIR)
-        # remote_control_parent_conn.bind("tcp://*:%s" % port)
-
         remote_control_manager = mp.Manager()
         remote_to_main_lock = remote_control_manager.Lock()
         main_to_remote_lock = remote_control_manager.Lock()
@@ -251,10 +274,6 @@ class MainProcess():
         remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, logging, logging_details, self.simulated_hardware))
         remote_control_proc.start()
 
-        # main_to_remote_lock.acquire()
-        # main_to_remote_string = pickle.dumps(acorn)
-        # main_to_remote_lock.release()
-        # remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
 
         # Let wifi settle before moving to ping test.
         time.sleep(_WIFI_SETTLING_SLEEP_SEC)
@@ -262,7 +281,10 @@ class MainProcess():
         while True:
             # Check to make sure we can at least reach the server.
             self.logger.info("trying to ping server...")
-            if os.system("ping -c 1 " + acorn.server) == 0:
+            ping = subprocess.run("ping -c 1 " + acorn.server, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            for line in ping.stdout.split(b'\n'):
+                self.logger.info(line.decode("utf-8"))
+            if ping.returncode == 0:
                 self.logger.info("Ping Successful")
                 break
             self.logger.error("Ping failed. Will wait and retry.")
@@ -405,9 +427,6 @@ class MainProcess():
                 # acorn.last_server_communication_stamp = time.time()
         #    print("((8888))")
 
-
-
-        context.term()
 
     def get_path(self, pathkey, robot):
         #TODO: Boy this function sure got complicated. Is there a better way?

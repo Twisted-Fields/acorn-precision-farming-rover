@@ -52,6 +52,12 @@ def check_point(point):
         point = GpsPoint(point['lat'], point['lon'])
     return point
 
+def is_dual_fix(gps_sample):
+    if len(gps_sample.status) == 2:
+        if gps_sample.status[0] == 'fix' and gps_sample.status[1] == 'fix':
+            return True
+    return False
+
 def get_closest_point(point, point_list):
     closest_point = None
     closest_index = -1
