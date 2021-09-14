@@ -424,7 +424,7 @@ class RemoteControl():
 
                     projected_path_tangent_point = gps_tools.GpsPoint(0, 0)
                     closest_path_point = gps_tools.GpsPoint(0, 0)
-                    if(len(self.nav_path.points)>0):
+                    if(len(self.nav_path.points)>1):
 
                         """
                         REFACTOR END CONDITIONS
@@ -433,7 +433,7 @@ class RemoteControl():
                         if gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[0]) < self.nav_path.end_distance_m:
                             if self.nav_direction == -1:
                                 self.nav_path.points = []
-                        if gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[len(self.nav_path.points)-1]) < self.nav_path.end_distance_m:
+                        elif gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[-1]) < self.nav_path.end_distance_m:
                             if self.nav_direction == 1:
                                 self.nav_path.points = []
 
