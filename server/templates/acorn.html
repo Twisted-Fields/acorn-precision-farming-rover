@@ -1,476 +1,133 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <!DOCTYPE html>
+  <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-            <title>Acorn vehicle interface.</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+              <title>Acorn vehicle interface.</title>
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
 
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+         <!-- Make sure you put this AFTER Leaflet's CSS -->
+         <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+         <script src="{{ url_for('static', filename='js/Leaflet.Editable.js') }}"></script>
 
-    </head>
-    <body>
-      <br>
-      <div class="container-fluid">
-        <div class="row">
-          <!--div id="robot_detail_mobile" class="col-lg"-->
-            <div id="robot_detail" class="col-lg">
+          <script src="{{ url_for('static', filename='js/leaflet.rotatedMarker.js') }}"></script>
 
-          </div>
-        </div>
-      </div>
-        <hr>
+          <link rel="stylesheet" href="{{ url_for('static', filename='css/map.css') }}">
 
-        <div class="modal" id="deleteModal" tabindex="-1" role="dialog">
-          <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Confirm delete path</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                  <span aria-hidden="true">&times;</span>
-                </button>
-              </div>
-              <div class="modal-body">
-                <p>Are you sure you want to delete the selected path?</p>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-primary" onclick="deletePath();" data-dismiss="modal">Permanently Delete</button>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-              </div>
+      </head>
+      <body>
+        <br>
+        <div class="container-fluid">
+          <div class="row">
+            <div id="robot_detail_mobile" class="col-lg">
+
             </div>
           </div>
         </div>
-
-
-    </body>
-</html>
-<script src="{{ url_for('static', filename='js/jquery-3.4.1.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-
-
-<script>
-
-$(document).ready(function(){
-    modifyAutonomyHold(`${robot.name}`, false);
-});
-
-  var zoom_scales = [ 0,
-                      591657550.500000,
-                      295828775.300000,
-                      147914387.600000,
-                      73957193.820000,
-                      36978596.910000,
-                      18489298.450000,
-                      9244649.227000,
-                      4622324.614000,
-                      2311162.307000,
-                      1155581.153000,
-                      577790.576700,
-                      288895.288400,
-                      144447.644200,
-                      72223.822090,
-                      36111.911040,
-                      18055.955520,
-                      9027.977761,
-                      4513.988880,
-                      2256.994440,
-                      1128.497220
-                    ];
-
-
-
-
-    //grab user local ip address
-    var ipAddress = location.hostname;
-
-    console.log(ipAddress);
-
-    //initialize empty marker and circle arrays
-    var robotMarkerStore = {};
-    var arrowMarkerStore = {};
-    var savedPathMarkers = [];
-    var livePathMarkers = [];
-    //var livePathLength = 0;
-    var livePathName = "";
-    var gpsPathMarkers = [];
-    var gpsPathLength = 0;
-    var debugPointMarkers = [];
-    var debugPointsLength = 0;
-    var gps_path = [];
-    var displayed_path = [];
-    var displayed_path_name = "";
-    var path_start = -1;
-    var path_end = -1;
-    var path_point_to_remove = -1;
-    have_cleared_autonomy = false;
-
-    //time between api refreshes
-    var INTERVAL = 1000;
-
-    getRobotData();
-    //getCircles();
-  //  getPath();
-  //  loadPathList();
-
-    // <------- THIS FUNCTION GETS ROBOT DATA FROM SERVER AND UPDATES MARKERS AT INTERVAL ------->
-    function getRobotData() {
-
-        //request herd data from server API
-        fetch('http://' + ipAddress + '/api/get_herd_data')
-            .then((resp) => resp.json())
-            .then(function (data) {
-                //console.log(data);
-
-                //loop through herd data from server
-                for (var i = 0, len = data.length; i < len; i++) {
-
-                    let robot = data[i]
-                    let datenow = new Date();
-                    //console.log(datenow)
-                    //console.log(JSON.parse(robot.time_stamp))
-                    let date = new Date(JSON.parse(robot.time_stamp));
-                    let data_age_sec = (datenow-date)/1000.0
-
-                    if (have_cleared_autonomy == false)
-                    {
-                      have_cleared_autonomy = true;
-                      modifyAutonomyHold(`${robot.name}`, false);
-                    }
-
-                    // if(robot.autonomy_hold)
-                    // {
-                    //
-                    //   let speed = 0.0;
-                    //   let active = false;
-                    //   updateVehicleAutonomy(`${robot.name}`, speed, active);
-                    // }
-                    //console.log(robot.autonomy_hold)
-
-                    var autonomy_allowed = robot.autonomy_hold?"False":"True"
-
-
-                    const markup = `
-                    <div class="card" style="width: 18rem;">
-                      <div class="card-header">
-                        ${robot.name}
-                      </div>
-                      <ul class="list-group list-group-flush" id="${robot.name}-detail-view">
-                        <li class="list-group-item" id="${robot.name}-detail-data-age">Data Age: ${data_age_sec.toFixed(1)} sec</li>
-                        <li class="list-group-item" id="${robot.name}-detail-voltage">Voltage: ${robot.voltage.toFixed(2)}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-speed">Speed: ${robot.speed}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-control-state">Control State: ${robot.control_state}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-motor-state">Motor State: ${robot.motor_state}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-path-name">Loaded Path Name: ${robot.loaded_path_name}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-autonomy-allowed">Autonomy Allowed: ${autonomy_allowed}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-autonomy-active">Autonomy Active: ${robot.activate_autonomy}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-access-point">Access Point: ${robot.access_point_name}</li>
-                        <li class="list-group-item" id="${robot.name}-detail-wifi-signal">Wifi Signal: ${robot.wifi_signal} dBm</li>
-                      <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-load-button">Load Path</button></li>
-                      <li class="list-group-item">
-                        <div class="btn-group" role="group" aria-label="Autonomy Velocity">
-                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-1">0.1</button>
-                          <button type="button" class="btn btn-success" id="${robot.name}-vel-2">0.2</button>
-                          <button type="button" class="btn btn-secondary" id="${robot.name}-vel-3">0.3</button>
-                          <!--button type="button" class="btn btn-secondary" id="${robot.name}-vel-4">0.4</button-->
-                        </div>
-                      </li>
-                      <li class="list-group-item"><button type="button" class="btn btn-lg btn-secondary mr-1 disabled" id="${robot.name}-activate-button">Activate Autonomy</button></li>
-                      <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${robot.name}-clear-hold">Clear Autonomy Hold</button></li>
-                      <li class="list-group-item">
-                        <div class="btn-group" role="group" aria-label="GPS Recording">
-                          <button type="button" class="btn btn-secondary" id="${robot.name}-gps-record-button">Record</button>
-                          <button type="button" class="btn btn-secondary" id="${robot.name}-gps-pause-button">Pause</button>
-                          <button type="button" class="btn btn-secondary" id="${robot.name}-gps-clear-button">Clear</button>
-                        </div>
-                      </li>
-
-                      </ul>
-                    </div>
-                    `;
-
-
-                    let div_id = `${robot.name}-cardview`;
-                    const row = `
-                    <div id=${div_id} class="row">
-                    ${markup}
-                    </div>
-                    `;
-
-                    if ( $( `#${div_id}` ).length ) {
-                        $(`#${robot.name}-detail-voltage`).text(`Voltage: ${robot.voltage.toFixed(2)}`);
-                        $(`#${robot.name}-detail-speed`).html(`Speed: ${robot.speed}`);
-                        $(`#${robot.name}-detail-data-age`).html(`Data Age: ${data_age_sec.toFixed(1)} sec`);
-                        $(`#${robot.name}-detail-path-name`).html(`Loaded Path Name: ${robot.loaded_path_name}`);
-                        $(`#${robot.name}-detail-control-state`).html(`Control State: ${robot.control_state}`);
-                        $(`#${robot.name}-detail-motor-state`).html(`Motor State: ${robot.motor_state}`);
-                        $(`#${robot.name}-detail-autonomy-allowed`).html(`Autonomy Allowed: ${autonomy_allowed}`);
-                        $(`#${robot.name}-detail-autonomy-active`).html(`Autonomy Active: ${robot.activate_autonomy}`);
-                        $(`#${robot.name}-detail-access-point`).html(`Access Point: ${robot.access_point_name}`);
-                        $(`#${robot.name}-detail-wifi-signal`).html(`Wifi Signal: ${robot.wifi_signal}`);
-
-                        console.log(robot.activate_autonomy);
-
-                        if(robot.autonomy_hold)
-                        {
-                          $(`#${robot.name}-activate-button`).removeClass('btn-success')
-                          $(`#${robot.name}-activate-button`).addClass('btn-secondary')
-                          $(`#${robot.name}-activate-button`).addClass('disabled')
-                          // $(`#${robot.name}-activate-button`).html("Disabled")
-
-                        //  console.log("autonomy false");
-
-                        } else
-                        {
-                        //  console.log("autonomy true");
-                          // $(`#${robot.name}-activate-button`).html("Activate Autonomy")
-                          $(`#${robot.name}-activate-button`).removeClass('btn-secondary')
-                          $(`#${robot.name}-activate-button`).addClass('btn-success')
-                          $(`#${robot.name}-activate-button`).removeClass('disabled')
-                        }
-                        if(robot.activate_autonomy)
-                        {
-                          if ($(`#${robot.name}-activate-button`).html() === "Activate Autonomy")
-                          {
-                            $(`#${robot.name}-activate-button`).removeClass('btn-success')
-                            $(`#${robot.name}-activate-button`).addClass('btn-danger')
-                            $(`#${robot.name}-activate-button`).html("Deactivate Autonomy")
-                          }
-                        }
-
-                    } else
-                    {
-                      $('#robot_detail').append(row)
-                      $("[id*=-load-button]").on('click', function (event) {
-
-                            console.log("You clicked the load button ", event.target.innerText)
-                            updateVehiclePath(displayed_path_name, `${robot.name}`);
-
-                          });
-
-
-                    $(`[id^=${robot.name}-vel-]`).on('click', function (event) {
-
-                          $( `[id^=${robot.name}-vel-]`).each(function() {
-                            $( this ).removeClass('btn-success')
-                            $( this ).addClass('btn-secondary')
-                          });
-
-                          let active = $(`[id^=${robot.name}-active-][class*=btn-success]`).text()
-
-                          $(event.target).removeClass('btn-secondary')
-                          $(event.target).addClass('btn-success')
-
-                          console.log(active + " "+ event.target.innerText)
-                          active = active === "Activate"
-
-                          let speed = event.target.innerText
-
-                          updateVehicleAutonomy(`${robot.name}`, speed, active);
-
-                        });
-
-
-                        $(`[id^=${robot.name}-activate-button]`).on('click', function (event) {
-
-                          if($(event.target).hasClass('disabled'))
-                          {
-                            console.log("clicked button but autonomy not allowed");
-                            return;
-                          }
-                            console.log("clicked button and autonomy is allowed");
-
-                          // $( `[id^=${robot.name}-active-]`).each(function() {
-                          //   $( this ).removeClass('btn-success')
-                          //   $( this ).addClass('btn-secondary')
-                          // });
-
-                          // $(event.target).removeClass('btn-secondary')
-                          // $(event.target).addClass('btn-success')
-
-                          let speed = $(`[id^=${robot.name}-vel-][class*=btn-success]`).text()
-
-                          console.log(event.target.innerText + " "+ speed)
-                          let active = event.target.innerText === "Activate Autonomy"
-
-                          if(active)
-                          {
-                            $( event.target ).removeClass('btn-success')
-                            $( event.target ).addClass('btn-danger')
-                            $(event.target).html("Deactivate Autonomy")
-
-                          } else
-                          {
-                            $( event.target ).addClass('btn-success')
-                            $( event.target ).removeClass('btn-danger')
-                            $( event.target).html("Activate Autonomy")
-
-                          }
-
-                          updateVehicleAutonomy(`${robot.name}`, speed, active);
-
-                      });
-
-                      $(`[id^=${robot.name}-clear-hold]`).on('click', function (event) {
-
-                      //  $(`#${robot.name}-activate-button`).html("Deactivate Autonomy")
-
-                        modifyAutonomyHold(`${robot.name}`, true);
-
-                        setTimeout(function() {
-                            modifyAutonomyHold(`${robot.name}`, false);
-                        }, 4000)
-
-                    });
-
-
-                      $(`[id^=${robot.name}-gps-]`).on('click', function (event) {
-                        console.log(event.target.innerText)
-                        updateGpsRecordCommand(`${robot.name}`, event.target.innerText);
-
-                    });
-
-                    }
-
-
-
-                }
-            })
-            //catch any errors
-            .catch(function (error) {
-                console.log(error);
-
-            });
-        //timeout function and restart at interval
-        window.setTimeout(getRobotData, INTERVAL);
-    }
-
-
-    function loadPath(pathname) {
-        //request circle data from server API
-        fetch('http://' + ipAddress + '/api/get_path/' + pathname)
-            .then((resp) => resp.json())
-            .then(function (pathData) {
-                //check data from server in console
-                console.log(pathData);
-                displayed_path = pathData;
-                path_start = 0;
-                path_end = displayed_path.length-1;
-                path_point_to_remove =  displayed_path.length;
-
-                console.log("pathData Length: ", pathData.length)
-                renderPath(displayed_path);
-                displayed_path_name = pathname
-
-            })
-            //catch any errors
-            .catch(function (error) {
-                console.log(error);
-            });
-
-    }
-
-
-    function updateServerPath(pathname, pathData) {
-        //push path to server with the specified name
-        fetch('http://' + ipAddress + '/api/save_path/' + pathname, {
-          method: 'POST', // or 'PUT'
-          body: JSON.stringify(pathData), // data can be `string` or {object}!
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-            .then(function (reply) {
-                //check data from server in console
-                console.log(reply);
-
-            })
-            //catch any errors
-            .catch(function (error) {
-                console.log(error);
-            });
-    }
-
-
-    function deletePath() {
-      let pathname = $("#path-name").val()
-        //push path to server with the specified name
-        fetch('http://' + ipAddress + '/api/delete_path/' + pathname)
-            .then(function (reply) {
-                //check data from server in console
-                console.log(reply);
-
-            })
-            //catch any errors
-            .catch(function (error) {
-                console.log(error);
-            });
-    }
-
-
-      function updateVehiclePath(pathname, vehicle_name) {
-          //push path to server with the specified name
-          fetch('http://' + ipAddress + '/api/set_vehicle_path/' + pathname + '/' + vehicle_name )
-              .then(function (reply) {
-                  //check data from server in console
-                  console.log(reply);
-
-              })
-              //catch any errors
-              .catch(function (error) {
-                  console.log(error);
-              });
-      }
-
-      function modifyAutonomyHold(vehicle_name, clear_hold) {
-          //push path to server with the specified name
-          fetch('http://' + ipAddress + '/api/modify_autonomy_hold/' + vehicle_name + '/' + clear_hold)
-              .then(function (reply) {
-                  //check data from server in console
-                  console.log(reply);
-
-              })
-              //catch any errors
-              .catch(function (error) {
-                  console.log(error);
-              });
-      }
-
-
-        function updateVehicleAutonomy(vehicle_name, speed, enabled) {
-            //push path to server with the specified name
-            fetch('http://' + ipAddress + '/api/set_vehicle_autonomy/' + vehicle_name + '/' + speed + '/' + enabled )
-                .then(function (reply) {
-                    //check data from server in console
-                    //console.log(reply);
-
-                })
-                //catch any errors
-                .catch(function (error) {
-                    console.log(error);
-                });
-        }
-
-
-      function updateGpsRecordCommand(vehicle_name, record_gps_command) {
-          //push path to server with the specified name
-          fetch('http://' + ipAddress + '/api/set_gps_recording/' + vehicle_name + '/' + record_gps_command)
-              .then(function (reply) {
-                  //check data from server in console
-                  console.log(reply);
-
-              })
-              //catch any errors
-              .catch(function (error) {
-                  console.log(error);
-              });
-      }
-
-
-
-
-
-
-</script>
-
-
-<!-- <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script> -->
+        <div id="full_map_view" class="container-fluid">
+
+          <div class="row">
+              <div class="col-sm">
+                <h1>Acorn control</h1>
+              </div>
+              <div class="col-sm">
+                  <div class="input-group" id=dropdown-container>
+                  <button type="button" class="btn btn-info mr-1" id="btn-collapse1" data-toggle="collapse" data-target="#collapseExample">Collapse Plots</button>
+                  <button type="button" class="btn btn-primary mr-1" id="btn-load-dense-points">Load Dense Points</button>
+                  <button type="button" class="btn btn-primary mr-1" id="btn-start-polygon">Start Polygon</button>
+                  <button type="button" class="btn btn-danger mr-1" id="btn-delete" data-toggle="modal" data-target="#deleteModal">Delete Path</button>
+                  <button class="btn btn-secondary dropdown-toggle mr-1" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Select a path
+                  </button>
+                  <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" id=dropdown-menu>
+                  </div>
+
+                <button type="button" class="btn btn-primary mr-1" id="save-as">Save as</button>
+
+              <input type="text" class="form-control mr-1" placeholder="Path name" id=path-name aria-label="Path name" aria-describedby="basic-addon2" autocomplete='off'>
+              <button type="button" class="btn btn-primary mr-1" id="save-gps-as">Save GPS path as</button>
+              </div>
+              </div>
+              <div class="col-sm">
+
+
+
+                <div class="btn-group" role="group" aria-label="Start">
+                  <button type="button" class="btn btn-info" id="start-minus"><</button>
+                    <button type="button" class="btn btn-secondary" disabled>Start</button>
+                  <button type="button" class="btn btn-info" id="start-plus">></button>
+                </div>
+
+
+                <div class="btn-group" role="group" aria-label="End">
+                  <button type="button" class="btn btn-info" id="end-minus"><</button>
+                    <button type="button" class="btn btn-secondary" disabled>End</button>
+                  <button type="button" class="btn btn-info" id="end-plus">></button>
+                </div>
+
+
+                <div class="btn-group" role="group" aria-label="Remove">
+                  <button type="button" class="btn btn-info" id="remove-minus"><</button>
+                    <button type="button" class="btn btn-secondary" disabled>Remove</button>
+                  <button type="button" class="btn btn-info" id="remove-plus">></button>
+                </div>
+
+                <button type="button" class="btn btn-danger" id="modify-displayed-path">Modify Displayed Path</button>
+
+              </div>
+            </div>
+            <div class="collapse" id="collapseExample">
+              <div class="col-sm">
+                <div id="plot_div_distance" style="width:40%;height:300px;"></div>
+                <div id="plot_div_angles" style="width:40%;height:300px;"></div>
+
+                  </div>
+
+                  <div class="col-sm">
+
+                <div id="plot_div_distance_rates" style="width:40%;height:300px;"></div>
+                <div id="plot_div_angle_rates" style="width:40%;height:300px;"></div>
+
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg">
+                <div id="map_canvas" style="width:100%;height:1500px;"></div>
+              </div>
+              <div id="robot_detail_desktop" class="col-lg-2">
+
+              </div>
+            </div>
+
+          </div>
+          <hr>
+
+          <div class="modal" id="deleteModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-dialog-centered" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Confirm delete path</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+                <div class="modal-body">
+                  <p>Are you sure you want to delete the selected path?</p>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-primary" onclick="deletePath();" data-dismiss="modal">Permanently Delete</button>
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+      </body>
+  </html>
+  <script src="{{ url_for('static', filename='js/jquery-3.4.1.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/plotly-latest.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/acorn_leaflet.js') }}"></script>
