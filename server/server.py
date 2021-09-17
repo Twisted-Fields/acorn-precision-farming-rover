@@ -123,7 +123,8 @@ def robots_to_json(keys):
         'strafeD' : robot.strafeD,
         'steerD' : robot.steerD,
         'autonomy_steer_cmd' : robot.autonomy_steer_cmd,
-        'autonomy_strafe_cmd' : robot.autonomy_strafe_cmd
+        'autonomy_strafe_cmd' : robot.autonomy_strafe_cmd,
+        'simulated_data': robot.simulated_data
         # 'front_lat': debug_points[0].lat,
         # 'front_lon': debug_points[0].lat,
         # 'rear_lat': debug_points[1].lat,

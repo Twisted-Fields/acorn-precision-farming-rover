@@ -67,8 +67,11 @@ _GPS_RECORDING_ACTIVATE = "Record"
 _GPS_RECORDING_PAUSE = "Pause"
 _GPS_RECORDING_CLEAR = "Clear"
 
-_UPDATE_PERIOD = 2.0
 
+_SIMULATION_UPDATE_PERIOD = 0.1
+_SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS = 300
+
+_UPDATE_PERIOD = 2.0
 _SERVER_REPLY_TIMEOUT_MILLISECONDS = 3000
 
 _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC = 60
@@ -183,9 +186,9 @@ def AppendFIFO(list, value, max_values):
     return list
 
 class MainProcess():
-    def __init__(self, simulated_hardware):
-        self.simulated_hardware = simulated_hardware
-        if self.simulated_hardware:
+    def __init__(self, simulation):
+        self.simulation = simulation
+        if self.simulation:
             self.yaml_path = _YAML_NAME_LOCAL
         else:
             if os.path.isfile(_YAML_NAME_DOCKER):
@@ -234,7 +237,7 @@ class MainProcess():
 
 
         # Initialize robot object.
-        acorn = Robot(self.simulated_hardware, self.logger)
+        acorn = Robot(self.simulation, self.logger)
         acorn.setup(self.yaml_path)
         connected = False
 
@@ -248,10 +251,10 @@ class MainProcess():
         vision_parent_conn, vision_child_conn = mp.Pipe()
         vision_proc = mp.Process(target=nvidia_power_process.nvidia_power_loop,
                                  args=(vision_child_conn,
-                                       self.simulated_hardware,))
+                                       self.simulation,))
         vision_proc.start()
 
-        if self.simulated_hardware and _SIMULATION_IGNORE_YAML_SERVER_IP:
+        if self.simulation and _SIMULATION_IGNORE_YAML_SERVER_IP:
             acorn.server = _SIMULATION_SERVER_IP_ADDRESS
 
         # Setup and start server communications process.
@@ -271,7 +274,7 @@ class MainProcess():
 
         main_to_remote_string["value"] = pickle.dumps(acorn)
 
-        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, logging, logging_details, self.simulated_hardware))
+        remote_control_proc = mp.Process(target=remote_control_process.run_control, args=(remote_to_main_lock, main_to_remote_lock, remote_to_main_string, main_to_remote_string, logging, logging_details, self.simulation))
         remote_control_proc.start()
 
 
@@ -291,7 +294,7 @@ class MainProcess():
             time.sleep(_SERVER_PING_DELAY_SEC)
 
         voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
-        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, self.simulated_hardware, ))
+        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop, args=(voltage_monitor_child_conn, self.simulation, ))
         voltage_proc.start()
 
         self.message_tracker = []
@@ -375,7 +378,13 @@ class MainProcess():
 
             #print("6666")
             seconds_since_update = (datetime.now() - acorn.time_stamp).total_seconds()
-            if updated_object and seconds_since_update > _UPDATE_PERIOD:
+
+            if self.simulation:
+                period = _SIMULATION_UPDATE_PERIOD
+            else:
+                period = _UPDATE_PERIOD
+
+            if updated_object and seconds_since_update > period:
                 acorn.time_stamp = datetime.now()
                 #print(acorn.time_stamp)
                 try:
@@ -436,7 +445,11 @@ class MainProcess():
             self.server_comms_parent_conn.send([_CMD_READ_PATH_KEY, bytes(pathkey, encoding='ascii'), robot.key])
             time.sleep(0.5)
             while attempts < 5:
-                if self.server_comms_parent_conn.poll(timeout=_SERVER_REPLY_TIMEOUT_MILLISECONDS / 1000.0):
+                if self.simulation:
+                    timeout = _SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS
+                else:
+                    timeout = _SERVER_REPLY_TIMEOUT_MILLISECONDS
+                if self.server_comms_parent_conn.poll(timeout=timeout/1000.0):
                     self.logger.info("READING PATH DATA")
                     command, msg = self.server_comms_parent_conn.recv()
                     if command == _CMD_READ_KEY_REPLY:
@@ -452,14 +465,14 @@ class MainProcess():
                 attempts+=1
 
 
-def run_main(simulated_hardware):
+def run_main(simulation):
     kill_main_procs()
     #sys.exit()
-    main_process = MainProcess(simulated_hardware)
+    main_process = MainProcess(simulation)
     main_process.run()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the Acorn vehicle coordinator process.')
-    parser.add_argument('--sim', dest='simulated_hardware', default=False, action='store_true')
+    parser.add_argument('--sim', dest='simulation', default=False, action='store_true')
     args = parser.parse_args()
-    run_main(args.simulated_hardware)
+    run_main(args.simulation)

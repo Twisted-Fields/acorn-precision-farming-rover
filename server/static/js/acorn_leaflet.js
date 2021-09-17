@@ -170,9 +170,11 @@ function setup_map_only_mapbox() {
     var path_end = -1;
     var path_point_to_remove = -1;
     var have_cleared_autonomy = false
+    var simulation = false;
 
     //time between api refreshes
     var INTERVAL = 2000;
+    var SIMULATION_INTERVAL = 100;
 
     getRobotData();
     //getCircles();
@@ -397,6 +399,8 @@ function setup_map_only_mapbox() {
                     </div>
                     `;
 
+                    // Set simulation value.
+                    simulation = robot.simulated_data;
 
                     if(robot.loaded_path_name != livePathName || robot.live_path_data.length != livePathMarkers.length)
                     {
@@ -622,8 +626,15 @@ function setup_map_only_mapbox() {
                 console.log(error);
 
             });
-        //timeout function and restart at interval
-        window.setTimeout(getRobotData, INTERVAL);
+
+        if(simulation)
+        {
+          window.setTimeout(getRobotData, SIMULATION_INTERVAL);
+        } else
+        {
+          window.setTimeout(getRobotData, INTERVAL);
+        }
+
     }
 
 
