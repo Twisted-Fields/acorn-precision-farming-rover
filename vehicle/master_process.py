@@ -460,6 +460,6 @@ def run_main(simulated_hardware):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the Acorn vehicle coordinator process.')
-    parser.add_argument('--simulated_hardware', dest='simulated_hardware', default=False, action='store_true')
+    parser.add_argument('--sim', dest='simulated_hardware', default=False, action='store_true')
     args = parser.parse_args()
     run_main(args.simulated_hardware)

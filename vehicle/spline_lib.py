@@ -189,7 +189,7 @@ class GpsSpline():
             smoothed.append(gps_tools.GpsPoint3D(lat, lon, height))
         return smoothed
 
-    # Return the magnitude of the gradient of the spline at u
+    # Return the angle in radians of the spline at u
     def slopeRadiansAtU(self, u):
         x, y = si.splev(u, self.tck, 1)
         return math.atan2(y,x)

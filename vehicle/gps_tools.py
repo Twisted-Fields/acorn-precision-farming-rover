@@ -53,6 +53,8 @@ def check_point(point):
     return point
 
 def is_dual_fix(gps_sample):
+    if not gps_sample:
+        return False
     if len(gps_sample.status) == 2:
         if gps_sample.status[0] == 'fix' and gps_sample.status[1] == 'fix':
             return True
