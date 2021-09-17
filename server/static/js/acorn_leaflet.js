@@ -171,6 +171,7 @@ function setup_map_only_mapbox() {
     var path_point_to_remove = -1;
     var have_cleared_autonomy = false
     var simulation = false;
+    var first_path_point;
 
     //time between api refreshes
     var INTERVAL = 2000;
@@ -402,13 +403,19 @@ function setup_map_only_mapbox() {
                     // Set simulation value.
                     simulation = robot.simulated_data;
 
-                    if(robot.loaded_path_name != livePathName || robot.live_path_data.length != livePathMarkers.length)
+                    if(robot.live_path_data.length > 0)
                     {
-                      renderPathLive(robot.live_path_data);
-                      livePathName = robot.loaded_path_name;
+                      if(robot.live_path_data[0].lat != first_path_point)
+                      {
+                        // console.log("UPDATING PATH ")
+                        // console.log(first_path_point)
+                        renderPathLive(robot.live_path_data);
+                        livePathName = robot.loaded_path_name;
+                        first_path_point = robot.live_path_data[0].lat
+                      }
                     }
 
-                    console.log(robot.debug_points)
+                    //console.log(robot.debug_points)
 
                     if(robot.debug_points)
                     {

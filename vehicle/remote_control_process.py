@@ -394,7 +394,7 @@ class RemoteControl():
                                     start_index = int(len(self.nav_spline.points)/2) - 5
                                     initial_heading = gps_tools.get_heading(self.nav_spline.points[start_index], self.nav_spline.points[start_index+1])
                                     self.simulated_sample = gps_tools.GpsSample(self.nav_spline.points[start_index].lat, self.nav_spline.points[start_index].lon, self.simulated_sample.height_m, ("fix","fix"), 20, initial_heading + 30, time.time(), 0.5)
-
+                                    self.latest_gps_sample = self.simulated_sample 
                                 # Set initial nav_direction.
                                 if self.nav_path.navigation_parameters.path_following_direction == Direction.EITHER:
                                     dist_start = gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[0])
