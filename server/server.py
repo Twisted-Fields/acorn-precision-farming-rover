@@ -65,26 +65,11 @@ robot_icon_path = get_svg_path("robot.svg")
 arrow_icon_path = get_svg_path("arrow.svg")
 
 
-@app.route('/map/')
-def map_canvas_flask():
-    return render_template(
-        'acorn_map_new.html'
-    #    'acorn.html'
-    )
-
-@app.route('/mobile/')
-def map_canvas_flask_mobile():
-    return render_template(
-    #    'acorn_map.html'
-        'acorn.html'
-    )
-
 
 @app.route('/')
 def map_test():
     return render_template(
-    #    'acorn_map.html'
-        'map_test.html'
+        'acorn.html'
     )
 
 

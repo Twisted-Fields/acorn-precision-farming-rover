@@ -73,8 +73,8 @@ def clear_autonomy_hold(redis_client=None, vehicle_name=None, value=None, active
     return "Clear hold vehicle {}".format(vehicle_command_key)
 
 def set_vehicle_autonomy(redis_client=None, vehicle_name=None, speed=None, enable=None, active_site=None):
-    if not all((vehicle_name, speed, enable, redis_client)):
-        return "Missing something. No vehicle autonomy set."
+    if not all((vehicle_name, speed, redis_client)):
+        return "Missing something. No vehicle autonomy set.  {}  {}  {}  {}".format(vehicle_name, speed, enable, redis_client)
     if len(active_site) == 0:
         return "Active site not set. Please load a path."
     vehicle_command_key = "{}:robot:{}:command:key".format(active_site, vehicle_name)  # TODO: We have two different versions of getting a command key string now.

@@ -172,7 +172,7 @@ function setup_map_only_mapbox() {
     var have_cleared_autonomy = false
 
     //time between api refreshes
-    var INTERVAL = 5000;
+    var INTERVAL = 2000;
 
     getRobotData();
     //getCircles();
@@ -398,24 +398,26 @@ function setup_map_only_mapbox() {
                     `;
 
 
-                    if(robot.loaded_path_name != livePathName)
+                    if(robot.loaded_path_name != livePathName || robot.live_path_data.length != livePathMarkers.length)
                     {
                       renderPathLive(robot.live_path_data);
                       livePathName = robot.loaded_path_name;
                     }
 
-                    // if(robot.debug_points)
-                    // {
-                    //   renderPathDebug(robot.debug_points);
-                    //   debugPointsLength = robot.debug_points.length;
-                    // }
+                    console.log(robot.debug_points)
 
-                    if(displayed_dense_path)
+                    if(robot.debug_points)
+                    {
+                      renderPathDebug(robot.debug_points);
+                      debugPointsLength = robot.debug_points.length;
+                    }
+
+                    if(displayed_dense_path.length > 0)
                     {
                       renderPathDebug(displayed_dense_path);
                     }
 
-                    console.log(robot.gps_path_data.length)
+                    //console.log(robot.gps_path_data.length)
 
                     if(robot.gps_path_data.length != gpsPathLength)
                     {
@@ -466,13 +468,14 @@ function setup_map_only_mapbox() {
 
                         if(robot.activate_autonomy)
                         {
-
-                          if ($(`#${robot.name}-activate-button`).html() === "Activate Autonomy")
-                          {
                             $(`#${robot.name}-activate-button`).removeClass('btn-success')
                             $(`#${robot.name}-activate-button`).addClass('btn-danger')
                             $(`#${robot.name}-activate-button`).html("Deactivate Autonomy")
-                          }
+                        } else
+                        {
+                            $(`#${robot.name}-activate-button`).addClass('btn-success')
+                            $(`#${robot.name}-activate-button`).removeClass('btn-danger')
+                            $(`#${robot.name}-activate-button`).html("Activate Autonomy")
                         }
 
                     } else
