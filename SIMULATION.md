@@ -65,9 +65,14 @@ And explore the tmux windows there.
 
 Now open a browser and enter "localhost" in the URL bar. The web page should
 load. This is an engineering interface and we expect to make improvements before
-deploying to end users. But this interface allows us to recall GPS tracks from
+deploying to end users. This interface allows us to recall GPS tracks from
 the database, load them on to Acorn, enable and disable autonomy, and monitor
 robot status.
+
+When you are done, stop simulation with:
+```
+./stop_docker_simulation.sh
+```
 
 If you have made it this far, you are really important to us! We want to know
 what you think of our software. Please sign up or log in to
