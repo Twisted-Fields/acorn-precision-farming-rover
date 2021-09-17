@@ -386,10 +386,6 @@ class RemoteControl():
                                 self.logger.debug(self.robot_object.loaded_path)
                                 self.nav_spline = spline_lib.GpsSpline(self.robot_object.loaded_path, smooth_factor=10, num_points=1000)
 
-                                reversed_path = self.robot_object.loaded_path
-                                reversed_path.reverse()
-                                self.nav_spline_reverse = spline_lib.GpsSpline(reversed_path, smooth_factor=10, num_points=1000)
-
                                 self.nav_path = PathSection(points=self.nav_spline.points, control_values=self.default_path_control_vals, navigation_parameters=self.default_navigation_parameters, max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS, max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES, end_dist=1.0, end_angle=45)
                                 load_path_time = time.time()
                                 self.loaded_path_name = self.robot_object.loaded_path_name
@@ -480,19 +476,6 @@ class RemoteControl():
                         # Heading specified at this point on the path.
                         path_point_heading = math.degrees(self.nav_spline.slopeRadiansAtU(closest_u))
 
-                        # closest_u_r = self.nav_spline_reverse.closestUOnSpline(self.latest_gps_sample)
-                        # closest_path_point_r = self.nav_spline_reverse.coordAtU(closest_u_r)
-                        # # Heading specified at this point on the path.
-                        # path_point_heading_r = math.degrees(self.nav_spline_reverse.slopeRadiansAtU(closest_u_r))
-                        #
-                        # self.logger.info("%%%%%%%%%%%%%%%%%%")
-                        #
-                        # self.logger.info("{}, {}".format(path_point_heading_r, path_point_heading))
-                        # self.logger.info("%%%%%%%%%%%%%%%%%%")
-
-
-
-
 
                         projected_path_tangent_point = gps_tools.project_point(closest_path_point, path_point_heading, 3.0)
                         gps_lateral_distance_error = gps_tools.get_approx_distance_point_from_line(self.latest_gps_sample, closest_path_point, projected_path_tangent_point)
@@ -502,7 +485,7 @@ class RemoteControl():
                         calculated_rotation = path_point_heading - self.latest_gps_sample.azimuth_degrees
                         calculated_strafe = gps_lateral_distance_error
 
-                        self.logger.info("calculated_rotation: {}".format(calculated_rotation))
+                        self.logger.debug("calculated_rotation: {}".format(calculated_rotation))
 
                         # Truncate values to between 0 and 360
                         calculated_rotation %= 360
@@ -511,7 +494,7 @@ class RemoteControl():
                         if calculated_rotation > 180:
                             calculated_rotation -= 360
 
-                        self.logger.info("calculated_rotation: {}".format(calculated_rotation))
+                        self.logger.debug("calculated_rotation: {}".format(calculated_rotation))
 
 
 
@@ -557,7 +540,7 @@ class RemoteControl():
                             self.logger.error("Could not find drive solution. Disabling autonomy.")
                             self.logger.error("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}".format(calculated_rotation,self.nav_path.navigation_parameters.vehicle_travel_direction, self.nav_path.navigation_parameters.path_following_direction))
 
-                        self.logger.info("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}, self.nav_direction {}, self.driving_direction {}".format(calculated_rotation,self.nav_path.navigation_parameters.vehicle_travel_direction, self.nav_path.navigation_parameters.path_following_direction, self.nav_direction, self.driving_direction))
+                        self.logger.debug("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}, self.nav_direction {}, self.driving_direction {}".format(calculated_rotation,self.nav_path.navigation_parameters.vehicle_travel_direction, self.nav_path.navigation_parameters.path_following_direction, self.nav_direction, self.driving_direction))
 
 
                         gps_path_angle_error = calculated_rotation
