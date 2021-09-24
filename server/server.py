@@ -230,6 +230,13 @@ def show_path(pathname=None):
         path = pickle.loads(redis_client.get(get_path_key(pathname)))
         print(type(path))
         print(type(path[0]))
+        if 'PathSection' in str(type(path[0])):
+            new_path = []
+            for row in path:
+                for point in row.points:
+                    new_path.append(point)
+            path = new_path
+            
         return jsonify(path)
 
 @app.route('/api/get_path_names')

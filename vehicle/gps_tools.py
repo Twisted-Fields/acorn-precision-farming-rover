@@ -28,6 +28,7 @@ import math
 from collections import namedtuple
 import numpy as np
 from scipy.interpolate import splprep, splev
+import copy
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -126,3 +127,94 @@ def get_approx_distance_point_from_line(point, line_pt1, line_pt2):
     # https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points#
     d1 = np.cross(p2-p1, p1-p3) / np.linalg.norm(p2-p1) * -1
     return d1 * _GPS_DISTANCE_SCALAR
+
+def offset_row(row, distance, direction, copy_data=False, make_dict=True):
+    new_row = []
+    for pt in row:
+        new_pt = None
+        offset_pt = project_point(pt, direction, distance)
+        if copy_data:
+            try:
+                new_pt = GpsSample(offset_pt.lat, offset_pt.lon, pt['height_m'], pt['status'], pt['num_sats'], pt['azimuth_degrees'], pt['time_stamp'], 0)
+                print("copy_ok")
+            except:
+                try:
+                    new_pt = GpsPoint3D(offset_pt.lat, offset_pt.lon, pt['height_m'])
+                except:
+                    pass
+        if not new_pt:
+            new_pt = offset_pt
+        if make_dict:
+            new_pt = new_pt._asdict()
+        new_row.append(new_pt)
+    return new_row
+
+
+
+def three_point_turn(points, angle, distance_away, turn_radius, robot_length=2.0, asdict=False):
+    heading = get_heading(points[0], points[1])
+    row_aligned_away_pt = project_point(points[1], heading, distance_away)
+    latlon_point1 = project_point(row_aligned_away_pt, heading + angle, turn_radius - robot_length/2.0)
+    latlon_point2 = project_point(row_aligned_away_pt, heading + angle, turn_radius + robot_length/2.0)
+    if asdict:
+        return [latlon_point1._asdict(), latlon_point2._asdict()]
+    return [check_point(latlon_point1), check_point(latlon_point2)]
+
+
+
+def chain_rows(row_list, starting_point, connection_type, forward_navigation_parameters, connector_navigation_parameters, turn_control_vals, nav_path, asdict=False):
+    row_chain = []
+    last_point = starting_point
+
+    for idx in range(len(row_list)):
+        row = row_list[idx]
+        if get_distance(last_point, row[0]) > get_distance(last_point, row[-1]):
+            row.reverse()
+
+        row_path = copy.deepcopy(nav_path)
+        row_path.points = row
+        row_path.navigation_parameters = forward_navigation_parameters
+        row_chain.append(row_path)
+
+        if idx + 1 >= len(row_list):
+            return row_chain
+        next_row = row_list[idx+1]
+        if get_distance(row[-1], next_row[0]) > get_distance(row[-1], next_row[-1]):
+            next_row.reverse()
+        if connection_type == "three_pt":
+            start_points = row[-2], row[-1]
+            turn1 = three_point_turn(start_points, angle=-90, distance_away=2.0, turn_radius=1.0, asdict=asdict)
+            end_points = next_row[1], next_row[0]
+            turn2 = three_point_turn(end_points, angle=90, distance_away=2.0, turn_radius=1.0, asdict=asdict)
+
+            if asdict:
+                final_connector = next_row[0], next_row[1]
+            else:
+                final_connector = check_point(next_row[0]), check_point(next_row[1])
+
+            turn1_path = copy.deepcopy(nav_path)
+            turn1_path.points = turn1
+            turn1_path.navigation_parameters = forward_navigation_parameters
+            turn1_path.end_dist=3.0
+            turn1_path.end_angle=20
+            turn1_path.control_values = turn_control_vals
+            row_chain.append(turn1_path)
+
+            turn2_path = copy.deepcopy(nav_path)
+            turn2_path.points = turn2
+            turn2_path.navigation_parameters = connector_navigation_parameters
+            turn2_path.end_dist=1.0
+            turn2_path.end_angle=45
+            turn2_path.control_values = turn_control_vals
+            row_chain.append(turn2_path)
+
+            connector_path = copy.deepcopy(nav_path)
+            connector_path.points = final_connector
+            connector_path.navigation_parameters = forward_navigation_parameters
+            connector_path.end_dist=3.0
+            connector_path.end_angle=20
+            connector_path.control_values = turn_control_vals
+            row_chain.append(connector_path)
+            last_point = next_row[0]
+
+    return row_chain

@@ -145,12 +145,14 @@ class PathSection():
     def __init__(self, points, control_values, navigation_parameters, max_dist=0,
                  max_angle=0, end_dist=0, end_angle=0):
         self.points = points
+        self.spline = None
         self.maximum_allowed_distance_meters = max_dist
         self.maximum_allowed_angle_error_degrees = max_angle
         self.control_values = control_values
         self.end_distance_m = end_dist
         self.end_angle_degrees = end_angle
         self.navigation_parameters = navigation_parameters
+
 
 class EnergySegment():
     def __init__(self, sequence_num, start_gps, end_gps, distance_sum,
@@ -276,6 +278,44 @@ class RemoteControl():
                 self.joy = dev
                 return
 
+
+
+    def load_path(self, path, simulation_teleport=False, generate_spline=False):
+        self.logger.debug(path)
+        if 'PathSection' in str(type(path)):
+            self.nav_path = path
+            if len(path.points) > 2 and generate_spline == True:
+                self.nav_path.spline = spline_lib.GpsSpline(path.points, smooth_factor=10, num_points=1000)
+                self.nav_path.points = self.nav_path.spline.points
+            if len(path.points) == 2:
+                self.nav_path.points = gps_tools.check_point(self.nav_path.points[0]), gps_tools.check_point(self.nav_path.points[1])
+        else:
+            # Legacy paths
+            nav_spline = spline_lib.GpsSpline(path, smooth_factor=10, num_points=1000)
+            self.nav_path = PathSection(points=nav_spline.points, control_values=self.default_path_control_vals, navigation_parameters=self.default_navigation_parameters, max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS, max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES, end_dist=1.0, end_angle=45)
+            self.nav_path.spline = nav_spline
+        self.loaded_path_name = self.robot_object.loaded_path_name
+        if self.simulated_hardware and simulation_teleport:
+            # Place simulated robot at start of path.
+            start_index = int(len(self.nav_path.spline.points)/2) - 5
+            initial_heading = gps_tools.get_heading(self.nav_path.points[start_index], self.nav_path.points[start_index+1])
+            self.simulated_sample = gps_tools.GpsSample(self.nav_path.points[start_index].lat, self.nav_path.points[start_index].lon, self.simulated_sample.height_m, ("fix","fix"), 20, initial_heading + 30, time.time(), 0.5)
+            self.latest_gps_sample = self.simulated_sample
+        # Set initial nav_direction.
+        if self.nav_path.navigation_parameters.path_following_direction == Direction.EITHER:
+            dist_start = gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[0])
+            dist_end = gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[len(self.nav_path.points)-1])
+            # This may be overridden farther down.
+            if dist_start < dist_end:
+                self.nav_direction = 1
+            else:
+                self.nav_direction = -1
+        elif self.nav_path.navigation_parameters.path_following_direction == Direction.FORWARD:
+            self.nav_direction = 1
+        elif self.nav_path.navigation_parameters.path_following_direction == Direction.BACKWARD:
+            self.nav_direction = -1
+
+
     def run_loop(self):
         joy_steer = 0
         joy_throttle = 0
@@ -297,14 +337,15 @@ class RemoteControl():
                                     navigation_parameters=self.default_navigation_parameters,
                                     max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS,
                                     max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES,
-                                    end_dist=0,
-                                    end_angle=0)
+                                    end_dist=1.0,
+                                    end_angle=30)
+        self.nav_path_list = []
+        self.nav_path_index = 0
         self.gps_path = []
-        load_path_time = time.time()
+        self.load_path_time = time.time()
         auto_throttle = 0
         self.loaded_path_name = ""
         self.autonomy_hold = True
-        self.nav_spline = None
         self.control_state = CONTROL_STARTUP
         self.motor_state = STATE_DISCONNECTED
         self.gps_path_lateral_error = 0
@@ -383,31 +424,13 @@ class RemoteControl():
                         time3 = time.time() - debug_time
                         if len(self.nav_path.points) == 0 or self.loaded_path_name != self.robot_object.loaded_path_name:
                             if len(self.robot_object.loaded_path) > 0  and self.latest_gps_sample is not None:
-                                self.logger.debug(self.robot_object.loaded_path)
-                                self.nav_spline = spline_lib.GpsSpline(self.robot_object.loaded_path, smooth_factor=10, num_points=1000)
-
-                                self.nav_path = PathSection(points=self.nav_spline.points, control_values=self.default_path_control_vals, navigation_parameters=self.default_navigation_parameters, max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS, max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES, end_dist=1.0, end_angle=45)
-                                load_path_time = time.time()
-                                self.loaded_path_name = self.robot_object.loaded_path_name
-                                if self.simulated_hardware:
-                                    # Place simulated robot at start of path.
-                                    start_index = int(len(self.nav_spline.points)/2) - 5
-                                    initial_heading = gps_tools.get_heading(self.nav_spline.points[start_index], self.nav_spline.points[start_index+1])
-                                    self.simulated_sample = gps_tools.GpsSample(self.nav_spline.points[start_index].lat, self.nav_spline.points[start_index].lon, self.simulated_sample.height_m, ("fix","fix"), 20, initial_heading + 30, time.time(), 0.5)
-                                    self.latest_gps_sample = self.simulated_sample 
-                                # Set initial nav_direction.
-                                if self.nav_path.navigation_parameters.path_following_direction == Direction.EITHER:
-                                    dist_start = gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[0])
-                                    dist_end = gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[len(self.nav_path.points)-1])
-                                    # This may be overridden farther down.
-                                    if dist_start < dist_end:
-                                        self.nav_direction = 1
-                                    else:
-                                        self.nav_direction = -1
-                                elif self.nav_path.navigation_parameters.path_following_direction == Direction.FORWARD:
-                                    self.nav_direction = 1
-                                elif self.nav_path.navigation_parameters.path_following_direction == Direction.BACKWARD:
-                                    self.nav_direction = -1
+                                if 'PathSection' in str(type(self.robot_object.loaded_path[0])):
+                                    self.nav_path_list = self.robot_object.loaded_path
+                                    self.nav_path_index = 0
+                                    self.load_path(self.robot_object.loaded_path[0], simulation_teleport=True, generate_spline=True)
+                                else:
+                                    self.load_path(self.robot_object.loaded_path, simulation_teleport=True, generate_spline=True)
+                                self.load_path_time = time.time()
 
                         self.activate_autonomy = self.robot_object.activate_autonomy
                         self.autonomy_velocity = self.robot_object.autonomy_velocity
@@ -455,37 +478,32 @@ class RemoteControl():
                     """
 
                     projected_path_tangent_point = gps_tools.GpsPoint(0, 0)
-                    closest_path_point = gps_tools.GpsPoint(0, 0)
+                    closest_path_point = None
                     if(len(self.nav_path.points)>0):
 
-                        """
-                        REFACTOR END CONDITIONS
-                        """
-                        # Check if we meet the end condition.
-                        if gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[0]) < self.nav_path.end_distance_m:
+                        path_point_heading = None
+                        if len(self.nav_path.points) == 2:
                             if self.nav_direction == -1:
-                                self.nav_path.points = []
-                        elif gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[-1]) < self.nav_path.end_distance_m:
-                            if self.nav_direction == 1:
-                                self.nav_path.points = []
-
-
-                        closest_u = self.nav_spline.closestUOnSpline(self.latest_gps_sample)
-                        closest_path_point = self.nav_spline.coordAtU(closest_u)
+                                closest_path_point = gps_tools.check_point(self.nav_path.points[0])
+                            elif self.nav_direction == 1:
+                                closest_path_point = gps_tools.check_point(self.nav_path.points[-1])
+                            pt1 = gps_tools.check_point(self.nav_path.points[0])
+                            pt2 = gps_tools.check_point(self.nav_path.points[1])
+                            path_point_heading = gps_tools.get_heading(pt1, pt2)
+                        else:
+                            closest_u = self.nav_path.spline.closestUOnSpline(self.latest_gps_sample)
+                            closest_path_point = self.nav_path.spline.coordAtU(closest_u)
+                            # Heading specified at this point on the path.
+                            path_point_heading = math.degrees(self.nav_path.spline.slopeRadiansAtU(closest_u))
                         absolute_path_distance = gps_tools.get_distance(self.latest_gps_sample, closest_path_point)
-                        # Heading specified at this point on the path.
-                        path_point_heading = math.degrees(self.nav_spline.slopeRadiansAtU(closest_u))
+                        calculated_rotation = path_point_heading - self.latest_gps_sample.azimuth_degrees
+                        self.logger.debug("calculated_rotation: {}, DISTANCE: {}".format(calculated_rotation,abs(absolute_path_distance)))
 
 
                         projected_path_tangent_point = gps_tools.project_point(closest_path_point, path_point_heading, 3.0)
                         gps_lateral_distance_error = gps_tools.get_approx_distance_point_from_line(self.latest_gps_sample, closest_path_point, projected_path_tangent_point)
-                        self.logger.debug("DISTANCE: {}".format(abs(gps_lateral_distance_error)))
-
                         self.logger.debug("robot heading {}, path heading {}".format(self.latest_gps_sample.azimuth_degrees, path_point_heading))
-                        calculated_rotation = path_point_heading - self.latest_gps_sample.azimuth_degrees
                         calculated_strafe = gps_lateral_distance_error
-
-                        self.logger.debug("calculated_rotation: {}".format(calculated_rotation))
 
                         # Truncate values to between 0 and 360
                         calculated_rotation %= 360
@@ -495,7 +513,6 @@ class RemoteControl():
                             calculated_rotation -= 360
 
                         self.logger.debug("calculated_rotation: {}".format(calculated_rotation))
-
 
 
                         drive_solution_okay = True
@@ -508,6 +525,7 @@ class RemoteControl():
                                 self.driving_direction *= -1
                                 calculated_strafe *= -1
                         elif self.nav_path.navigation_parameters.vehicle_travel_direction == Direction.FORWARD:
+
                             self.driving_direction = 1
                             if abs(calculated_rotation) > 90:
                                 if self.nav_path.navigation_parameters.path_following_direction in (Direction.EITHER, Direction.BACKWARD):
@@ -516,18 +534,21 @@ class RemoteControl():
                                     #calculated_rotation *= -1
                                     self.nav_direction = -1
                                 if self.nav_path.navigation_parameters.path_following_direction == Direction.FORWARD:
-                                    drive_solution_okay = False
+                                    if abs(calculated_rotation) > 120:
+                                        drive_solution_okay = False
                             elif self.nav_path.navigation_parameters.path_following_direction == Direction.BACKWARD:
                                 drive_solution_okay = False
+
                         elif self.nav_path.navigation_parameters.vehicle_travel_direction == Direction.BACKWARD:
                             self.driving_direction = -1
-                            if abs(calculated_rotation) > 90:
+                            if abs(calculated_rotation) > 120:
                                 if self.nav_path.navigation_parameters.path_following_direction in (Direction.EITHER, Direction.FORWARD):
                                     calculated_rotation -= math.copysign(180, calculated_rotation)
                                     #calculated_strafe *= -1
                                     self.nav_direction = 1
                                 elif self.nav_path.navigation_parameters.path_following_direction == Direction.BACKWARD:
-                                    drive_solution_okay = False
+                                    if abs(calculated_rotation) > 120:
+                                        drive_solution_okay = False
                             elif self.nav_path.navigation_parameters.path_following_direction == Direction.FORWARD:
                                 drive_solution_okay = False
                             elif self.nav_path.navigation_parameters.path_following_direction == Direction.BACKWARD:
@@ -541,6 +562,30 @@ class RemoteControl():
                             self.logger.error("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}".format(calculated_rotation,self.nav_path.navigation_parameters.vehicle_travel_direction, self.nav_path.navigation_parameters.path_following_direction))
 
                         self.logger.debug("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}, self.nav_direction {}, self.driving_direction {}".format(calculated_rotation,self.nav_path.navigation_parameters.vehicle_travel_direction, self.nav_path.navigation_parameters.path_following_direction, self.nav_direction, self.driving_direction))
+
+
+                        # Check end conditions.
+                        if self.nav_direction == -1:
+                            end_distance = gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[0])
+                        elif self.nav_direction == 1:
+                            end_distance = gps_tools.get_distance(self.latest_gps_sample, self.nav_path.points[-1])
+                        if abs(calculated_rotation) < self.nav_path.end_angle_degrees and end_distance < self.nav_path.end_distance_m:
+                            self.logger.info("MET END CONDITIONS {} {}".format(calculated_rotation, absolute_path_distance))
+                            if self.nav_path.navigation_parameters.loop_path == True:
+                                self.load_path(self.nav_path, simulation_teleport=False, generate_spline=False)
+                                self.load_path_time = time.time()
+                            else:
+                                self.nav_path_index += 1
+                                if self.nav_path_index < len(self.nav_path_list):
+                                    self.load_path(self.nav_path_list[self.nav_path_index], simulation_teleport=False, generate_spline=True)
+                                    self.gps_angle_error_rate_averaging_list = []
+                                    self.gps_lateral_error_rate_averaging_list = []
+                                else:
+                                    self.nav_path_list = []
+                                    self.nav_path_index = 0
+                                    self.control_state = CONTROL_ONLINE
+                                    self.autonomy_hold = True
+                                    self.activate_autonomy = False
 
 
                         gps_path_angle_error = calculated_rotation
@@ -633,11 +678,6 @@ class RemoteControl():
                         unfiltered_strafe_cmd = strafe_command_value
 
 
-
-                        #vehicle_travel_direction Direction.BACKWARD, path_following_direction Direction.FORWARD, self.nav_direction 1, self.driving_direction -1
-
-
-
                     unfiltered_steer_cmd = steering_angle/45.0
                     unfiltered_strafe_cmd *= self.driving_direction
 
@@ -655,6 +695,8 @@ class RemoteControl():
                         autonomy_steer_cmd = self.last_autonomy_steer_cmd - steer_rate
                     else:
                         autonomy_steer_cmd = unfiltered_steer_cmd
+
+                    autonomy_steer_cmd *= self.driving_direction
 
                     if autonomy_strafe_diff > strafe_rate:
                         autonomy_strafe_cmd = self.last_autonomy_strafe_cmd + strafe_rate
@@ -790,7 +832,7 @@ class RemoteControl():
                 time8 = time.time() - debug_time
 
                 # Activate a brief pause at the end of a track.
-                if time.time() - load_path_time < _PATH_END_PAUSE_SEC and not zero_output:
+                if time.time() - self.load_path_time < _PATH_END_PAUSE_SEC and not zero_output:
                     zero_output = True
                     # Don't use the motion timer here as it reactivates alarm.
                     if loop_count % 10 == 0:
@@ -814,7 +856,7 @@ class RemoteControl():
 
                 # Determine final drive commands.
                 if self.activate_autonomy:
-                    autonomy_time_elapsed = time.time() - load_path_time - _PATH_END_PAUSE_SEC
+                    autonomy_time_elapsed = time.time() - self.load_path_time - _PATH_END_PAUSE_SEC
                     if autonomy_time_elapsed < _BEGIN_AUTONOMY_SPEED_RAMP_SEC:
                         autonomy_vel_cmd*= autonomy_time_elapsed/_BEGIN_AUTONOMY_SPEED_RAMP_SEC
                     self.control_state = CONTROL_AUTONOMY
@@ -867,13 +909,12 @@ class RemoteControl():
 
                 # If the robot is simulated, estimate movement odometry.
                 if self.simulated_hardware and self.activate_autonomy:
-                    new_heading_degrees = self.latest_gps_sample.azimuth_degrees + steer_cmd * 45.0 * 0.4
+                    new_heading_degrees = self.latest_gps_sample.azimuth_degrees + steer_cmd * 45.0 * 0.4 * self.driving_direction
                     new_heading_degrees %= 360
                     next_point = gps_tools.project_point(self.latest_gps_sample, new_heading_degrees, vel_cmd * 0.5)
                     # Calculate translation for strafe, which is movement 90 degrees from heading.
                     next_point = gps_tools.project_point(next_point, new_heading_degrees + 90, strafe * 0.2)
                     self.simulated_sample = gps_tools.GpsSample(next_point.lat, next_point.lon, self.simulated_sample.height_m, ("fix","fix"), 20, new_heading_degrees, time.time(), 0.5)
-
 
                 if not self.motor_socket:
                     self.logger.error("Connect to motor control socket")
