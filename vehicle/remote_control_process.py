@@ -405,6 +405,10 @@ class RemoteControl():
                 debug_time = time.time()
                 if self.latest_gps_sample is not None:
                     self.last_good_gps_sample = self.latest_gps_sample
+                else:
+                    # Occasional bad samples are fine. A very old sample will
+                    # get flagged in the final checks.
+                    self.latest_gps_sample = self.last_good_gps_sample
 
                 try:
                     # Read robot object from shared memory.
@@ -705,6 +709,13 @@ class RemoteControl():
                     else:
                         autonomy_strafe_cmd = unfiltered_strafe_cmd
 
+                    if abs(autonomy_steer_cmd) > 0.8:
+                        # Maxed out steer and strafe can result in strafe only
+                        # due to steering limits, so reduce strafe with maxed
+                        # steering.
+                        autonomy_strafe_cmd *= 0.2
+
+
                     self.last_autonomy_steer_cmd = autonomy_steer_cmd
                     self.last_autonomy_strafe_cmd = autonomy_strafe_cmd
                     user_web_page_plot_steer_cmd = autonomy_steer_cmd * self.driving_direction
@@ -712,6 +723,7 @@ class RemoteControl():
 
 
                     autonomy_vel_cmd = self.autonomy_velocity  * self.driving_direction
+
                     joy_steer = 0.0 # ensures that vel goes to zero when autonomy disabled
                     if loop_count % 10 == 0:
                         #print(loop_count)
@@ -746,6 +758,7 @@ class RemoteControl():
 
                 if gps_tools.is_dual_fix(self.latest_gps_sample) == False:
                     error_messages.append("No GPS fix so zeroing out autonomy commands.")
+                    self.logger.error("Bad GPS sample {}".format(self.latest_gps_sample))
                     zero_output = True
                     self.control_state = CONTROL_GPS_STARTUP
                     self.resume_motion_timer = time.time()
