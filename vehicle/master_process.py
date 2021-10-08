@@ -88,9 +88,8 @@ _SIMULATION_SERVER_IP_ADDRESS = "127.0.0.1"
 
 _LOGGER_FORMAT_STRING = '%(asctime)s - %(name)-11s - %(levelname)-4s - %(message)s'
 _LOGGER_DATE_FORMAT = '%m/%d/%Y %I:%M:%S %p'
-_LOGGER_LEVEL = 'INFO'
-
-logging_details = (_LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL)
+_LOGGER_LEVEL_INFO = 'INFO'
+_LOGGER_LEVEL_DEBUG = 'DEBUG'
 
 
 def kill_main_procs():
@@ -186,8 +185,9 @@ def AppendFIFO(list, value, max_values):
     return list
 
 class MainProcess():
-    def __init__(self, simulation):
+    def __init__(self, simulation, debug):
         self.simulation = simulation
+        self.debug = debug
         if self.simulation:
             self.yaml_path = _YAML_NAME_LOCAL
         else:
@@ -199,10 +199,16 @@ class MainProcess():
     def run(self):
 
         self.logger = logging.getLogger('main')
+        if self.debug:
+            logger_level = _LOGGER_LEVEL_DEBUG
+        else:
+            logger_level = _LOGGER_LEVEL_INFO
         coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
                             datefmt=_LOGGER_DATE_FORMAT,
-                            level=_LOGGER_LEVEL,
+                            level=logger_level,
                             logger=self.logger)
+
+        logging_details = (_LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, logger_level)
 
         # This module throws out debug messages so we change its logger level.
         i2c_logger = logging.getLogger('Adafruit_I2C')
@@ -465,14 +471,15 @@ class MainProcess():
                 attempts+=1
 
 
-def run_main(simulation):
+def run_main(simulation, debug):
     kill_main_procs()
     #sys.exit()
-    main_process = MainProcess(simulation)
+    main_process = MainProcess(simulation, debug)
     main_process.run()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the Acorn vehicle coordinator process.')
     parser.add_argument('--sim', dest='simulation', default=False, action='store_true')
+    parser.add_argument('--debug', dest='debug', default=False, action='store_true')
     args = parser.parse_args()
-    run_main(args.simulation)
+    run_main(args.simulation, args.debug)

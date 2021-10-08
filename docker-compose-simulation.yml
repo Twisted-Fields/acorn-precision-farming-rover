@@ -17,6 +17,7 @@ services:
     command: sh -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
     restart: unless-stopped
     network_mode: "host"
+    ipc: host
   acorn_server:
     build: .
     container_name: acorn_server
