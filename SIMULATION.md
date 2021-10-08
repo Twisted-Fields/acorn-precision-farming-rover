@@ -1,6 +1,6 @@
-## Running the code in simulation
-
 ![A screenshot of the terminal running acorn code.](docs/acorn_sim.png)
+
+## Running the code in simulation
 
 It is now possible to run a simulated robot in Docker on
 your computer. Our launch scripts are designed to run in linux, but if
