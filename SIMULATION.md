@@ -83,7 +83,8 @@ deploying to end users. This interface allows us to recall GPS tracks from
 the database, load them on to Acorn, enable and disable autonomy, and monitor
 robot status.
 
-If you are done, stop simulation with:
+If you are done, exit any tmux windows and docker containers and then stop
+simulation with:
 ```
 ./stop_docker_simulation.sh
 ```
