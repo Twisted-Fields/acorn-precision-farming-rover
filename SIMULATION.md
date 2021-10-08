@@ -1,9 +1,19 @@
 ## Running the code in simulation
-August 30, 2021: It is now possible to run a simulated robot in Docker on
+It is now possible to run a simulated robot in Docker on
 your computer. Our launch scripts are designed to run in linux, but if
 you examine run_docker_simulation.sh you will see the commands needed.
 
 This is early stages alpha quality and at this time only rough notes follow.
+
+Install docker on your system:
+https://docs.docker.com/engine/install/
+
+For example for Ubuntu follow these instructions:
+https://docs.docker.com/engine/install/ubuntu/
+
+Follow the post-installation steps for docker so regular users can launch
+containers:
+https://docs.docker.com/engine/install/linux-postinstall/
 
 Install docker-compose for your platform.
 https://docs.docker.com/compose/install/
@@ -17,13 +27,14 @@ cd acorn-precision-farming-rover
 
 The docker container will now (hopefully) build and launch. This will take
 some time. If it fails, please post a github issue. Note that several ports
-must be available on the host including port 80.
+must be available on the host including port 80. You may need to disconnect
+from VPN when running this.
 
 The command runs two docker containers: the normal server container, and a
 simulated robot vehicle container. The simulated vehicle stubs out all
-hardware and sensors return fake data. The main goal is to support integration
-testing but this simulation may be expanded with virtualized motion for path
-following in simulation.
+hardware and sensors return fake data. This was originally intended primarily
+for integration testing but it has proven useful for navigation software
+development.
 
 Connect to the vehicle container:
 ```
