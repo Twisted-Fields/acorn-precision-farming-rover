@@ -147,6 +147,7 @@ class ServerWorker(threading.Thread):
         #raise zmq.error.ZMQError
 
 def handle_command(r, command, key, msg):
+    #tprint("GOT COMMAND {}".format(command))
     command_reply = _CMD_ACK
     if command == _CMD_WRITE_KEY:
         #tprint(key)
@@ -170,7 +171,7 @@ def handle_command(r, command, key, msg):
         message = pickle.dumps((key, r.get(key)))
         command_reply = _CMD_READ_KEY_REPLY
     elif command == _CMD_UPDATE_ROBOT:
-        #tprint(key)
+        print(key)
         robot = pickle.loads(msg)
         robot = update_robot(r, key, robot)
 
@@ -187,18 +188,12 @@ def handle_command(r, command, key, msg):
             command_object.activate_autonomy = False
             command_object.autonomy_velocity = float(0.0)
 
-        # if robot.request_autonomy_at_startup == True:
-        #     # command_object.clear_autonomy_hold = True
-        #     command_object.activate_autonomy = True
-        #     command_object.autonomy_velocity = float(AUTONOMY_SPEED)
-
-
         r.set(command_key, pickle.dumps(command_object))
 
         robot_pickle = pickle.dumps(robot)
         r.set(key, robot_pickle)
-        #print(dir(command_object))
-        #print(command_key)
+        print(dir(command_object))
+        print(command_key)
         #message = bytes("ok", encoding='ascii')
         message = r.get(command_key)
         command_reply = _CMD_ROBOT_COMMAND
@@ -216,11 +211,18 @@ def handle_command(r, command, key, msg):
 def update_robot(r, key, robot):
     if robot.simulated_data==False and len(robot.energy_segment_list) > 0:
         key = redis_utils.get_energy_segment_key(key)
+        print("UPDATE ENERGY SEGMENT")
+        print(key)
         for segment in robot.energy_segment_list:
+            this_stamp = segment.start_gps.time_stamp
+            stamp_localtime = time.localtime(this_stamp)
+            print(stamp_localtime)
+            # print(segment.time_stamp)
             r.rpush(key, pickle.dumps(segment))
         robot.energy_segment_list = []
-
-
+    if robot.simulated_data:
+        print("DUMPING SIMULATED ENERGY DATA")
+        robot.energy_segment_list = []
     return robot
 
 
