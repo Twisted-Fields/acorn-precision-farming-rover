@@ -80,10 +80,28 @@ deploying to end users. This interface allows us to recall GPS tracks from
 the database, load them on to Acorn, enable and disable autonomy, and monitor
 robot status.
 
-When you are done, stop simulation with:
+If you are done, stop simulation with:
 ```
 ./stop_docker_simulation.sh
 ```
+
+Want to play around a little more before stopping the simulation? One thing to
+try is running the main process yourself. Connect back to the vehicle container,
+and attach to the main process as before. But hit Ctrl-C to kill the process.
+The tmux container will exit and you will be sitting at the prompt inside the
+docker container.
+
+Now run:
+```
+python3 vehicle/master_process.py --sim
+```
+or:
+```
+python3 vehicle/master_process.py --sim --debug
+```
+When you are making changes to the vehicle code, often this is how you will want
+to run things. Instead of restarting the entire simulation environment, you can
+often just re-run this process to see your changes.
 
 If you have made it this far, you are really important to us! We want to know
 what you think of our software. Please sign up or log in to
