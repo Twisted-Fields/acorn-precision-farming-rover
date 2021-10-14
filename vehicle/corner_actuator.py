@@ -270,10 +270,10 @@ class CornerActuator:
             self.odrv0.axis0.controller.config.vel_gain = 0.005
             self.odrv0.axis0.controller.config.pos_gain = -10
             self.odrv0.axis0.encoder.config.cpr = 2000
-            self.odrv0.axis0.controller.config.vel_ramp_rate = 20
-            self.odrv0.axis0.trap_traj.config.vel_limit = 8000
-            self.odrv0.axis0.trap_traj.config.accel_limit = 3000
-            self.odrv0.axis0.trap_traj.config.decel_limit = 3000
+            self.odrv0.axis0.controller.config.vel_ramp_rate = 80
+            self.odrv0.axis0.trap_traj.config.vel_limit = 16000
+            self.odrv0.axis0.trap_traj.config.accel_limit = 6000
+            self.odrv0.axis0.trap_traj.config.decel_limit = 6000
             self.odrv0.axis0.trap_traj.config.A_per_css = 0
         self.odrv0.axis0.encoder.config.mode = ENCODER_MODE_INCREMENTAL
         self.odrv0.axis0.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH

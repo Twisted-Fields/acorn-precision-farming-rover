@@ -178,6 +178,18 @@ def offset_row(row, distance, direction, copy_data=False, make_dict=True):
     return new_row
 
 
+def interpolate_points(points, num_points):
+    total_distance = get_distance(points[0], points[1])
+    increment_distance = total_distance/num_points
+    heading = get_heading(points[0], points[1])
+    last_point = points[0]
+    interpolated_points = [points[0]]
+    for _ in range(num_points):
+        new_point = project_point(last_point, heading, increment_distance)
+        interpolated_points.append(new_point._asdict())
+        last_point = new_point
+    return interpolated_points
+
 
 def three_point_turn(points, angle, distance_away, turn_radius, robot_length=2.0, asdict=False):
     heading = get_heading(points[0], points[1])
@@ -219,7 +231,7 @@ def chain_rows(row_list, starting_point, starting_direction, connection_type, fo
                 angle_reverse *= -1
         if connection_type == "three_pt":
             start_points = row[-2], row[-1]
-            turn1 = three_point_turn(start_points, angle=90 * angle_reverse, distance_away=2.0, turn_radius=0.1, asdict=asdict)
+            turn1 = three_point_turn(start_points, angle=90 * angle_reverse, distance_away=1.5, turn_radius=0.1, asdict=asdict)
 
             if asdict:
                 final_connector = next_row[0], next_row[1]
@@ -237,8 +249,8 @@ def chain_rows(row_list, starting_point, starting_direction, connection_type, fo
             connector_path = copy.deepcopy(nav_path)
             connector_path.points = final_connector
             connector_path.navigation_parameters = connector_navigation_parameters
-            connector_path.end_dist=3.0
-            connector_path.end_angle=20
+            connector_path.end_dist=2.0
+            connector_path.end_angle=30
             connector_path.control_values = turn_control_vals
             row_chain.append(connector_path)
             last_point = next_row[0]

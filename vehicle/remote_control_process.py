@@ -42,6 +42,7 @@ import coloredlogs
 import subprocess
 from enum import Enum
 from multiprocessing import shared_memory, resource_tracker
+import random
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
@@ -61,7 +62,7 @@ _SEC_IN_ONE_MINUTE = 60
 
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 3.5
 _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 120 #20
-_VOLTAGE_CUTOFF = 30
+_VOLTAGE_CUTOFF = 20
 _VOLTAGE_RESUME_MANUAL_CONTROL = 35
 
 _GPS_ERROR_RETRIES = 3
@@ -87,7 +88,7 @@ _NUM_GPS_SUBSAMPLES = 10
 
 _LOOP_RATE = 10
 
-_ERROR_RATE_AVERAGING_COUNT = 4
+_ERROR_RATE_AVERAGING_COUNT = 3
 
 _ALLOWED_RTK_AGE_SEC = 20.0
 _ALLOWED_SOLUTION_AGE_SEC = 1.0
@@ -117,6 +118,8 @@ _JOYSTICK_MIN = 0.02
 
 _STEERING_ANGLE_LIMIT_AUTONOMY_DEGREES = 180
 _STEERING_ANGLE_LIMIT_DEGREES = 120
+
+_DEFAULT_MAXIMUM_VELOCITY = 0.4
 
 
 def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
@@ -301,7 +304,10 @@ class RemoteControl():
         self.loaded_path_name = self.robot_object.loaded_path_name
         if self.simulated_hardware and simulation_teleport:
             # Place simulated robot at start of path.
-            start_index = int(len(self.nav_path.spline.points)/2) - 5
+            if len(path.points) == 2:
+                start_index = 0
+            else:
+                start_index = int(len(self.nav_path.spline.points)/2) - 5
             initial_heading = gps_tools.get_heading(self.nav_path.points[start_index], self.nav_path.points[start_index+1])
             self.simulated_sample = gps_tools.GpsSample(self.nav_path.points[start_index].lat, self.nav_path.points[start_index].lon, self.simulated_sample.height_m, ("fix","fix"), 20, initial_heading + 30, time.time(), 0.5)
             self.latest_gps_sample = self.simulated_sample
@@ -342,6 +348,7 @@ class RemoteControl():
                                     max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES,
                                     end_dist=1.0,
                                     end_angle=30)
+        self.maximum_velocity = _DEFAULT_MAXIMUM_VELOCITY
         self.nav_path_list = []
         self.nav_path_index = 0
         self.gps_path = []
@@ -453,8 +460,22 @@ class RemoteControl():
                             if len(self.robot_object.loaded_path) > 0  and self.latest_gps_sample is not None:
                                 if isinstance(self.robot_object.loaded_path[0], PathSection):
                                     self.nav_path_list = self.robot_object.loaded_path
-                                    self.nav_path_index = 0
-                                    self.load_path(self.robot_object.loaded_path[0], simulation_teleport=True, generate_spline=True)
+                                    if self.simulated_hardware:
+                                        self.nav_path_index = 0
+                                        self.load_path(self.nav_path_list[self.nav_path_index], simulation_teleport=True, generate_spline=True)
+                                    else:
+                                        closest_row_index = 0
+                                        min_distance = math.inf
+                                        for index in range(len(self.nav_path_list)):
+                                            row_path = self.nav_path_list[index]
+                                            for point in row_path.points:
+                                                dist = gps_tools.get_distance(self.latest_gps_sample, point)
+                                                if dist < min_distance:
+                                                    min_distance = dist
+                                                    closest_row_index = index
+                                        self.logger.info("Loading path. List length {}, Closest path index {}, min_distance {}".format(len(self.nav_path_list), closest_row_index, min_distance))
+                                        self.nav_path_index = closest_row_index
+                                        self.load_path(self.nav_path_list[self.nav_path_index], simulation_teleport=True, generate_spline=True)
                                     self.reloaded_path = True
                                 else:
                                     self.load_path(self.robot_object.loaded_path, simulation_teleport=True, generate_spline=True)
@@ -462,7 +483,7 @@ class RemoteControl():
                                 self.load_path_time = time.time()
 
                         self.activate_autonomy = self.robot_object.activate_autonomy
-                        self.autonomy_velocity = self.robot_object.autonomy_velocity
+                        # self.autonomy_velocity = self.robot_object.autonomy_velocity
                         # Autonomy is disabled until robot is ready or if joystick is used.
                         if self.autonomy_hold:
                             self.activate_autonomy = False
@@ -781,7 +802,7 @@ class RemoteControl():
 
                     # Rate of change clamping
                     steer_rate = 4.0/_LOOP_RATE
-                    strafe_rate = 5.0/_LOOP_RATE
+                    strafe_rate = 40.0/_LOOP_RATE
                     if autonomy_steer_diff > steer_rate:
                         autonomy_steer_cmd = self.last_autonomy_steer_cmd + steer_rate
                     elif autonomy_steer_diff < -steer_rate:
@@ -811,7 +832,12 @@ class RemoteControl():
                     user_web_page_plot_strafe_cmd = autonomy_strafe_cmd * self.driving_direction
 
 
-                    autonomy_vel_cmd = self.autonomy_velocity  * self.driving_direction * drive_reverse
+                    if 0.0 <= self.nav_path.navigation_parameters.travel_speed <= self.maximum_velocity:
+                        autonomy_vel_cmd = self.nav_path.navigation_parameters.travel_speed  * self.driving_direction * drive_reverse
+                        self.logger.debug("Travel speed: {}".format(self.nav_path.navigation_parameters.travel_speed))
+                    else:
+                        self.logger.error("Invalid travel speed specified! Got {}. Maximum allowed is {}".format(self.nav_path.navigation_parameters.travel_speed, self.maximum_velocity))
+                        autonomy_vel_cmd = 0.0
                     self.logger.debug("self.autonomy_velocity {}, self.driving_direction {}, drive_reverse {} , autonomy_vel_cmd {}".format(self.autonomy_velocity, self.driving_direction, drive_reverse, autonomy_vel_cmd))
 
                     joy_steer = 0.0 # ensures that vel goes to zero when autonomy disabled
@@ -1051,11 +1077,21 @@ class RemoteControl():
                 # If the robot is simulated, estimate movement odometry.
                 if self.simulated_hardware:
                     if abs(steer_cmd) > 0.001 or abs(vel_cmd) > 0.001 or abs(strafe_cmd) > 0.001:
-                        new_heading_degrees = self.latest_gps_sample.azimuth_degrees + steer_cmd * 45.0 * 0.4 * self.driving_direction
+                        steering_multiplier = 0.4
+                        vel_multiplier = 0.5
+                        strafe_multiplier = 0.4
+                        steering_multiplier = 0.4
+                        vel_multiplier = 0.5
+                        strafe_multiplier = 1.0
+                        new_heading_degrees = self.latest_gps_sample.azimuth_degrees + steer_cmd * 45.0 * steering_multiplier * self.driving_direction
                         new_heading_degrees %= 360
-                        next_point = gps_tools.project_point(self.latest_gps_sample, new_heading_degrees, vel_cmd * 0.5)
+                        next_point = gps_tools.project_point(self.latest_gps_sample, new_heading_degrees, vel_cmd * vel_multiplier)
                         # Calculate translation for strafe, which is movement 90 degrees from heading.
-                        next_point = gps_tools.project_point(next_point, new_heading_degrees + 90, strafe_cmd * 0.4)
+                        next_point = gps_tools.project_point(next_point, new_heading_degrees + 90, strafe_cmd * strafe_multiplier)
+                        rand_dist = random.uniform(-0.05, 0.05)
+                        rand_angle = random.uniform(0, 360.0)
+                        next_point = gps_tools.project_point(next_point, rand_angle, rand_dist)
+                        new_heading_degrees += random.uniform(-3.0, 3.0)
                         self.simulated_sample = gps_tools.GpsSample(next_point.lat, next_point.lon, self.simulated_sample.height_m, ("fix","fix"), 20, new_heading_degrees, time.time(), 0.5)
                 if not self.motor_socket:
                     self.logger.error("Connect to motor control socket")

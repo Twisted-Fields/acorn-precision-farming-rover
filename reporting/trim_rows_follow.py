@@ -148,8 +148,8 @@ from remote_control_process import NavigationParameters, PathControlValues, Path
 
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.BACKWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=True)
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.BACKWARD, loop_path=True)
-forward_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
-connector_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.EITHER, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
+forward_navigation_parameters = NavigationParameters(travel_speed=0.4, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
+connector_navigation_parameters = NavigationParameters(travel_speed=0.2, path_following_direction=Direction.EITHER, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
 
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=True)
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.BACKWARD, vehicle_travel_direction=Direction.BACKWARD, loop_path=True)
@@ -158,8 +158,11 @@ connector_navigation_parameters = NavigationParameters(travel_speed=0.0, path_fo
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 8
 _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 140
 
-path_control_vals = PathControlValues(angular_p=0.9, lateral_p=-0.25, angular_d=0.3, lateral_d=-0.05)
-turn_control_vals = PathControlValues(angular_p=0.9, lateral_p=-0.25, angular_d=0.3, lateral_d=-0.05)
+# path_control_vals = PathControlValues(angular_p=0.9, lateral_p=-0.25, angular_d=0.3, lateral_d=-0.2)
+# turn_control_vals = PathControlValues(angular_p=0.9, lateral_p=-0.25, angular_d=0.3, lateral_d=-0.2)
+
+path_control_vals = PathControlValues(angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
+turn_control_vals = PathControlValues(angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
 nav_path = PathSection(points=[],
             control_values=path_control_vals,
             navigation_parameters=forward_navigation_parameters,
@@ -172,6 +175,86 @@ nav_path = PathSection(points=[],
 starting_direction = -1
 
 rows_in_polygon = gps_tools.chain_rows(rows_in_polygon, rows_in_polygon[0][0], starting_direction, "three_pt", forward_navigation_parameters, connector_navigation_parameters, turn_control_vals, nav_path, asdict=True)
+
+import copy
+
+interpolate_list = []
+
+row = rows_in_polygon[-1].points
+start_points = row[-2], row[-1]
+
+
+
+heading = gps_tools.get_heading(start_points[0], start_points[1])
+row_aligned_away_pt = gps_tools.project_point(start_points[1], heading, 1.5)
+latlon_point1 = gps_tools.project_point(row_aligned_away_pt, heading + 90, 0.5)
+latlon_point2 = gps_tools.project_point(row_aligned_away_pt, heading + 90, 1.0)
+new_turn = [latlon_point1._asdict(), latlon_point2._asdict()]
+
+interpolate_list.append(latlon_point2._asdict())
+
+turn1_path = copy.deepcopy(nav_path)
+turn1_path.points = new_turn
+turn1_path.navigation_parameters = connector_navigation_parameters
+turn1_path.end_dist=1.0
+turn1_path.end_angle=20
+turn1_path.control_values = turn_control_vals
+
+rows_in_polygon.append(turn1_path)
+
+
+row = rows_in_polygon[0].points
+start_points = row[1], row[0]
+
+heading = gps_tools.get_heading(start_points[0], start_points[1])
+row_aligned_away_pt = gps_tools.project_point(start_points[1], heading, 1.5)
+latlon_point1 = gps_tools.project_point(row_aligned_away_pt, heading + -90, 1.0)
+latlon_point2 = gps_tools.project_point(row_aligned_away_pt, heading + -90, 0.5)
+interpolate_list.append(latlon_point2._asdict())
+new_turn = [latlon_point1._asdict(), latlon_point2._asdict()]
+
+turn1_path = copy.deepcopy(nav_path)
+turn1_path.points = new_turn
+turn1_path.navigation_parameters = connector_navigation_parameters
+turn1_path.end_dist=1.0
+turn1_path.end_angle=20
+turn1_path.control_values = turn_control_vals
+
+# print(interpolate_list)
+interpolated_path_points = gps_tools.interpolate_points(interpolate_list, 25)
+
+print(interpolated_path_points)
+
+
+interpolated_path = copy.deepcopy(nav_path)
+interpolated_path.points = interpolated_path_points
+interpolated_path.navigation_parameters = forward_navigation_parameters
+interpolated_path.end_dist=1.0
+interpolated_path.end_angle=20
+interpolated_path.control_values = path_control_vals
+
+
+
+rows_in_polygon.append(interpolated_path)
+
+rows_in_polygon.append(turn1_path)
+
+
+
+row = rows_in_polygon[0].points
+start_points = row[0], row[1]
+
+turn1_path = copy.deepcopy(nav_path)
+turn1_path.points = start_points
+turn1_path.navigation_parameters = connector_navigation_parameters
+turn1_path.end_dist=1.0
+turn1_path.end_angle=20
+turn1_path.control_values = turn_control_vals
+
+rows_in_polygon.append(turn1_path)
+
+# rows_in_polygon = rows_in_polygon[-8:]
+
 
 r.set('twistedfields:gpspath:aaa_test:key', pickle.dumps(rows_in_polygon))
 
