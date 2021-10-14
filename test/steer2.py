@@ -5,7 +5,8 @@ import sys
 import math
 from odrive.utils import dump_errors
 from evdev import InputDevice, list_devices, categorize, ecodes, KeyEvent
-from steering import calculate_steering, calculate_steering2
+sys.path.append('../vehicle')
+from steering import calculate_steering
 import pygame as py
 from collections import namedtuple
 import numpy as np
@@ -82,9 +83,11 @@ class RemoteControl():
 remote_control = RemoteControl()
 remote_control.run_setup()
 
+WINDOW_SCALING = 0.75
+
 # define constants
-WIDTH = 2000
-HEIGHT = 2000
+WIDTH = int(1000 * WINDOW_SCALING)
+HEIGHT = int(1000 * WINDOW_SCALING)
 FPS = 30
 
 # define colors
@@ -92,8 +95,8 @@ BLACK = (0 , 0 , 0)
 GREEN = (0 , 255 , 0)
 RED = (255 , 0 , 0)
 
-_RW = 300
-_RH = 500
+_RW = int(150 * WINDOW_SCALING)
+_RH = int(300 * WINDOW_SCALING)
 
 # initialize pygame and create screen
 py.init()
@@ -124,11 +127,9 @@ image_red_orig.fill(RED)
 
 py.draw.circle(image_red_orig, GREEN, (25,20), 15, 0)
 
-
 keys = ('front_left', 'front_right', 'rear_left', 'rear_right')
 
-
-pos = ((-1, +1), (+1, +1), (-1, -1), (+1, -1))
+pos = ((-1, -1),(+1, -1),(-1, +1),(+1, +1))
 
 rects = []
 
@@ -188,37 +189,8 @@ while running:
     #vel_cmd = get_profiled_velocity(last_vel_cmd, vel_cmd, period)
     last_vel_cmd = vel_cmd
     tick_time = time.time()
-    #print("Final values: Steer {}, Vel {}".format(steer_cmd, vel_cmd))
-    calc = calculate_steering(steer_cmd, vel_cmd)
-    #print(calc)
-
-        #print("Warning: Motor Control pipe full, or other ZMQ error raised.")
 
     idx = 0
-    for rect in rects:
-        # making a copy of the old center of the rectangle
-        old_center = rect.center
-
-        throttle = math.degrees(calc[keys[idx]][1])
-        diceDisplay = myFont.render("{:0.0f}".format(throttle), 1, GREEN)
-
-
-        width = WIDTH // 2 + pos[idx][0] * _RW*1.5
-        height = HEIGHT // 2 + pos[idx][1] * _RH
-
-        screen.blit(diceDisplay, (width, height))
-
-        rot = math.degrees(calc[keys[idx]][0])
-        idx += 1
-        # rotating the orignal image
-        new_image = py.transform.rotate(image_orig , rot)
-        rect = new_image.get_rect()
-        # set the rotated rectangle to the old center
-        rect.center = old_center
-        # drawing the rotated rectangle to the screen
-        screen.blit(new_image , rect)
-    idx = 0
-
 
     if math.fabs(joy_strafe) < 0.1:
         strafe = 0
@@ -258,8 +230,9 @@ while running:
     py.draw.line(screen, RED, coord4, coord4_p2, 5)
 
 
-    strafe *= vel_cmd
-    calc2 = calculate_steering2(steer_cmd, vel_cmd, strafe)
+    strafe *= abs(vel_cmd)
+    strafe *= -1
+    calc2 = calculate_steering(steer_cmd, vel_cmd, strafe, 180)
     for rect in red_rects:
         # making a copy of the old center of the rectangle
 
@@ -276,7 +249,7 @@ while running:
 
         old_center = rect.center
 
-        rot = math.degrees(calc2[keys[idx]][0])
+        rot = math.degrees(calc2[keys[idx]][0]) * -1
         idx += 1
         # rotating the orignal image
         new_image = py.transform.rotate(image_red_orig , rot)

@@ -8,9 +8,9 @@ import time
 # 1500000
 
 
-BAUD=500000
+BAUD=115200
 
-ser0 = serial.Serial('/dev/ttySC0', BAUD, timeout=0.5)
+ser0 = serial.Serial('/dev/ttySC1', BAUD, timeout=0.5)
 print(ser0.name)
 # ser1 = serial.Serial('/dev/ttySC1', BAUD, timeout=1)
 # print(ser1.name)

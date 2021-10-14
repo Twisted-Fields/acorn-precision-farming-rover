@@ -21,7 +21,7 @@ limitations under the License.
 *********************************************************************
 """
 
-# Modified from example file 
+# Modified from example file
 # Paranoid Pirate queue by  Daniel Lundin <dln(at)eintr(dot)org>
 #
 
@@ -108,7 +108,7 @@ while True:
             if msg[0] not in (PPP_READY, PPP_HEARTBEAT):
                 print("E: Invalid message from worker: %s" % msg)
         else:
-            print(msg)
+            #print(msg)
             tracker = frontend.send_multipart(msg)
 
         # Send heartbeats to idle workers if it's time
