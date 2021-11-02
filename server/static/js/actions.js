@@ -82,22 +82,14 @@ function getRobotData() {
   fetch("http://" + ipAddress + "/api/get_herd_data")
     .then((resp) => resp.json())
     .then(function (data) {
-      //console.log(data);
-
-      var current_zoom = map.getZoom();
-      var scale = (1000 / zoom_scales[current_zoom]) * 0.5;
-
       //loop through herd data from server
       for (var i = 0, len = data.length; i < len; i++) {
         let robot = data[i];
-        let datenow = new Date();
-        //console.log(datenow)
-        //console.log(JSON.parse(robot.time_stamp))
         let date = new Date(JSON.parse(robot.time_stamp));
-        let data_age_sec = (datenow - date) / 1000.0;
+        let data_age_sec = (new Date() - date) / 1000.0;
 
-        if (have_cleared_autonomy == false) {
-          have_cleared_autonomy = true;
+        if (store.have_cleared_autonomy == false) {
+          store.have_cleared_autonomy = true;
           modifyAutonomyHold(`${robot.name}`, false);
         }
 
@@ -338,16 +330,16 @@ function getRobotData() {
           </div>
           `;
 
-        // Set simulation value.
-        simulation = robot.simulated_data;
+        // Set store.simulation value.
+        store.simulation = robot.simulated_data;
 
         if (robot.live_path_data.length > 0) {
-          if (robot.live_path_data[0].lat != first_path_point) {
+          if (robot.live_path_data[0].lat != store.first_path_point) {
             // console.log("UPDATING PATH ")
-            // console.log(first_path_point)
+            // console.log(store.first_path_point)
             renderPathLive(robot.live_path_data);
-            livePathName = robot.loaded_path_name;
-            first_path_point = robot.live_path_data[0].lat;
+            store.livePathName = robot.loaded_path_name;
+            store.first_path_point = robot.live_path_data[0].lat;
           }
         }
 
@@ -355,19 +347,19 @@ function getRobotData() {
 
         if (robot.debug_points) {
           renderPathDebug(robot.debug_points);
-          debugPointsLength = robot.debug_points.length;
+          store.debugPointsLength = robot.debug_points.length;
         }
 
-        if (displayed_dense_path.length > 0) {
-          renderPathDebug(displayed_dense_path);
+        if (store.displayed_dense_path.length > 0) {
+          renderPathDebug(store.displayed_dense_path);
         }
 
         //console.log(robot.gps_path_data.length)
 
-        if (robot.gps_path_data.length != gpsPathLength) {
-          gps_path = robot.gps_path_data;
+        if (robot.gps_path_data.length != store.gpsPathLength) {
+          store.gps_path = robot.gps_path_data;
           renderPathGPS(robot.gps_path_data);
-          gpsPathLength = robot.gps_path_data.length;
+          store.gpsPathLength = robot.gps_path_data.length;
         }
 
         let div_id = `${robot.name}-cardview`;
@@ -437,7 +429,7 @@ function getRobotData() {
           $("#robot_detail").append(row);
           $("[id*=-load-button]").on("click", function (event) {
             console.log("You clicked the load button ", event.target.innerText);
-            updateVehiclePath(displayed_path_name, `${robot.name}`);
+            updateVehiclePath(store.displayed_path_name, `${robot.name}`);
           });
 
           $(`[id^=${robot.name}-vel-]`).on("click", function (event) {
@@ -524,33 +516,33 @@ function getRobotData() {
         });
 
         //console.log("Turn intent degrees: ", data[i].turn_intent_degrees)
-        //check robotMarkerStore array if we have marker already
-        if (robotMarkerStore.hasOwnProperty(data[i].id)) {
+        //check store.robotMarkerStore array if we have marker already
+        if (store.robotMarkerStore.hasOwnProperty(data[i].id)) {
           //if we do, set new position attribute to existing marker
-          robotMarkerStore[data[i].id].setIcon(robot_icon);
-          robotMarkerStore[data[i].id].setLatLng(
+          store.robotMarkerStore[data[i].id].setIcon(robot_icon);
+          store.robotMarkerStore[data[i].id].setLatLng(
             new L.latLng(data[i].lat, data[i].lon)
           );
-          robotMarkerStore[data[i].id].setRotationAngle(data[i].heading);
+          store.robotMarkerStore[data[i].id].setRotationAngle(data[i].heading);
           //console.log(goat_path);
         } else {
           //if we don't, create new marker and set attributes
           var marker = L.marker([data[i].lat, data[i].lon], {
             icon: robot_icon,
           });
-          //add new marker to robotMarkerStore array
-          robotMarkerStore[data[i].id] = marker;
-          robotMarkerStore[data[i].id].setRotationAngle(data[i].heading);
-          robotMarkerStore[data[i].id].addTo(map);
+          //add new marker to store.robotMarkerStore array
+          store.robotMarkerStore[data[i].id] = marker;
+          store.robotMarkerStore[data[i].id].setRotationAngle(data[i].heading);
+          store.robotMarkerStore[data[i].id].addTo(map);
         }
-        //check robotMarkerStore array if we have marker already
-        if (arrowMarkerStore.hasOwnProperty(data[i].id)) {
+        //check store.robotMarkerStore array if we have marker already
+        if (store.arrowMarkerStore.hasOwnProperty(data[i].id)) {
           //if we do, set new position attribute to existing marker
-          arrowMarkerStore[data[i].id].setIcon(arrow_icon);
-          arrowMarkerStore[data[i].id].setLatLng(
+          store.arrowMarkerStore[data[i].id].setIcon(arrow_icon);
+          store.arrowMarkerStore[data[i].id].setLatLng(
             new L.latLng(data[i].lat, data[i].lon)
           );
-          arrowMarkerStore[data[i].id].setRotationAngle(
+          store.arrowMarkerStore[data[i].id].setRotationAngle(
             data[i].turn_intent_degrees + data[i].heading
           );
           //console.log(goat_path);
@@ -559,12 +551,12 @@ function getRobotData() {
           var arrow_marker = L.marker([data[i].lat, data[i].lon], {
             icon: arrow_icon,
           });
-          //add new marker to robotMarkerStore array
-          arrowMarkerStore[data[i].id] = arrow_marker;
-          arrowMarkerStore[data[i].id].setRotationAngle(
+          //add new marker to store.robotMarkerStore array
+          store.arrowMarkerStore[data[i].id] = arrow_marker;
+          store.arrowMarkerStore[data[i].id].setRotationAngle(
             data[i].turn_intent_degrees + data[i].heading
           );
-          arrowMarkerStore[data[i].id].addTo(map);
+          store.arrowMarkerStore[data[i].id].addTo(map);
         }
       }
     })
@@ -573,7 +565,7 @@ function getRobotData() {
       console.log(error);
     });
 
-  if (simulation) {
+  if (store.simulation) {
     window.setTimeout(getRobotData, SIMULATION_INTERVAL);
   } else {
     window.setTimeout(getRobotData, INTERVAL);
@@ -587,14 +579,14 @@ function loadPath(pathname) {
     .then(function (pathData) {
       //check data from server in console
       console.log(pathData);
-      displayed_path = pathData;
-      path_start = 0;
-      path_end = displayed_path.length - 1;
-      path_point_to_remove = displayed_path.length;
+      store.displayed_path = pathData;
+      store.path_start = 0;
+      store.path_end = store.displayed_path.length - 1;
+      store.path_point_to_remove = store.displayed_path.length;
 
       console.log("pathData Length: ", pathData.length);
-      renderPath(displayed_path);
-      displayed_path_name = pathname;
+      renderPath(store.displayed_path);
+      store.displayed_path_name = pathname;
     })
     //catch any errors
     .catch(function (error) {
@@ -609,14 +601,14 @@ function loadDensePath() {
     .then(function (densePathData) {
       //check data from server in console
       console.log(densePathData);
-      displayed_dense_path = densePathData;
-      // path_start = 0;
-      // path_end = displayed_path.length-1;
-      // path_point_to_remove =  displayed_path.length;
+      store.displayed_dense_path = densePathData;
+      // store.path_start = 0;
+      // store.path_end = store.displayed_path.length-1;
+      // store.path_point_to_remove =  store.displayed_path.length;
       //
       // console.log("pathData Length: ", pathData.length)
-      renderPathDebug(displayed_dense_path);
-      //displayed_path_name = pathname
+      renderPathDebug(store.displayed_dense_path);
+      //store.displayed_path_name = pathname
     })
     //catch any errors
     .catch(function (error) {
@@ -762,19 +754,19 @@ function renderPath(pathData) {
   //check data from server in console
   //console.log(pathData);
   //console.log("Markers Length: ", markers.length)
-  for (let i = 0; i < savedPathMarkers.length; i++) {
-    savedPathMarkers[i].remove();
+  for (let i = 0; i < store.savedPathMarkers.length; i++) {
+    store.savedPathMarkers[i].remove();
   }
-  savedPathMarkers = [];
+  store.savedPathMarkers = [];
   //loop through circle data
   for (var i = 0, len = pathData.length; i < len; i++) {
     //draw circles on map
 
     var color = "#FF6600";
-    if (i < path_start || i > path_end) {
+    if (i < store.path_start || i > store.path_end) {
       color = "#F006FF";
     }
-    if (i == path_point_to_remove) {
+    if (i == store.path_point_to_remove) {
       color = "#FF0000";
     }
 
@@ -789,17 +781,17 @@ function renderPath(pathData) {
     });
 
     marker.addTo(map);
-    savedPathMarkers.push(marker);
+    store.savedPathMarkers.push(marker);
   }
 }
 
 function renderPathDebug(pathData) {
   //check data from server in console
   //  console.log(pathData);
-  for (let i = 0; i < debugPointMarkers.length; i++) {
-    debugPointMarkers[i].remove();
+  for (let i = 0; i < store.debugPointMarkers.length; i++) {
+    store.debugPointMarkers[i].remove();
   }
-  debugPointMarkers = [];
+  store.debugPointMarkers = [];
   //loop through circle data
   for (var i = 0, len = pathData.length; i < len; i++) {
     //draw circles on map
@@ -818,7 +810,7 @@ function renderPathDebug(pathData) {
       interactive: false,
     });
     marker.addTo(map);
-    debugPointMarkers.push(marker);
+    store.debugPointMarkers.push(marker);
   }
 }
 
@@ -826,10 +818,10 @@ function renderPathLive(pathData) {
   //return;
   //check data from server in console
   //  console.log(pathData);
-  for (let i = 0; i < livePathMarkers.length; i++) {
-    livePathMarkers[i].remove();
+  for (let i = 0; i < store.livePathMarkers.length; i++) {
+    store.livePathMarkers[i].remove();
   }
-  livePathMarkers = [];
+  store.livePathMarkers = [];
   //loop through circle data
   for (var i = 0, len = pathData.length; i < len; i++) {
     //draw circles on map
@@ -855,7 +847,7 @@ function renderPathLive(pathData) {
     });
 
     marker.addTo(map);
-    livePathMarkers.push(marker);
+    store.livePathMarkers.push(marker);
   }
 }
 
@@ -864,10 +856,10 @@ function renderPathGPS(pathData) {
   //check data from server in console
   console.log("PATHDATA");
   console.log(pathData);
-  for (let i = 0; i < gpsPathMarkers.length; i++) {
-    gpsPathMarkers[i].remove();
+  for (let i = 0; i < store.gpsPathMarkers.length; i++) {
+    store.gpsPathMarkers[i].remove();
   }
-  gpsPathMarkers = [];
+  store.gpsPathMarkers = [];
   //loop through circle data
   for (var i = 0, len = pathData.length; i < len; i++) {
     //draw circles on map
@@ -892,7 +884,7 @@ function renderPathGPS(pathData) {
         fillOpacity: 1.0,
       });
       marker.addTo(map);
-      gpsPathMarkers.push(marker);
+      store.gpsPathMarkers.push(marker);
     } catch (error) {
       console.error(error);
       console.log(pathData[i]);
@@ -904,21 +896,27 @@ function renderPathGPS(pathData) {
 
 function modifyDisplayedPath() {
   if (
-    path_point_to_remove < displayed_path.length &&
-    path_point_to_remove > 0
+    store.path_point_to_remove < store.displayed_path.length &&
+    store.path_point_to_remove > 0
   ) {
-    displayed_path.splice(path_point_to_remove, 1);
-    path_end -= 1;
+    store.displayed_path.splice(store.path_point_to_remove, 1);
+    store.path_end -= 1;
   }
 
-  if (path_start > 0 || path_end < displayed_path.length - 1) {
-    length = path_end - path_start - 1;
-    displayed_path = displayed_path.splice(path_start, length);
+  if (
+    store.path_start > 0 ||
+    store.path_end < store.displayed_path.length - 1
+  ) {
+    length = store.path_end - store.path_start - 1;
+    store.displayed_path = store.displayed_path.splice(
+      store.path_start,
+      length
+    );
   }
-  path_start = 0;
-  path_end = displayed_path.length - 1;
-  path_point_to_remove = displayed_path.length;
-  renderPath(displayed_path);
+  store.path_start = 0;
+  store.path_end = store.displayed_path.length - 1;
+  store.path_point_to_remove = store.displayed_path.length;
+  renderPath(store.displayed_path);
 }
 
 function loadPathList() {

@@ -13,13 +13,6 @@ $(document).ready(function () {
   }
 });
 
-var zoom_scales = [
-  0, 591657550.5, 295828775.3, 147914387.6, 73957193.82, 36978596.91,
-  18489298.45, 9244649.227, 4622324.614, 2311162.307, 1155581.153, 577790.5767,
-  288895.2884, 144447.6442, 72223.82209, 36111.91104, 18055.95552, 9027.977761,
-  4513.98888, 2256.99444, 1128.49722,
-];
-
 //grab user local ip address
 var ipAddress = location.hostname;
 console.log("ip address is: " + ipAddress);
@@ -42,28 +35,6 @@ $.ajax({
 });
 
 var map;
-
-//initialize empty marker and circle arrays
-var robotMarkerStore = {};
-var arrowMarkerStore = {};
-var savedPathMarkers = [];
-var livePathMarkers = [];
-//var livePathLength = 0;
-var livePathName = "";
-var gpsPathMarkers = [];
-var gpsPathLength = 0;
-var debugPointMarkers = [];
-var debugPointsLength = 0;
-var gps_path = [];
-var displayed_path = [];
-var displayed_path_name = "";
-var displayed_dense_path = [];
-var path_start = -1;
-var path_end = -1;
-var path_point_to_remove = -1;
-var have_cleared_autonomy = false;
-var simulation = false;
-var first_path_point;
 
 //time between api refreshes
 var INTERVAL = 2000;
