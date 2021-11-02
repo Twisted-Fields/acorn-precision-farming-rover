@@ -1,85 +1,9 @@
 // actions are triggered by UI events. It mostly involves calling backend API, and as a result, updating the store.
 
-function setup_map_with_opendronemap(access_token_data) {
-  var token = access_token_data["token"];
-  var open_drone_map_layer = L.tileLayer(
-    "http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}",
-    {
-      attribution:
-        'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.twistedfields.com/">Twisted Fields</a>',
-      maxZoom: 22,
-      tileSize: 256,
-      zoomOffset: 0,
-      id: "",
-      accessToken: token,
-      tms: false,
-    }
-  );
-
-  var mapbox_layer = L.tileLayer(
-    "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
-    {
-      attribution:
-        'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-      maxZoom: 22,
-      id: "mapbox/satellite-v9",
-      tileSize: 512,
-      zoomOffset: -1,
-      accessToken:
-        "pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g",
-    }
-  );
-
-  map = L.map("map_canvas", {
-    center: [37.35372, -122.333377],
-    zoom: 20,
-    layers: [open_drone_map_layer],
-    editable: true,
-  });
-
-  var baseLayers = {
-    "Drone Map": open_drone_map_layer,
-    Mapbox: mapbox_layer,
-  };
-
-  L.control.layers(baseLayers).addTo(map);
-  getRobotData();
-}
-
-function setup_map_only_mapbox() {
-  var mapbox_layer = L.tileLayer(
-    "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
-    {
-      attribution:
-        'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-      maxZoom: 22,
-      id: "mapbox/satellite-v9",
-      tileSize: 512,
-      zoomOffset: -1,
-      accessToken:
-        "pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g",
-    }
-  );
-
-  map = L.map("map_canvas", {
-    center: [37.353, -122.332],
-    zoom: 18,
-    layers: [mapbox_layer],
-    editable: true,
-  });
-
-  var baseLayers = {
-    Mapbox: mapbox_layer,
-  };
-
-  L.control.layers(baseLayers).addTo(map);
-  getRobotData();
-}
-
 // <------- THIS FUNCTION GETS ROBOT DATA FROM SERVER AND UPDATES MARKERS AT INTERVAL ------->
 function getRobotData() {
   //request herd data from server API
-  fetch("http://" + ipAddress + "/api/get_herd_data")
+  api("get_herd_data")
     .then((resp) => resp.json())
     .then(function (data) {
       //loop through herd data from server
@@ -574,7 +498,7 @@ function getRobotData() {
 
 function loadPath(pathname) {
   //request circle data from server API
-  fetch("http://" + ipAddress + "/api/get_path/" + pathname)
+  api("get_path/" + pathname)
     .then((resp) => resp.json())
     .then(function (pathData) {
       //check data from server in console
@@ -596,7 +520,7 @@ function loadPath(pathname) {
 
 function loadDensePath() {
   //request circle data from server API
-  fetch("http://" + ipAddress + "/api/get_dense_path")
+  api("get_dense_path")
     .then((resp) => resp.json())
     .then(function (densePathData) {
       //check data from server in console
@@ -618,7 +542,7 @@ function loadDensePath() {
 
 function updateServerPath(pathname, pathData) {
   //push path to server with the specified name
-  fetch("http://" + ipAddress + "/api/save_path/" + pathname, {
+  api("save_path/" + pathname, {
     method: "POST", // or 'PUT'
     body: JSON.stringify(pathData), // data can be `string` or {object}!
     headers: {
@@ -637,7 +561,7 @@ function updateServerPath(pathname, pathData) {
 
 function savePolygonToServer(polygonName, polygonData) {
   //push path to server with the specified name
-  fetch("http://" + ipAddress + "/api/save_polygon/" + polygonName, {
+  api("save_polygon/" + polygonName, {
     method: "POST", // or 'PUT'
     body: JSON.stringify(polygonData), // data can be `string` or {object}!
     headers: {
@@ -657,7 +581,7 @@ function savePolygonToServer(polygonName, polygonData) {
 function deletePath() {
   let pathname = $("#path-name").val();
   //push path to server with the specified name
-  fetch("http://" + ipAddress + "/api/delete_path/" + pathname)
+  api("delete_path/" + pathname)
     .then(function (reply) {
       //check data from server in console
       console.log(reply);
@@ -670,14 +594,7 @@ function deletePath() {
 
 function updateVehiclePath(pathname, vehicle_name) {
   //push path to server with the specified name
-  fetch(
-    "http://" +
-      ipAddress +
-      "/api/set_vehicle_path/" +
-      pathname +
-      "/" +
-      vehicle_name
-  )
+  api("/set_vehicle_path/" + pathname + "/" + vehicle_name)
     .then(function (reply) {
       //check data from server in console
       console.log(reply);
@@ -690,14 +607,7 @@ function updateVehiclePath(pathname, vehicle_name) {
 
 function modifyAutonomyHold(vehicle_name, clear_hold) {
   //push path to server with the specified name
-  fetch(
-    "http://" +
-      ipAddress +
-      "/api/modify_autonomy_hold/" +
-      vehicle_name +
-      "/" +
-      clear_hold
-  )
+  api("modify_autonomy_hold/" + vehicle_name + "/" + clear_hold)
     .then(function (reply) {
       //check data from server in console
       console.log(reply);
@@ -710,16 +620,7 @@ function modifyAutonomyHold(vehicle_name, clear_hold) {
 
 function updateVehicleAutonomy(vehicle_name, speed, enabled) {
   //push path to server with the specified name
-  fetch(
-    "http://" +
-      ipAddress +
-      "/api/set_vehicle_autonomy/" +
-      vehicle_name +
-      "/" +
-      speed +
-      "/" +
-      enabled
-  )
+  api("set_vehicle_autonomy/" + vehicle_name + "/" + speed + "/" + enabled)
     .then(function (reply) {
       //check data from server in console
       //console.log(reply);
@@ -732,14 +633,7 @@ function updateVehicleAutonomy(vehicle_name, speed, enabled) {
 
 function updateGpsRecordCommand(vehicle_name, record_gps_command) {
   //push path to server with the specified name
-  fetch(
-    "http://" +
-      ipAddress +
-      "/api/set_gps_recording/" +
-      vehicle_name +
-      "/" +
-      record_gps_command
-  )
+  api("set_gps_recording/" + vehicle_name + "/" + record_gps_command)
     .then(function (reply) {
       //check data from server in console
       console.log(reply);
@@ -921,7 +815,7 @@ function modifyDisplayedPath() {
 
 function loadPathList() {
   //request circle data from server API
-  fetch("http://" + ipAddress + "/api/get_path_names")
+  api("get_path_names")
     .then((resp) => resp.json())
     .then(function (pathnames) {
       //check data from server in console
@@ -947,4 +841,10 @@ function loadPathList() {
     .catch(function (error) {
       console.log(error);
     });
+}
+
+const apiPrefix = `http://${location.hostname}/api/`;
+console.log("all API calls will hit " + apiPrefix);
+function api(path, init) {
+  return fetch(apiPrefix + path, init);
 }
