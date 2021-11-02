@@ -39,8 +39,8 @@ $("#dropdown-container").on("show.bs.dropdown", function () {
 
 $("#save-as").on("click", function () {
   //console.log("You clicked the drop downs ", event.target.innerText)
-  updateServerPath($("#path-name").val(), displayed_path);
-  console.log(displayed_path);
+  updateServerPath($("#path-name").val(), store.displayed_path);
+  console.log(store.displayed_path);
 });
 
 $("#btn-load-dense-points").on("click", function () {
@@ -65,51 +65,50 @@ $("#btn-start-polygon").on("click", function () {
 
 $("#save-gps-as").on("click", function () {
   //console.log("You clicked the drop downs ", event.target.innerText)
-  updateServerPath($("#path-name").val(), gps_path);
-  console.log(gps_path);
+  updateServerPath($("#path-name").val(), store.gps_path);
+  console.log(store.gps_path);
 });
 $("#start-minus").on("click", function () {
-  if (path_start > 0) {
-    path_start -= 1;
+  if (store.path_start > 0) {
+    store.path_start -= 1;
   }
-  renderPath(displayed_path);
+  renderPath(store.displayed_path);
 });
 $("#start-plus").on("click", function () {
-  if (path_start < displayed_path.length - 2) {
-    path_start += 1;
+  if (store.path_start < store.displayed_path.length - 2) {
+    store.path_start += 1;
   }
-  renderPath(displayed_path);
+  renderPath(store.displayed_path);
 });
 $("#end-minus").on("click", function () {
-  if (path_end > 0) {
-    path_end -= 1;
+  if (store.path_end > 0) {
+    store.path_end -= 1;
   }
-  renderPath(displayed_path);
+  renderPath(store.displayed_path);
 });
 $("#end-plus").on("click", function () {
-  if (path_end < displayed_path.length - 1) {
-    path_end += 1;
+  if (store.path_end < store.displayed_path.length - 1) {
+    store.path_end += 1;
   }
-  renderPath(displayed_path);
+  renderPath(store.displayed_path);
 });
 $("#remove-minus").on("click", function () {
-  path_point_to_remove -= 1;
-  if (path_point_to_remove < 0) {
-    path_point_to_remove = displayed_path.length;
+  store.path_point_to_remove -= 1;
+  if (store.path_point_to_remove < 0) {
+    store.path_point_to_remove = store.displayed_path.length;
   }
-  renderPath(displayed_path);
+  renderPath(store.displayed_path);
 });
 
 $("#remove-plus").on("click", function () {
-  path_point_to_remove += 1;
-  if (path_point_to_remove > displayed_path.length) {
-    path_point_to_remove = 0;
+  store.path_point_to_remove += 1;
+  if (store.path_point_to_remove > store.displayed_path.length) {
+    store.path_point_to_remove = 0;
   }
-  renderPath(displayed_path);
+  renderPath(store.displayed_path);
 });
 
 $("#modify-displayed-path").on("click", modifyDisplayedPath);
-
 
 function setup_map_with_opendronemap(access_token_data) {
   var token = access_token_data["token"];
