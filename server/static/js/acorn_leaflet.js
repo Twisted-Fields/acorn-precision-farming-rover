@@ -50,8 +50,7 @@ $(document).ready(function(){
 
     //grab user local ip address
     var ipAddress = location.hostname;
-
-    console.log(ipAddress);
+    console.log("ip address is: " + ipAddress);
 
 
 
@@ -117,7 +116,7 @@ function setup_map_with_opendronemap(access_token_data) {
   };
 
   L.control.layers(baseLayers).addTo(map);
-
+  getRobotData();
 }
 
 function setup_map_only_mapbox() {
@@ -146,6 +145,7 @@ function setup_map_only_mapbox() {
   };
 
   L.control.layers(baseLayers).addTo(map);
+  getRobotData();
 }
 
 
@@ -177,7 +177,6 @@ function setup_map_only_mapbox() {
     var INTERVAL = 2000;
     var SIMULATION_INTERVAL = 100;
 
-    getRobotData();
     //getCircles();
   //  getPath();
   //  loadPathList();
@@ -774,7 +773,6 @@ function setup_map_only_mapbox() {
               .then(function (reply) {
                   //check data from server in console
                   console.log(reply);
-
               })
               //catch any errors
               .catch(function (error) {
