@@ -5,12 +5,12 @@ function getRobotData() {
   //request herd data from server API
   api("get_herd_data")
     .then((resp) => resp.json())
-    .then(function (data) {
+    .then(function (herd) {
       //loop through herd data from server
-      for (var i = 0, len = data.length; i < len; i++) {
-        let robot = data[i];
-        let date = new Date(JSON.parse(robot.time_stamp));
-        let data_age_sec = (new Date() - date) / 1000.0;
+      for (const robot of herd) {
+        const date = new Date(robot.time_stamp);
+        const data_age_sec = (new Date() - date) / 1000.0;
+        robot.data_age_sec = data_age_sec;
 
         if (store.have_cleared_autonomy == false) {
           store.have_cleared_autonomy = true;
@@ -26,6 +26,7 @@ function getRobotData() {
         //console.log(robot.autonomy_hold)
 
         var autonomy_allowed = robot.autonomy_hold ? "False" : "True";
+        robot.autonomy_allowed = autonomy_allowed;
 
         //console.log(robot.strafeD)
 
@@ -165,95 +166,6 @@ function getRobotData() {
         Plotly.newPlot("plot_div_distance", [distances], layout_lateral);
         Plotly.newPlot("plot_div_angles", [angles], layout_angle);
 
-        const markup = `
-          <div class="card" style="width: 18rem;">
-          <div class="card-header">
-          ${robot.name}
-        </div>
-          <ul class="list-group list-group-flush" id="${
-            robot.name
-          }-detail-view">
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-data-age">Data Age: ${data_age_sec.toFixed(1)} sec</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-voltage">Voltage: ${robot.voltage.toFixed(2)}</li>
-          <li class="list-group-item" id="${robot.name}-detail-speed">Speed: ${
-          robot.speed
-        }</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-control-state">Control State: ${robot.control_state}</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-motor-state">Motor State: ${robot.motor_state}</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-path-name">Loaded Path Name: ${robot.loaded_path_name}</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-autonomy-allowed">Autonomy Allowed: ${autonomy_allowed}</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-autonomy-active">Autonomy Active: ${
-          robot.activate_autonomy
-        }</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-access-point">Access Point: ${robot.access_point_name}</li>
-          <li class="list-group-item" id="${
-            robot.name
-          }-detail-wifi-signal">Wifi Signal: ${robot.wifi_signal} dBm</li>
-          <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${
-            robot.name
-          }-load-button">Load Path</button></li>
-          <li class="list-group-item">
-          <div class="btn-group" role="group" aria-label="Autonomy Velocity">
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-vel-1">0.1</button>
-          <button type="button" class="btn btn-success" id="${
-            robot.name
-          }-vel-2">0.2</button>
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-vel-3">0.3</button>
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-vel-4">0.4</button>
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-vel-5">0.5</button>
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-vel-6">0.6</button>
-          </div>
-          </li>
-          <li class="list-group-item"><button type="button" class="btn btn-lg btn-secondary mr-1 disabled" id="${
-            robot.name
-          }-activate-button">Activate Autonomy</button></li>
-          <li class="list-group-item"><button type="button" class="btn btn-primary mr-1" id="${
-            robot.name
-          }-clear-hold">Clear Autonomy Hold</button></li>
-          <li class="list-group-item">
-          <div class="btn-group" role="group" aria-label="GPS Recording">
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-gps-record-button">Record</button>
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-gps-pause-button">Pause</button>
-          <button type="button" class="btn btn-secondary" id="${
-            robot.name
-          }-gps-clear-button">Clear</button>
-          </div>
-          </li>
-
-          </ul>
-          </div>
-          `;
-
         // Set store.simulation value.
         store.simulation = robot.simulated_data;
 
@@ -286,147 +198,6 @@ function getRobotData() {
           store.gpsPathLength = robot.gps_path_data.length;
         }
 
-        let div_id = `${robot.name}-cardview`;
-        const row = `
-          <div id=${div_id} class="row">
-          ${markup}
-        </div>
-          `;
-
-        if ($(`#${div_id}`).length) {
-          $(`#${robot.name}-detail-voltage`).text(
-            `Voltage: ${robot.voltage.toFixed(2)}`
-          );
-          $(`#${robot.name}-detail-speed`).html(`Speed: ${robot.speed}`);
-          $(`#${robot.name}-detail-data-age`).html(
-            `Data Age: ${data_age_sec.toFixed(1)} sec`
-          );
-          $(`#${robot.name}-detail-path-name`).html(
-            `Loaded Path Name: ${robot.loaded_path_name}`
-          );
-          $(`#${robot.name}-detail-control-state`).html(
-            `Control State: ${robot.control_state}`
-          );
-          $(`#${robot.name}-detail-motor-state`).html(
-            `Motor State: ${robot.motor_state}`
-          );
-          $(`#${robot.name}-detail-autonomy-allowed`).html(
-            `Autonomy Allowed: ${autonomy_allowed}`
-          );
-          $(`#${robot.name}-detail-autonomy-active`).html(
-            `Autonomy Active: ${robot.activate_autonomy}`
-          );
-          $(`#${robot.name}-detail-access-point`).html(
-            `Access Point: ${robot.access_point_name}`
-          );
-          $(`#${robot.name}-detail-wifi-signal`).html(
-            `Wifi Signal: ${robot.wifi_signal}`
-          );
-
-          // console.log(robot.activate_autonomy);
-
-          if (robot.autonomy_hold) {
-            $(`#${robot.name}-activate-button`).removeClass("btn-success");
-            $(`#${robot.name}-activate-button`).addClass("btn-secondary");
-            $(`#${robot.name}-activate-button`).addClass("disabled");
-            // $(`#${robot.name}-activate-button`).html("Disabled")
-
-            //  console.log("autonomy false");
-          } else {
-            //  console.log("autonomy true");
-            // $(`#${robot.name}-activate-button`).html("Activate Autonomy")
-            $(`#${robot.name}-activate-button`).removeClass("btn-secondary");
-            $(`#${robot.name}-activate-button`).addClass("btn-success");
-            $(`#${robot.name}-activate-button`).removeClass("disabled");
-          }
-
-          if (robot.activate_autonomy) {
-            $(`#${robot.name}-activate-button`).removeClass("btn-success");
-            $(`#${robot.name}-activate-button`).addClass("btn-danger");
-            $(`#${robot.name}-activate-button`).html("Deactivate Autonomy");
-          } else {
-            $(`#${robot.name}-activate-button`).addClass("btn-success");
-            $(`#${robot.name}-activate-button`).removeClass("btn-danger");
-            $(`#${robot.name}-activate-button`).html("Activate Autonomy");
-          }
-        } else {
-          $("#robot_detail").append(row);
-          $("[id*=-load-button]").on("click", function (event) {
-            console.log("You clicked the load button ", event.target.innerText);
-            updateVehiclePath(store.displayed_path_name, `${robot.name}`);
-          });
-
-          $(`[id^=${robot.name}-vel-]`).on("click", function (event) {
-            $(`[id^=${robot.name}-vel-]`).each(function () {
-              $(this).removeClass("btn-success");
-              $(this).addClass("btn-secondary");
-            });
-
-            let active = $(
-              `[id^=${robot.name}-active-][class*=btn-success]`
-            ).text();
-
-            $(event.target).removeClass("btn-secondary");
-            $(event.target).addClass("btn-success");
-
-            console.log(active + " " + event.target.innerText);
-            active = active === "Activate";
-
-            let speed = event.target.innerText;
-
-            updateVehicleAutonomy(`${robot.name}`, speed, active);
-          });
-
-          $(`[id^=${robot.name}-activate-button]`).on(
-            "click",
-            function (event) {
-              if ($(event.target).hasClass("disabled")) {
-                console.log("clicked button but autonomy not allowed");
-                return;
-              }
-              console.log("clicked button and autonomy is allowed");
-
-              // $( `[id^=${robot.name}-active-]`).each(function() {
-              //   $( this ).removeClass('btn-success')
-              //   $( this ).addClass('btn-secondary')
-              // });
-
-              // $(event.target).removeClass('btn-secondary')
-              // $(event.target).addClass('btn-success')
-
-              let speed = $(
-                `[id^=${robot.name}-vel-][class*=btn-success]`
-              ).text();
-
-              console.log(event.target.innerText + " " + speed);
-              let active = event.target.innerText === "Activate Autonomy";
-
-              if (active) {
-                $(event.target).removeClass("btn-success");
-                $(event.target).addClass("btn-danger");
-                $(event.target).html("Deactivate Autonomy");
-              } else {
-                $(event.target).addClass("btn-success");
-                $(event.target).removeClass("btn-danger");
-                $(event.target).html("Activate Autonomy");
-              }
-
-              updateVehicleAutonomy(`${robot.name}`, speed, active);
-            }
-          );
-
-          $(`[id^=${robot.name}-clear-hold]`).on("click", function (event) {
-            //  $(`#${robot.name}-activate-button`).html("Deactivate Autonomy")
-
-            modifyAutonomyHold(`${robot.name}`, true);
-          });
-
-          $(`[id^=${robot.name}-gps-]`).on("click", function (event) {
-            console.log(event.target.innerText);
-            updateGpsRecordCommand(`${robot.name}`, event.target.innerText);
-          });
-        }
-
         var arrow_icon = L.icon({
           iconUrl: "/static/images/arrow.png",
           iconSize: [20, 70],
@@ -439,50 +210,51 @@ function getRobotData() {
           iconAnchor: [15, 20],
         });
 
-        //console.log("Turn intent degrees: ", data[i].turn_intent_degrees)
+        //console.log("Turn intent degrees: ", robot.turn_intent_degrees)
         //check store.robotMarkerStore array if we have marker already
-        if (store.robotMarkerStore.hasOwnProperty(data[i].id)) {
+        if (store.robotMarkerStore.hasOwnProperty(robot.id)) {
           //if we do, set new position attribute to existing marker
-          store.robotMarkerStore[data[i].id].setIcon(robot_icon);
-          store.robotMarkerStore[data[i].id].setLatLng(
-            new L.latLng(data[i].lat, data[i].lon)
+          store.robotMarkerStore[robot.id].setIcon(robot_icon);
+          store.robotMarkerStore[robot.id].setLatLng(
+            new L.latLng(robot.lat, robot.lon)
           );
-          store.robotMarkerStore[data[i].id].setRotationAngle(data[i].heading);
+          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
           //console.log(goat_path);
         } else {
           //if we don't, create new marker and set attributes
-          var marker = L.marker([data[i].lat, data[i].lon], {
+          var marker = L.marker([robot.lat, robot.lon], {
             icon: robot_icon,
           });
           //add new marker to store.robotMarkerStore array
-          store.robotMarkerStore[data[i].id] = marker;
-          store.robotMarkerStore[data[i].id].setRotationAngle(data[i].heading);
-          store.robotMarkerStore[data[i].id].addTo(map);
+          store.robotMarkerStore[robot.id] = marker;
+          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
+          store.robotMarkerStore[robot.id].addTo(map);
         }
         //check store.robotMarkerStore array if we have marker already
-        if (store.arrowMarkerStore.hasOwnProperty(data[i].id)) {
+        if (store.arrowMarkerStore.hasOwnProperty(robot.id)) {
           //if we do, set new position attribute to existing marker
-          store.arrowMarkerStore[data[i].id].setIcon(arrow_icon);
-          store.arrowMarkerStore[data[i].id].setLatLng(
-            new L.latLng(data[i].lat, data[i].lon)
+          store.arrowMarkerStore[robot.id].setIcon(arrow_icon);
+          store.arrowMarkerStore[robot.id].setLatLng(
+            new L.latLng(robot.lat, robot.lon)
           );
-          store.arrowMarkerStore[data[i].id].setRotationAngle(
-            data[i].turn_intent_degrees + data[i].heading
+          store.arrowMarkerStore[robot.id].setRotationAngle(
+            robot.turn_intent_degrees + robot.heading
           );
           //console.log(goat_path);
         } else {
           //if we don't, create new marker and set attributes
-          var arrow_marker = L.marker([data[i].lat, data[i].lon], {
+          var arrow_marker = L.marker([robot.lat, robot.lon], {
             icon: arrow_icon,
           });
           //add new marker to store.robotMarkerStore array
-          store.arrowMarkerStore[data[i].id] = arrow_marker;
-          store.arrowMarkerStore[data[i].id].setRotationAngle(
-            data[i].turn_intent_degrees + data[i].heading
+          store.arrowMarkerStore[robot.id] = arrow_marker;
+          store.arrowMarkerStore[robot.id].setRotationAngle(
+            robot.turn_intent_degrees + robot.heading
           );
-          store.arrowMarkerStore[data[i].id].addTo(map);
+          store.arrowMarkerStore[robot.id].addTo(map);
         }
       }
+      store.robots = herd;
     })
     //catch any errors
     .catch(function (error) {

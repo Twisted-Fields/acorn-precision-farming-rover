@@ -110,6 +110,12 @@ $("#remove-plus").on("click", function () {
 
 $("#modify-displayed-path").on("click", modifyDisplayedPath);
 
+var card = new Vue({
+  el: "#robots-view",
+  data: store,
+  delimiters: ["${", "}"], // the default, "{{-}}", conflicts with Jinjia2
+});
+
 function setup_map_with_opendronemap(access_token_data) {
   var token = access_token_data["token"];
   var open_drone_map_layer = L.tileLayer(

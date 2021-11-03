@@ -6,7 +6,7 @@
 
 var store = {
   debug: true,
-  robotData: {},
+  robots: [],
   robotMarkerStore: {},
   arrowMarkerStore: {},
   savedPathMarkers: {},

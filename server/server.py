@@ -93,7 +93,7 @@ def robots_to_json(keys):
         robot = pickle.loads(redis_client.get(key))
         if robot is None:
             print("Database returned None for key {}".format(key))
-        time_stamp = json.dumps(robot.time_stamp, default=date_handler)
+        time_stamp = date_handler(robot.time_stamp)
         live_path_data = [point._asdict() for point in robot.live_path_data]
         gps_path_data = [point._asdict() for point in robot.gps_path_data]
         try:
@@ -236,7 +236,7 @@ def show_path(pathname=None):
                 for point in row.points:
                     new_path.append(point)
             path = new_path
-            
+
         return jsonify(path)
 
 @app.route('/api/get_path_names')
