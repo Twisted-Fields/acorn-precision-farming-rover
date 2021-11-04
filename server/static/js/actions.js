@@ -24,147 +24,9 @@ function getRobotData() {
         //   updateVehicleAutonomy(`${robot.name}`, speed, active);
         // }
         //console.log(robot.autonomy_hold)
-
-        var autonomy_allowed = robot.autonomy_hold ? "False" : "True";
-        robot.autonomy_allowed = autonomy_allowed;
-
         //console.log(robot.strafeD)
 
-        var distances = {
-          y: robot.gps_distances,
-          type: "scatter",
-          mode: "lines",
-          name: "Distance error m",
-        };
-
-        var angles = {
-          y: robot.gps_angles,
-          type: "scatter",
-          mode: "lines",
-          name: "Angle error deg",
-        };
-
-        var distance_rates = {
-          y: robot.gps_distance_rates,
-          type: "scatter",
-          mode: "lines",
-          name: "Distance error rate",
-        };
-
-        var angle_rates = {
-          y: robot.gps_angle_rates,
-          type: "scatter",
-          mode: "lines",
-          name: "Angle error rate",
-        };
-
-        var strafeD = {
-          y: robot.strafeD,
-          type: "scatter",
-          mode: "lines",
-          name: "strafeD",
-        };
-
-        var steerD = {
-          y: robot.steerD,
-          type: "scatter",
-          mode: "lines",
-          name: "steerD",
-        };
-
-        var steerP = {
-          y: robot.steerP,
-          type: "scatter",
-          mode: "lines",
-          name: "steerP",
-        };
-
-        var strafeP = {
-          y: robot.strafeP,
-          type: "scatter",
-          mode: "lines",
-          name: "strafeP",
-        };
-
-        for (let i = 0; i < robot.autonomy_steer_cmd.length; i++) {
-          robot.autonomy_steer_cmd[i] = robot.autonomy_steer_cmd[i] * 30;
-        }
-
-        var autonomy_steer_cmd = {
-          y: robot.autonomy_steer_cmd,
-          type: "scatter",
-          mode: "lines",
-          name: "autonomy_steer_cmd",
-        };
-
-        var autonomy_strafe_cmd = {
-          y: robot.autonomy_strafe_cmd,
-          type: "scatter",
-          mode: "lines",
-          name: "autonomy_strafe_cmd",
-        };
-
-        var layout_lateral = {
-          title: {
-            text: "Lateral Error",
-            font: {
-              family: "Courier New, monospace",
-              size: 24,
-            },
-            xref: "paper",
-            x: 0.05,
-          },
-        };
-
-        var layout_angle = {
-          title: {
-            text: "Angle Error",
-            font: {
-              family: "Courier New, monospace",
-              size: 24,
-            },
-            xref: "paper",
-            x: 0.05,
-          },
-        };
-
-        var layout_lateral_rates = {
-          title: {
-            text: "Lateral Error Rates",
-            font: {
-              family: "Courier New, monospace",
-              size: 24,
-            },
-            xref: "paper",
-            x: 0.05,
-          },
-        };
-
-        var layout_angle_rates = {
-          title: {
-            text: "Angular Error Rates",
-            font: {
-              family: "Courier New, monospace",
-              size: 24,
-            },
-            xref: "paper",
-            x: 0.05,
-          },
-        };
-
-        Plotly.newPlot(
-          "plot_div_distance_rates",
-          [distances, distance_rates, strafeP, strafeD, autonomy_strafe_cmd],
-          layout_lateral_rates
-        );
-        Plotly.newPlot(
-          "plot_div_angle_rates",
-          [angles, angle_rates, steerP, steerD, autonomy_steer_cmd],
-          layout_angle_rates
-        );
-
-        Plotly.newPlot("plot_div_distance", [distances], layout_lateral);
-        Plotly.newPlot("plot_div_angles", [angles], layout_angle);
+        plot(robot);
 
         // Set store.simulation value.
         store.simulation = robot.simulated_data;
@@ -266,6 +128,144 @@ function getRobotData() {
   } else {
     window.setTimeout(getRobotData, INTERVAL);
   }
+}
+
+function plot(robot) {
+  var distances = {
+    y: robot.gps_distances,
+    type: "scatter",
+    mode: "lines",
+    name: "Distance error m",
+  };
+
+  var angles = {
+    y: robot.gps_angles,
+    type: "scatter",
+    mode: "lines",
+    name: "Angle error deg",
+  };
+
+  var distance_rates = {
+    y: robot.gps_distance_rates,
+    type: "scatter",
+    mode: "lines",
+    name: "Distance error rate",
+  };
+
+  var angle_rates = {
+    y: robot.gps_angle_rates,
+    type: "scatter",
+    mode: "lines",
+    name: "Angle error rate",
+  };
+
+  var strafeD = {
+    y: robot.strafeD,
+    type: "scatter",
+    mode: "lines",
+    name: "strafeD",
+  };
+
+  var steerD = {
+    y: robot.steerD,
+    type: "scatter",
+    mode: "lines",
+    name: "steerD",
+  };
+
+  var steerP = {
+    y: robot.steerP,
+    type: "scatter",
+    mode: "lines",
+    name: "steerP",
+  };
+
+  var strafeP = {
+    y: robot.strafeP,
+    type: "scatter",
+    mode: "lines",
+    name: "strafeP",
+  };
+
+  for (let i = 0; i < robot.autonomy_steer_cmd.length; i++) {
+    robot.autonomy_steer_cmd[i] = robot.autonomy_steer_cmd[i] * 30;
+  }
+
+  var autonomy_steer_cmd = {
+    y: robot.autonomy_steer_cmd,
+    type: "scatter",
+    mode: "lines",
+    name: "autonomy_steer_cmd",
+  };
+
+  var autonomy_strafe_cmd = {
+    y: robot.autonomy_strafe_cmd,
+    type: "scatter",
+    mode: "lines",
+    name: "autonomy_strafe_cmd",
+  };
+
+  var layout_lateral = {
+    title: {
+      text: "Lateral Error",
+      font: {
+        family: "Courier New, monospace",
+        size: 24,
+      },
+      xref: "paper",
+      x: 0.05,
+    },
+  };
+
+  var layout_angle = {
+    title: {
+      text: "Angle Error",
+      font: {
+        family: "Courier New, monospace",
+        size: 24,
+      },
+      xref: "paper",
+      x: 0.05,
+    },
+  };
+
+  var layout_lateral_rates = {
+    title: {
+      text: "Lateral Error Rates",
+      font: {
+        family: "Courier New, monospace",
+        size: 24,
+      },
+      xref: "paper",
+      x: 0.05,
+    },
+  };
+
+  var layout_angle_rates = {
+    title: {
+      text: "Angular Error Rates",
+      font: {
+        family: "Courier New, monospace",
+        size: 24,
+      },
+      xref: "paper",
+      x: 0.05,
+    },
+  };
+
+  Plotly.newPlot(
+    "plot_div_distance_rates",
+    [distances, distance_rates, strafeP, strafeD, autonomy_strafe_cmd],
+    layout_lateral_rates
+  );
+  Plotly.newPlot(
+    "plot_div_angle_rates",
+    [angles, angle_rates, steerP, steerD, autonomy_steer_cmd],
+    layout_angle_rates
+  );
+
+  Plotly.newPlot("plot_div_distance", [distances], layout_lateral);
+  Plotly.newPlot("plot_div_angles", [angles], layout_angle);
 }
 
 function loadPath(pathname) {
