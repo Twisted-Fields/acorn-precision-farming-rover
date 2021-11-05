@@ -6,11 +6,14 @@
 
 var store = {
   debug: true,
+  map: null,
+  showPlots: false,
   robots: [],
   robotMarkerStore: {},
   arrowMarkerStore: {},
   savedPathMarkers: {},
   livePathMarkers: [],
+  pathNames: [],
   livePathName: "",
   gpsPathMarkers: [],
   gpsPathLength: 0,

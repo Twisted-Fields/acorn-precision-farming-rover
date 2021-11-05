@@ -8,10 +8,11 @@ function getRobotData() {
     .then(function (herd) {
       //loop through herd data from server
       for (const robot of herd) {
-        const date = new Date(robot.time_stamp);
+        const date = Date.parse(robot.time_stamp);
         const data_age_sec = (new Date() - date) / 1000.0;
         robot.data_age_sec = data_age_sec;
 
+        // clear autonomy once on page open?
         if (store.have_cleared_autonomy == false) {
           store.have_cleared_autonomy = true;
           modifyAutonomyHold(`${robot.name}`, false);
@@ -26,7 +27,7 @@ function getRobotData() {
         //console.log(robot.autonomy_hold)
         //console.log(robot.strafeD)
 
-        plot(robot);
+        plotStats(robot);
 
         // Set store.simulation value.
         store.simulation = robot.simulated_data;
@@ -90,7 +91,7 @@ function getRobotData() {
           //add new marker to store.robotMarkerStore array
           store.robotMarkerStore[robot.id] = marker;
           store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
-          store.robotMarkerStore[robot.id].addTo(map);
+          store.robotMarkerStore[robot.id].addTo(store.map);
         }
         //check store.robotMarkerStore array if we have marker already
         if (store.arrowMarkerStore.hasOwnProperty(robot.id)) {
@@ -113,7 +114,7 @@ function getRobotData() {
           store.arrowMarkerStore[robot.id].setRotationAngle(
             robot.turn_intent_degrees + robot.heading
           );
-          store.arrowMarkerStore[robot.id].addTo(map);
+          store.arrowMarkerStore[robot.id].addTo(store.map);
         }
       }
       store.robots = herd;
@@ -130,7 +131,9 @@ function getRobotData() {
   }
 }
 
-function plot(robot) {
+// plotStats plots robot stats on several graphs. The graphs can only be shown
+// by clicking "Expand Plots".
+function plotStats(robot) {
   var distances = {
     y: robot.gps_distances,
     type: "scatter",
@@ -350,8 +353,7 @@ function savePolygonToServer(polygonName, polygonData) {
     });
 }
 
-function deletePath() {
-  let pathname = $("#path-name").val();
+function deletePath(pathname) {
   //push path to server with the specified name
   api("delete_path/" + pathname)
     .then(function (reply) {
@@ -366,7 +368,7 @@ function deletePath() {
 
 function updateVehiclePath(pathname, vehicle_name) {
   //push path to server with the specified name
-  api("/set_vehicle_path/" + pathname + "/" + vehicle_name)
+  api("set_vehicle_path/" + pathname + "/" + vehicle_name)
     .then(function (reply) {
       //check data from server in console
       console.log(reply);
@@ -446,7 +448,7 @@ function renderPath(pathData) {
       interactive: false,
     });
 
-    marker.addTo(map);
+    marker.addTo(store.map);
     store.savedPathMarkers.push(marker);
   }
 }
@@ -475,7 +477,7 @@ function renderPathDebug(pathData) {
       weight: 1,
       interactive: false,
     });
-    marker.addTo(map);
+    marker.addTo(store.map);
     store.debugPointMarkers.push(marker);
   }
 }
@@ -512,7 +514,7 @@ function renderPathLive(pathData) {
       fillOpacity: 1.0,
     });
 
-    marker.addTo(map);
+    marker.addTo(store.map);
     store.livePathMarkers.push(marker);
   }
 }
@@ -549,7 +551,7 @@ function renderPathGPS(pathData) {
         fillColor: "#FFA500 ",
         fillOpacity: 1.0,
       });
-      marker.addTo(map);
+      marker.addTo(store.map);
       store.gpsPathMarkers.push(marker);
     } catch (error) {
       console.error(error);
@@ -590,24 +592,7 @@ function loadPathList() {
   api("get_path_names")
     .then((resp) => resp.json())
     .then(function (pathnames) {
-      //check data from server in console
-      console.log(pathnames);
-
-      var $dropdown = $("#dropdown-menu");
-      $dropdown.empty();
-
-      for (var i = 0; i < pathnames.length; i++) {
-        $dropdown.append(
-          "<a class='dropdown-item' href='#'>" + pathnames[i] + "</a>"
-        );
-      }
-      //Register handler for all items
-      $(".dropdown-item").on("click", function () {
-        //console.log("You clicked the drop downs ", event.target.innerText)
-        loadPath(event.target.innerText);
-        $("#dropdownMenuButton").html(event.target.innerText);
-        $("#path-name").val(event.target.innerText);
-      });
+      store.pathNames = pathnames
     })
     //catch any errors
     .catch(function (error) {

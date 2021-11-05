@@ -22,318 +22,65 @@
   </head>
 
   <body>
-    <br />
-    <div class="container-fluid">
-      <div class="row">
-        <div id="robot_detail_mobile" class="col-lg"></div>
-      </div>
-    </div>
-
-    <div id="full_map_view" class="container-fluid">
-      <div class="row">
-        <div class="col-sm">
-          <h1>Acorn control</h1>
-        </div>
-
-        <div class="col-sm">
-          <div class="input-group" id="dropdown-container">
-            <button
-              type="button"
-              class="btn btn-info mr-1"
-              id="btn-collapse1"
-              data-toggle="collapse"
-              data-target="#collapseExample"
-            >
-              Collapse Plots
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary mr-1"
-              id="btn-load-dense-points"
-            >
-              Load Dense Points
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary mr-1"
-              id="btn-start-polygon"
-            >
-              Start Polygon
-            </button>
-            <button
-              type="button"
-              class="btn btn-danger mr-1"
-              id="btn-delete"
-              data-toggle="modal"
-              data-target="#deleteModal"
-            >
-              Delete Path
-            </button>
-            <button
-              class="btn btn-secondary dropdown-toggle mr-1"
-              type="button"
-              id="dropdownMenuButton"
-              data-toggle="dropdown"
-              aria-haspopup="true"
-              aria-expanded="false"
-            >
-              Select a path
-            </button>
-            <div
-              class="dropdown-menu"
-              aria-labelledby="dropdownMenuButton"
-              id="dropdown-menu"
-            ></div>
-            <button type="button" class="btn btn-primary mr-1" id="save-as">
-              Save as
-            </button>
-            <input
-              type="text"
-              class="form-control mr-1"
-              placeholder="Path name"
-              id="path-name"
-              aria-label="Path name"
-              aria-describedby="basic-addon2"
-              autocomplete="off"
-            />
-            <button type="button" class="btn btn-primary mr-1" id="save-gps-as">
-              Save GPS path as
-            </button>
+    <div id="app">
+      <br />
+      <div class="container-fluid">
+        {% include "control-panel.html" %}
+        <plots
+          v-bind:show-plots="showPlots"
+          :class="{collapse: !showPlots}"
+          inline-template
+        >
+          <div>
+            <div class="col-lg">
+              <div
+                id="plot_div_distance"
+                style="width: 100%; height: 300px"
+              ></div>
+              <div
+                id="plot_div_angles"
+                style="width: 100%; height: 300px"
+              ></div>
+            </div>
+            <div class="col-lg">
+              <div
+                id="plot_div_distance_rates"
+                style="width: 100%; height: 500px"
+              ></div>
+              <div
+                id="plot_div_angle_rates"
+                style="width: 100%; height: 300px"
+              ></div>
+            </div>
           </div>
-          <!--input-group-->
-        </div>
+        </plots>
 
-        <div class="col-sm">
-          <div class="btn-group" role="group" aria-label="Start">
-            <button type="button" class="btn btn-info" id="start-minus">
-              &lt;
-            </button>
-            <button type="button" class="btn btn-secondary" disabled>
-              Start
-            </button>
-            <button type="button" class="btn btn-info" id="start-plus">
-              &gt;
-            </button>
+        <div class="row">
+          <div class="col-lg">
+            <div id="map_canvas"></div>
           </div>
-          <div class="btn-group" role="group" aria-label="End">
-            <button type="button" class="btn btn-info" id="end-minus">
-              &lt;
-            </button>
-            <button type="button" class="btn btn-secondary" disabled>
-              End
-            </button>
-            <button type="button" class="btn btn-info" id="end-plus">
-              &gt;
-            </button>
-          </div>
-          <div class="btn-group" role="group" aria-label="Remove">
-            <button type="button" class="btn btn-info" id="remove-minus">
-              &lt;
-            </button>
-            <button type="button" class="btn btn-secondary" disabled>
-              Remove
-            </button>
-            <button type="button" class="btn btn-info" id="remove-plus">
-              &gt;
-            </button>
-          </div>
-          <button
-            type="button"
-            class="btn btn-danger"
-            id="modify-displayed-path"
-          >
-            Modify Displayed Path
-          </button>
-        </div>
-      </div>
-
-      <div class="collapse" id="collapseExample">
-        <div class="col-lg">
-          <div id="plot_div_distance" style="width: 100%; height: 300px"></div>
-          <div id="plot_div_angles" style="width: 100%; height: 300px"></div>
-        </div>
-        <div class="col-lg">
-          <div
-            id="plot_div_distance_rates"
-            style="width: 100%; height: 500px"
-          ></div>
-          <div
-            id="plot_div_angle_rates"
-            style="width: 100%; height: 300px"
-          ></div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-lg">
-          <div id="map_canvas" style="width: 100%; height: 1500px"></div>
-        </div>
-        <div id="robot_detail_desktop" class="col-lg-2">
-          <div id="robots-view">
-            <div class="card" style="width: 18rem">
-              <robot-cardview
-                v-for="robot in robots"
-                v-bind:key="robot.name"
-                v-bind:robot="robot"
-                inline-template
-              >
-                <div id="robot-view">
-                  <div class="card-header">${robot.name}</div>
-                  <ul class="list-group list-group-flush" id="detail-view">
-                    <li class="list-group-item" id="detail-data-age">
-                      Data Age: ${robot.data_age_sec.toFixed(1)} sec
-                    </li>
-                    <li class="list-group-item" id="detail-voltage">
-                      Voltage: ${robot.voltage.toFixed(2)}
-                    </li>
-                    <li class="list-group-item" id="detail-speed">
-                      Speed: ${robot.speed}
-                    </li>
-                    <li class="list-group-item" id="detail-control-state">
-                      Control State: ${robot.control_state}
-                    </li>
-                    <li class="list-group-item" id="detail-motor-state">
-                      Motor State: ${robot.motor_state}
-                    </li>
-                    <li class="list-group-item" id="detail-path-name">
-                      Loaded Path Name: ${robot.loaded_path_name}
-                    </li>
-                    <li class="list-group-item" id="detail-autonomy-allowed">
-                      Autonomy Allowed: ${!robot.autonomy_hold}
-                    </li>
-                    <li class="list-group-item" id="detail-autonomy-active">
-                      Autonomy Active: ${robot.activate_autonomy}
-                    </li>
-                    <li class="list-group-item" id="detail-access-point">
-                      Access Point: ${String(robot.access_point_name)}
-                    </li>
-                    <li class="list-group-item" id="detail-wifi-signal">
-                      Wifi Signal: ${String(robot.wifi_signal)} dBm
-                    </li>
-                    <li class="list-group-item">
-                      <button
-                        type="button"
-                        class="btn btn-primary mr-1"
-                        @click="loadPath"
-                      >
-                        Load Path
-                      </button>
-                    </li>
-                    <li class="list-group-item">
-                      <div
-                        class="btn-group"
-                        role="group"
-                        aria-label="Autonomy Velocity"
-                      >
-                        <button
-                          type="button"
-                          class="btn"
-                          v-for="vel in velRange"
-                          :class="{'btn-success': vel == velocity, 'btn-secondary': vel != velocity}"
-                          @click="setVelocity"
-                        >
-                          ${vel}
-                        </button>
-                      </div>
-                    </li>
-                    <li class="list-group-item">
-                      <button
-                        type="button"
-                        class="btn btn-lg btn-secondary mr-1"
-                        :class="{disabled: this.robot.autonomy_hold, 'btn-secondary': this.robot.autonomy_hold, 'btn-danger': this.robot.activate_autonomy, 'btn-success': !this.robot.activate_autonomy}"
-                        @click="toggleAutonomy"
-                      >
-                        ${robot.activate_autonomy ? "Deactivate" : "Activate"}
-                        Autonomy
-                      </button>
-                    </li>
-                    <li class="list-group-item">
-                      <button
-                        type="button"
-                        class="btn btn-primary mr-1"
-                        @click="clearAutonomyHold"
-                      >
-                        Clear Autonomy Hold
-                      </button>
-                    </li>
-                    <li class="list-group-item">
-                      <div
-                        class="btn-group"
-                        role="group"
-                        aria-label="GPS Recording"
-                      >
-                        <button
-                          type="button"
-                          class="btn btn-secondary"
-                          v-for="cmd in this.gpsCommands"
-                          @click="gpsAction"
-                        >
-                          ${cmd}
-                        </button>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-              </robot-cardview>
+          <div id="robot_detail" class="col-lg-2">
+            <div id="robots-view">
+              <div class="card" style="width: 18rem">
+                {% include "robot-cardview.html" %}
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <!--full_map_view-->
-
-    <hr />
-
-    <div class="modal" id="deleteModal" tabindex="-1" role="dialog">
-      <div class="modal-dialog modal-dialog-centered" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Confirm delete path</h5>
-            <button
-              type="button"
-              class="close"
-              data-dismiss="modal"
-              aria-label="Close"
-            >
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div class="modal-body">
-            <p>Are you sure you want to delete the selected path?</p>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="deletePath();"
-              data-dismiss="modal"
-            >
-              Permanently Delete
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              data-dismiss="modal"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!--deleteModal-->
+    <!--app-->
 
     <script src="{{ url_for('static', filename='js/lib/jquery-3.4.1.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/plotly-latest.min.js') }}"></script>
-    <!-- Make sure you put this AFTER Leaflet's CSS -->
     <script src="{{ url_for('static', filename='js/lib/leaflet.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/Leaflet.Editable.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/leaflet.rotatedMarker.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/vue.js') }}"></script>
     <script src="{{ url_for('static', filename='js/store.js') }}"></script>
     <script src="{{ url_for('static', filename='js/actions.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/robot.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/components.js') }}"></script>
     <script src="{{ url_for('static', filename='js/view.js') }}"></script>
   </body>
 </html>
