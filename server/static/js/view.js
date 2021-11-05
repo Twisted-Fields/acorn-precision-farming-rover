@@ -1,18 +1,3 @@
-$(document).ready(function () {
-  if (window.matchMedia("(max-width: 767px)").matches) {
-    // The viewport is less than 768 pixels wide
-
-    $("#robot_detail_mobile").prop("id", "robot_detail");
-    $("#robot_detail_desktop").hide();
-    $("#full_map_view").hide();
-  } else {
-    // The viewport is at least 768 pixels wide
-
-    $("#robot_detail_desktop").prop("id", "robot_detail");
-    $("#robot_detail_mobile").hide();
-  }
-});
-
 // http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles.json
 //
 // http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{Z}/{X}/{Y}.png

@@ -40,7 +40,7 @@
           class="btn btn-secondary dropdown-toggle mr-1"
           type="button"
           id="dropdownMenuButton"
-          data-toggle="dropdown"
+          data-bs-toggle="dropdown"
           aria-haspopup="true"
           aria-expanded="false"
           @click="loadPathList"
@@ -74,8 +74,8 @@
           type="button"
           class="btn btn-danger mr-1"
           id="btn-delete"
-          data-toggle="modal"
-          data-target="#deleteModal"
+          data-bs-toggle="modal"
+          data-bs-target="#deleteModal"
         >
           Delete Path
         </button>
@@ -124,7 +124,7 @@
             <button
               type="button"
               class="close"
-              data-dismiss="modal"
+              data-bs-dismiss="modal"
               aria-label="Close"
             >
               <span aria-hidden="true">&times;</span>
@@ -138,14 +138,14 @@
               type="button"
               class="btn btn-primary"
               @click="deletePath"
-              data-dismiss="modal"
+              data-bs-dismiss="modal"
             >
               Permanently Delete
             </button>
             <button
               type="button"
               class="btn btn-secondary"
-              data-dismiss="modal"
+              data-bs-dismiss="modal"
             >
               Cancel
             </button>
