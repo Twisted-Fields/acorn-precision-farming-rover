@@ -8,6 +8,7 @@ import sys
 F_SETPIPE_SZ = 1031  # Linux 2.6.35+
 F_GETPIPE_SZ = 1032  # Linux 2.6.35+
 
+
 def open_fifo():
     fifo_fd, w = os.pipe()
     try:
@@ -19,5 +20,6 @@ def open_fifo():
         return fifo_fd
     except Exception as e:
         print("Unable to create fifo, error: "+str(e))
+
 
 fifo_fd = open_fifo()

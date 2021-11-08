@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+from remote_control_process import EnergySegment
 import redis
 import time
 import pickle
@@ -32,7 +33,6 @@ import sys
 
 from scipy.interpolate import splprep, splev
 sys.path.append('../vehicle')
-from remote_control_process import EnergySegment
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -60,7 +60,7 @@ r = redis.Redis(
 
 
 for key in r.scan_iter():
-    #print(key)
+    # print(key)
     if 'energy_segment' in str(key):
         orig_x = []
         orig_y1 = []
@@ -79,11 +79,10 @@ for key in r.scan_iter():
         watt_seconds = False
         now = time.time()
         today = time.localtime(now)
-        power_vals = [[],[],[],[]]
+        power_vals = [[], [], [], []]
 
         day_index = 0
         total_daily_meters = [0]
-
 
         # report distance
 
@@ -108,11 +107,6 @@ for key in r.scan_iter():
         for key in results.keys():
             print(key)
         # for key, value in zip(results.keys(), results.items())
-
-
-
-
-
 
         #
         #
@@ -188,7 +182,6 @@ for key in r.scan_iter():
         # plt.show()
         #
 
-
        # #     newkey = str(key).replace('-key\'',':key')
        # #     newkey = newkey.replace('b\'','')
        # # #     print(newkey)
@@ -234,10 +227,6 @@ for key in r.scan_iter():
        #
        #
 
-
-
-
-
         # plt.plot(orig_x, orig_y, 'ro')
     #    plt.plot(lat_smooth, lon_smooth, 'bo')
     #    plt.plot(point_of_interest['lat'],point_of_interest['lon'], 'go', markersize=20)
@@ -278,13 +267,6 @@ for key in r.scan_iter():
          #   x_new, y_new = splev(u_new, tck, der=0)
          #   #print(x_new)
 
-
-
-
-
-
-
-
            # print(point_data)
            # plt.plot(x, y, 'ro', ms=5)
            # cs = CubicSpline(x, y)
@@ -296,8 +278,7 @@ for key in r.scan_iter():
            # plt.plot(xs, spl(xs), 'g', lw=3)
           # except:
             #   print('exception unpickling key {}'.format(key))
-               #r.delete(key)
-
+            # r.delete(key)
 
 
 # while True:

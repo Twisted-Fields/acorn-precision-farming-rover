@@ -6,15 +6,15 @@ HEIGHT = 2000
 FPS = 30
 
 # define colors
-BLACK = (0 , 0 , 0)
-GREEN = (0 , 255 , 0)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
 
 _RW = 300
 _RH = 500
 
 # initialize pygame and create screen
 py.init()
-screen = py.display.set_mode((WIDTH , HEIGHT))
+screen = py.display.set_mode((WIDTH, HEIGHT))
 # for setting FPS
 clock = py.time.Clock()
 
@@ -22,7 +22,7 @@ rot = 0
 rot_speed = 1
 
 # define a surface (RECTANGLE)
-image_orig = py.Surface((50 , 200))
+image_orig = py.Surface((50, 200))
 # for making transparent background while rotating an image
 image_orig.set_colorkey(BLACK)
 # fill the rectangle / surface with green color
@@ -58,12 +58,12 @@ while running:
         # defining angle of the rotation
         rot = (rot + rot_speed) % 360
         # rotating the orignal image
-        new_image = py.transform.rotate(image_orig , rot)
+        new_image = py.transform.rotate(image_orig, rot)
         rect = new_image.get_rect()
         # set the rotated rectangle to the old center
         rect.center = old_center
         # drawing the rotated rectangle to the screen
-        screen.blit(new_image , rect)
+        screen.blit(new_image, rect)
     # flipping the display after drawing everything
     py.display.flip()
 

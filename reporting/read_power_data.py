@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+from remote_control_process import EnergySegment
 import redis
 import time
 import pickle
@@ -32,7 +33,6 @@ import sys
 
 from scipy.interpolate import splprep, splev
 sys.path.append('../vehicle')
-from remote_control_process import EnergySegment
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -56,7 +56,7 @@ r = redis.Redis(
 
 
 for key in r.scan_iter():
-    #print(key)
+    # print(key)
     if 'energy_segment' in str(key):
         orig_x = []
         orig_y = []
@@ -97,19 +97,19 @@ for key in r.scan_iter():
                     print(segment.per_motor_watt_average)
                 except:
                     continue
-                #orig_x.append(segment.meters_per_second)
+                # orig_x.append(segment.meters_per_second)
                 orig_x.append(segment.height_change)
                 orig_z.append(segment.meters_per_second)
                 if colorby == "age":
                     age = this_stamp - first_stamp
                     colors.append(age)
-                    #print(age)
+                    # print(age)
                     if age < min_colorval:
                         min_colorval = age
                     if age > max_colorval:
                         max_colorval = age
                 else:
-                #    print("asiokuhsdflikhj")
+                    #    print("asiokuhsdflikhj")
                     colors.append(segment.meters_per_second)
                     if segment.meters_per_second < min_colorval:
                         min_colorval = segment.meters_per_second
@@ -117,9 +117,9 @@ for key in r.scan_iter():
                         max_colorval = segment.meters_per_second
             #    print(segment.start_gps.lat, segment.start_gps.lon)
 
-
-        print("min_colorval {}, max_colorval {}".format(min_colorval, max_colorval))
-        cNorm  = mp_colors.Normalize(vmin=min_colorval, vmax=max_colorval)
+        print("min_colorval {}, max_colorval {}".format(
+            min_colorval, max_colorval))
+        cNorm = mp_colors.Normalize(vmin=min_colorval, vmax=max_colorval)
         scalarMap = cm.ScalarMappable(norm=cNorm, cmap=cm.jet)
 
         for idx in range(len(colors)):
@@ -137,10 +137,8 @@ for key in r.scan_iter():
         ax.set_xlabel('height change (m)')
 
         #ax.scatter(orig_x, orig_y, orig_z, c = colors)
-        ax.scatter(orig_x, orig_y, c = colors)
+        ax.scatter(orig_x, orig_y, c=colors)
         plt.show()
-
-
 
        # #     newkey = str(key).replace('-key\'',':key')
        # #     newkey = newkey.replace('b\'','')
@@ -187,10 +185,6 @@ for key in r.scan_iter():
        #
        #
 
-
-
-
-
         # plt.plot(orig_x, orig_y, 'ro')
     #    plt.plot(lat_smooth, lon_smooth, 'bo')
     #    plt.plot(point_of_interest['lat'],point_of_interest['lon'], 'go', markersize=20)
@@ -198,59 +192,51 @@ for key in r.scan_iter():
     #    plt.plot(coord2.lat, coord2.lon, 'yo', markersize=20)
         # plt.title(str(key))
         # plt.show()
-         #   print(value)
-         #   point_data = []
-         #   lats = []
-         #   lons = []
-         #   utm_x = []
-         #   utm_y = []
-         # #  try:
-         #
-         #
-         #   for line in value:
-         #       lats.append(line['lat'])
-         #       lons.append(line['lon'])
-         #       point_data.append((line['lat'], line['lon']))
-         #       utm_coord = utm.from_latlon(line['lat'], line['lon'])
-         #       utm_x.append(utm_coord[0])
-         #       utm_x.append(utm_coord[1])
-         #   x, y = np.array(lats), np.array(lons)
-         #   #simple_coords = rdp(point_data, epsilon=1e-4)
-         #   #print("{} points reduced to {}!".format(coords.shape[0], simple_coords.shape[0]))
-         #   #plt.plot(simple_coords[:, 0], simple_coords[:, 1], 'ro')
-         #   #plt.show()
-         #
-         #   smooth_factor = 1
-         #
-         #
-         #
-         #   dat = np.array([(x,y) for x,y in zip(lats, lons)])
-         #    #dat = np.array([(x,y) for x,y in zip(coords.lon[::18], coords.lat[::18])])
-         #   tck, u = splprep(dat.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10)
-         #   u_new = np.linspace(u.min(), u.max(), 200)
-         #   x_new, y_new = splev(u_new, tck, der=0)
-         #   #print(x_new)
+        #   print(value)
+        #   point_data = []
+        #   lats = []
+        #   lons = []
+        #   utm_x = []
+        #   utm_y = []
+        # #  try:
+        #
+        #
+        #   for line in value:
+        #       lats.append(line['lat'])
+        #       lons.append(line['lon'])
+        #       point_data.append((line['lat'], line['lon']))
+        #       utm_coord = utm.from_latlon(line['lat'], line['lon'])
+        #       utm_x.append(utm_coord[0])
+        #       utm_x.append(utm_coord[1])
+        #   x, y = np.array(lats), np.array(lons)
+        #   #simple_coords = rdp(point_data, epsilon=1e-4)
+        #   #print("{} points reduced to {}!".format(coords.shape[0], simple_coords.shape[0]))
+        #   #plt.plot(simple_coords[:, 0], simple_coords[:, 1], 'ro')
+        #   #plt.show()
+        #
+        #   smooth_factor = 1
+        #
+        #
+        #
+        #   dat = np.array([(x,y) for x,y in zip(lats, lons)])
+        #    #dat = np.array([(x,y) for x,y in zip(coords.lon[::18], coords.lat[::18])])
+        #   tck, u = splprep(dat.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10)
+        #   u_new = np.linspace(u.min(), u.max(), 200)
+        #   x_new, y_new = splev(u_new, tck, der=0)
+        #   #print(x_new)
 
-
-
-
-
-
-
-
-           # print(point_data)
-           # plt.plot(x, y, 'ro', ms=5)
-           # cs = CubicSpline(x, y)
-           # xs = 2 * np.pi * np.linspace(0, 1, 100)
-           # ax.plot(xs, cs(xs), label="S")
-           # plt.show()
-           # spl = UnivariateSpline(x, y)
-           # xs = np.linspace(-3, 3, 1000)
-           # plt.plot(xs, spl(xs), 'g', lw=3)
-          # except:
-            #   print('exception unpickling key {}'.format(key))
-               #r.delete(key)
-
+        # print(point_data)
+        # plt.plot(x, y, 'ro', ms=5)
+        # cs = CubicSpline(x, y)
+        # xs = 2 * np.pi * np.linspace(0, 1, 100)
+        # ax.plot(xs, cs(xs), label="S")
+        # plt.show()
+        # spl = UnivariateSpline(x, y)
+        # xs = np.linspace(-3, 3, 1000)
+        # plt.plot(xs, spl(xs), 'g', lw=3)
+        # except:
+        #   print('exception unpickling key {}'.format(key))
+        # r.delete(key)
 
 
 # while True:

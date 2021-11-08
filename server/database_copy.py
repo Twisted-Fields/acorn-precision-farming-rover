@@ -50,6 +50,7 @@ def map_canvas_flask():
         'acorn_map.html'
     )
 
+
 @app.route('/api/get_herd_data')
 def send_herd_data():
     db = shelve.get_shelve('c')

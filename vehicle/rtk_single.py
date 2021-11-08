@@ -40,7 +40,8 @@ good_tone_time = 0
 save_file_okay = True
 
 while True:
-    latest_sample = rtk_process.single_loop(tcp_sock1, print_gps=(print_gps_counter % 10 == 0), last_sample=latest_sample)
+    latest_sample = rtk_process.single_loop(tcp_sock1, print_gps=(
+        print_gps_counter % 10 == 0), last_sample=latest_sample)
     print(latest_sample.status)
     if latest_sample.status == 'fix' and latest_sample.rtk_age < 20:
         print("Append")
@@ -69,7 +70,8 @@ while True:
             print("Device Stationary")
             if save_file_okay:
                 # save the file
-                location_string = "Lat Lon: {:.10f}, {:.10f}, Height M: {:.4f}, Fix: {}, Spread: {}, Stamp: {:.4f}".format(latest_sample.lat, latest_sample.lon, latest_sample.height_m, latest_sample.status, max_distance, latest_sample.time_stamp)
+                location_string = "Lat Lon: {:.10f}, {:.10f}, Height M: {:.4f}, Fix: {}, Spread: {}, Stamp: {:.4f}".format(
+                    latest_sample.lat, latest_sample.lon, latest_sample.height_m, latest_sample.status, max_distance, latest_sample.time_stamp)
                 print(location_string)
                 with open("/home/pi/gps_locations.txt", "a+") as gps_file:
                     gps_file.write(location_string + "\n")

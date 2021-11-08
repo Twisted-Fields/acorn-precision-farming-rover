@@ -32,7 +32,7 @@ from adafruit_mcp230xx.mcp23017 import MCP23017
 
 i2c = busio.I2C(board.SCL, board.SDA)
 
-mcp = MCP23017(i2c)#, address=0x20)  # MCP23017
+mcp = MCP23017(i2c)  # , address=0x20)  # MCP23017
 
 
 alarm1 = mcp.get_pin(0)
@@ -42,7 +42,6 @@ alarm3 = mcp.get_pin(2)
 alarm1.switch_to_output(value=False)
 alarm2.switch_to_output(value=False)
 alarm3.switch_to_output(value=False)
-
 
 
 while True:

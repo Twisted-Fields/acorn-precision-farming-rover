@@ -6,8 +6,6 @@ import zmq
 import pickle
 
 
-
-
 _PUBLISHER_PORT = 5556
 
 
@@ -19,13 +17,10 @@ publisher_socket.bind("tcp://*:{}".format(_PUBLISHER_PORT))
 print(dir(publisher_socket))
 
 
-
 class RobotSocket:
-    port=None
-    socket=None
-    connected=False
-
-
+    port = None
+    socket = None
+    connected = False
 
 
 worker_sockets = []
@@ -39,10 +34,6 @@ while True:
 
     ports = []
     for port, sock in worker_sockets:
-
-
-
-
 
     calc = None
     while command_socket.poll(timeout=0):

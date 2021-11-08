@@ -20,6 +20,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+import copy
+from remote_control_process import NavigationParameters, PathControlValues, PathSection, Direction
+from area import area
+import matplotlib.path as path
+import gps_tools
+import spline_lib
+from remote_control_process import EnergySegment
 import redis
 import time
 import pickle
@@ -42,10 +49,6 @@ import random
 
 from scipy.interpolate import splprep, splev
 sys.path.append('../vehicle')
-from remote_control_process import EnergySegment
-import spline_lib
-import gps_tools
-import matplotlib.path as path
 
 _SMOOTH_MULTIPLIER = 0.00000000001
 
@@ -74,7 +77,7 @@ idx = 0
 orig_x = []
 orig_y = []
 colors = []
-path_cuts = [(0,0), (23,0), (0,48)]
+path_cuts = [(0, 0), (23, 0), (0, 48)]
 final_path = []
 path1 = []
 path2 = []
@@ -84,23 +87,23 @@ paths = [path1, path2, path3]
 
 print("%%%%%%%%%%%%%%%%%%%%%%%%")
 
-from area import area
 _SQUARE_METERS_PER_ACRE = 4046.86
 
 poly_path = None
 row_list = {}
 for key in r.scan_iter():
-    #print(key)
+    # print(key)
     if 'gpspolygon' in str(key):
         print(key)
         polygon = pickle.loads(r.get(key))
         print(polygon["geometry"])
         polygon_area = area(polygon["geometry"])
-        print("Polygon is {} acres".format(polygon_area/_SQUARE_METERS_PER_ACRE))
+        print("Polygon is {} acres".format(
+            polygon_area/_SQUARE_METERS_PER_ACRE))
         print(polygon["geometry"]["coordinates"][0])
         polygon = polygon["geometry"]["coordinates"][0]
         poly_path = path.Path(polygon, closed=True)
-        #print(poly_path)
+        # print(poly_path)
     if "twistedfields:gpspath:autogen_1_row_" in str(key):
         row = pickle.loads(r.get(key))
         row_list[str(key)] = row
@@ -109,12 +112,13 @@ for key in r.scan_iter():
 rows_in_polygon = []
 
 for row_number in range(len(row_list)):
-    row_key = "b'twistedfields:gpspath:autogen_1_row_{}:key'".format(row_number+1)
+    row_key = "b'twistedfields:gpspath:autogen_1_row_{}:key'".format(
+        row_number+1)
     row = row_list[row_key]
-    #print(row)
+    # print(row)
     row_points_in_polygon = []
     for point in row:
-        if poly_path.contains_point((point["lon"], point["lat"]),radius=0.0):
+        if poly_path.contains_point((point["lon"], point["lat"]), radius=0.0):
             # print(point)
             row_points_in_polygon.append(point)
         elif len(row_points_in_polygon) > 0:
@@ -143,13 +147,13 @@ projection_distance_meters = 2.0
 
 print("$")
 
-from remote_control_process import NavigationParameters, PathControlValues, PathSection, Direction
-
 
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.BACKWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=True)
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.BACKWARD, loop_path=True)
-forward_navigation_parameters = NavigationParameters(travel_speed=0.4, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
-connector_navigation_parameters = NavigationParameters(travel_speed=0.2, path_following_direction=Direction.EITHER, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
+forward_navigation_parameters = NavigationParameters(
+    travel_speed=0.4, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
+connector_navigation_parameters = NavigationParameters(
+    travel_speed=0.2, path_following_direction=Direction.EITHER, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
 
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=True)
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.BACKWARD, vehicle_travel_direction=Direction.BACKWARD, loop_path=True)
@@ -161,28 +165,29 @@ _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 140
 # path_control_vals = PathControlValues(angular_p=0.9, lateral_p=-0.25, angular_d=0.3, lateral_d=-0.2)
 # turn_control_vals = PathControlValues(angular_p=0.9, lateral_p=-0.25, angular_d=0.3, lateral_d=-0.2)
 
-path_control_vals = PathControlValues(angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
-turn_control_vals = PathControlValues(angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
+path_control_vals = PathControlValues(
+    angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
+turn_control_vals = PathControlValues(
+    angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
 nav_path = PathSection(points=[],
-            control_values=path_control_vals,
-            navigation_parameters=forward_navigation_parameters,
-            max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS,
-            max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES,
-            end_dist=1.0,
-            end_angle=45)
+                       control_values=path_control_vals,
+                       navigation_parameters=forward_navigation_parameters,
+                       max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS,
+                       max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES,
+                       end_dist=1.0,
+                       end_angle=45)
 
 
 starting_direction = -1
 
-rows_in_polygon = gps_tools.chain_rows(rows_in_polygon, rows_in_polygon[0][0], starting_direction, "three_pt", forward_navigation_parameters, connector_navigation_parameters, turn_control_vals, nav_path, asdict=True)
+rows_in_polygon = gps_tools.chain_rows(rows_in_polygon, rows_in_polygon[0][0], starting_direction, "three_pt",
+                                       forward_navigation_parameters, connector_navigation_parameters, turn_control_vals, nav_path, asdict=True)
 
-import copy
 
 interpolate_list = []
 
 row = rows_in_polygon[-1].points
 start_points = row[-2], row[-1]
-
 
 
 heading = gps_tools.get_heading(start_points[0], start_points[1])
@@ -196,8 +201,8 @@ interpolate_list.append(latlon_point2._asdict())
 turn1_path = copy.deepcopy(nav_path)
 turn1_path.points = new_turn
 turn1_path.navigation_parameters = connector_navigation_parameters
-turn1_path.end_dist=1.0
-turn1_path.end_angle=20
+turn1_path.end_dist = 1.0
+turn1_path.end_angle = 20
 turn1_path.control_values = turn_control_vals
 
 rows_in_polygon.append(turn1_path)
@@ -208,16 +213,18 @@ start_points = row[1], row[0]
 
 heading = gps_tools.get_heading(start_points[0], start_points[1])
 row_aligned_away_pt = gps_tools.project_point(start_points[1], heading, 1.5)
-latlon_point1 = gps_tools.project_point(row_aligned_away_pt, heading + -90, 1.0)
-latlon_point2 = gps_tools.project_point(row_aligned_away_pt, heading + -90, 0.5)
+latlon_point1 = gps_tools.project_point(
+    row_aligned_away_pt, heading + -90, 1.0)
+latlon_point2 = gps_tools.project_point(
+    row_aligned_away_pt, heading + -90, 0.5)
 interpolate_list.append(latlon_point2._asdict())
 new_turn = [latlon_point1._asdict(), latlon_point2._asdict()]
 
 turn1_path = copy.deepcopy(nav_path)
 turn1_path.points = new_turn
 turn1_path.navigation_parameters = connector_navigation_parameters
-turn1_path.end_dist=1.0
-turn1_path.end_angle=20
+turn1_path.end_dist = 1.0
+turn1_path.end_angle = 20
 turn1_path.control_values = turn_control_vals
 
 # print(interpolate_list)
@@ -229,16 +236,14 @@ print(interpolated_path_points)
 interpolated_path = copy.deepcopy(nav_path)
 interpolated_path.points = interpolated_path_points
 interpolated_path.navigation_parameters = forward_navigation_parameters
-interpolated_path.end_dist=1.0
-interpolated_path.end_angle=20
+interpolated_path.end_dist = 1.0
+interpolated_path.end_angle = 20
 interpolated_path.control_values = path_control_vals
-
 
 
 rows_in_polygon.append(interpolated_path)
 
 rows_in_polygon.append(turn1_path)
-
 
 
 row = rows_in_polygon[0].points
@@ -247,8 +252,8 @@ start_points = row[0], row[1]
 turn1_path = copy.deepcopy(nav_path)
 turn1_path.points = start_points
 turn1_path.navigation_parameters = connector_navigation_parameters
-turn1_path.end_dist=1.0
-turn1_path.end_angle=20
+turn1_path.end_dist = 1.0
+turn1_path.end_angle = 20
 turn1_path.control_values = turn_control_vals
 
 rows_in_polygon.append(turn1_path)
@@ -266,7 +271,7 @@ min_y = 0
 first_y = 0
 
 mesh_array = []
-colors = [[1,0,0],[0,1,0],[0,0,1]]
+colors = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 count = 0
 lat_lon_tracks = []
 for track in rows_in_polygon:
@@ -279,27 +284,29 @@ for track in rows_in_polygon:
     # track = track[3:-4]
     for point in track.points:
         if len(track.points) == 2:
-            mesh_box = open3d.geometry.TriangleMesh.create_box(width=0.8, height=0.8, depth=0.8)
+            mesh_box = open3d.geometry.TriangleMesh.create_box(
+                width=0.8, height=0.8, depth=0.8)
         else:
-            mesh_box = open3d.geometry.TriangleMesh.create_box(width=0.7, height=0.7, depth=0.7)
+            mesh_box = open3d.geometry.TriangleMesh.create_box(
+                width=0.7, height=0.7, depth=0.7)
 
         mesh_box.compute_vertex_normals()
         mesh_box.paint_uniform_color(row_color)
-        translation = [point["lat"]* 100000 - 3735387, point["lon"] * 100000 + 12233156, 0]
+        translation = [point["lat"] * 100000 - 3735387,
+                       point["lon"] * 100000 + 12233156, 0]
         print(translation)
         #print("{} {}".format(point["lat"] + min_x + first_x, point["lon"] + min_y + first_y))
         #latlon_point = utm.to_latlon(point["lat"] + min_x + first_x, point["lon"] + min_y + first_y, ut_zone[0], ut_zone[1])
-        #print(latlon_point)
-        #track_lat_lon.append(latlon_point)
+        # print(latlon_point)
+        # track_lat_lon.append(latlon_point)
         mesh_box.translate(translation)
         mesh_array.append(mesh_box)
-    #lat_lon_tracks.append(track_lat_lon)
+    # lat_lon_tracks.append(track_lat_lon)
 
         pcd = open3d.geometry.PointCloud()
         # np_points = np.random.rand(100, 3)
 
         # print(np.array(point_cloud))
-
 
 
 # From numpy to Open3D

@@ -30,6 +30,7 @@ def steinhart_temperature_C(r, Ro=10000.0, To=25.0, beta=3900.0):
     steinhart = (1.0 / steinhart) - 273.15   # Invert, convert to C
     return steinhart
 
+
 # Find a connected ODrive (this will block until you connect one)
 print("finding an odrive...")
 odrv0 = odrive.find_any()
@@ -41,5 +42,6 @@ print("Bus voltage is " + str(odrv0.vbus_voltage) + "V")
 while(True):
     value = odrv0.get_adc_voltage(3)
     R = 10000 / (3.3/value)
-    print('Voltage: {}, Thermistor resistance: {} ohms, Temperature {}'.format(value, R, steinhart_temperature_C(R)))
+    print('Voltage: {}, Thermistor resistance: {} ohms, Temperature {}'.format(
+        value, R, steinhart_temperature_C(R)))
     time.sleep(0.2)

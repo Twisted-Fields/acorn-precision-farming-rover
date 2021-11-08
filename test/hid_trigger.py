@@ -8,7 +8,7 @@
 # Connect a webcam viewer such as "cheese" to view the camera, and then
 # run this program in a terminal. You will see the webcam stream slow to 10hz.
 
-import hid # pip3 install hidapi
+import hid  # pip3 install hidapi
 import time
 
 
@@ -98,20 +98,22 @@ time.sleep(0.5)
 data = device.read(BUFFER_LENGTH, timeout)
 print(data)
 
-if data[6]==GET_SUCCESS:
-    if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1]==GET_LED_CONTROL_FSCAM_CU135 and data[6]==GET_SUCCESS:
-        ledstatus=data[2]
-        powerctl=data[3]
-        stream=data[4]
-        trigger=data[5]
+if data[6] == GET_SUCCESS:
+    if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1] == GET_LED_CONTROL_FSCAM_CU135 and data[6] == GET_SUCCESS:
+        ledstatus = data[2]
+        powerctl = data[3]
+        stream = data[4]
+        trigger = data[5]
 
-print("ledstatus {}, powerctl {}, stream {}, trigger {}".format(ledstatus, powerctl, stream, trigger))
+print("ledstatus {}, powerctl {}, stream {}, trigger {}".format(
+    ledstatus, powerctl, stream, trigger))
 
 # Now set LED control to indicate when hardware trigger has activated.
 
 g_out_packet_buf = [0, 0, 0, 0, 0, 0]
-g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135 # /* set camera control code */
-g_out_packet_buf[1] = SET_LED_CONTROL_FSCAM_CU135 # /* set led control code */
+# /* set camera control code */
+g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135
+g_out_packet_buf[1] = SET_LED_CONTROL_FSCAM_CU135  # /* set led control code */
 g_out_packet_buf[2] = ENABLE_LED_CONTROL_FSCAM_CU135
 g_out_packet_buf[3] = DISABLE_STREAMING_CONTROL_FSCAM_CU135
 g_out_packet_buf[4] = ENABLE_TRIGGERACK_CONTROL_FSCAM_CU135
@@ -120,12 +122,13 @@ device.write(g_out_packet_buf)
 time.sleep(0.5)
 
 data = device.read(BUFFER_LENGTH, timeout)
-#print(data)
+# print(data)
 
 # Finally set trigger control.
 
 g_out_packet_buf = [0, 0, 0, 0]
-g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135  # /* set camera control code */
+# /* set camera control code */
+g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135
 g_out_packet_buf[2] = SET_STREAM_MODE_FSCAM_CU135  # /* set stream mode code */
 g_out_packet_buf[3] = STREAM_HARDWARE_TRIGGER  # /* actual stream mode */
 # g_out_packet_buf[3] = STREAM_MASTER_CONTINUOUS  # NOTE: Uncomment this to select auto trigger.
@@ -135,16 +138,17 @@ device.write(g_out_packet_buf)
 time.sleep(2)
 
 data = device.read(BUFFER_LENGTH, timeout)
-if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1]==SET_STREAM_MODE_FSCAM_CU135 and data[6]==SET_SUCCESS:
+if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1] == SET_STREAM_MODE_FSCAM_CU135 and data[6] == SET_SUCCESS:
     print("SUCCESS")
 else:
     print("FAILED")
 
 while True:
     # In hardware trigger mode we must continually request the next frame.
-    g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135 # // camera control id
-    g_out_packet_buf[2] = GRAB_PREVIEW_FRAME # // query frame
-    g_out_packet_buf[3] = QUERY_NEXT_FRAME # // query next frame - 0x01 , query prev frame - 0x02
+    g_out_packet_buf[1] = CAMERA_CONTROL_FSCAM_CU135  # // camera control id
+    g_out_packet_buf[2] = GRAB_PREVIEW_FRAME  # // query frame
+    # // query next frame - 0x01 , query prev frame - 0x02
+    g_out_packet_buf[3] = QUERY_NEXT_FRAME
     device.write(g_out_packet_buf)
     data = device.read(BUFFER_LENGTH, timeout)
     time.sleep(0.01)

@@ -118,6 +118,7 @@ class OdriveManager:
 
 
 if __name__ == '__main__':
-    od = OdriveManager(path='/dev/ttySC3', serial_number='336B31643536').find_odrive()
+    od = OdriveManager(path='/dev/ttySC3',
+                       serial_number='336B31643536').find_odrive()
     while True:
         print(od.vbus_voltage)

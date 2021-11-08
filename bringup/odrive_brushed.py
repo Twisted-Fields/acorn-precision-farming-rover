@@ -20,6 +20,7 @@ def idle_wait():
         time.sleep(0.1)
     print(dump_errors(odrv0))
 
+
 # Find a connected ODrive (this will block until you connect one)
 print("finding an odrive...")
 
@@ -35,13 +36,13 @@ odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
 
 # odrv0.axis0.motor.DC_calib_phB = 0.0
 # odrv0.axis0.motor.DC_calib_phC = 0.0
-print(dump_errors(odrv0,True))
+print(dump_errors(odrv0, True))
 odrv0.axis0.motor.config.current_control_bandwidth = 20
 odrv0.axis0.encoder.config.bandwidth = 100
 
-print(dump_errors(odrv0,True))
-odrv0.axis0.requested_state = 11 # AXIS_STATE_BRUSHED_CURRENT_CONTROL
-#odrv0.axis0.requested_state = 12 # AXIS_STATE_BRUSHED_CURRENT_CONTROL
+print(dump_errors(odrv0, True))
+odrv0.axis0.requested_state = 11  # AXIS_STATE_BRUSHED_CURRENT_CONTROL
+# odrv0.axis0.requested_state = 12 # AXIS_STATE_BRUSHED_CURRENT_CONTROL
 odrv0.axis0.motor.current_control.p_gain = 10.0
 odrv0.axis0.motor.current_control.i_gain = 0.1
 odrv0.axis0.motor.config.phase_resistance = 2.5
@@ -56,8 +57,7 @@ print("motor.config:")
 print(odrv0.axis0.motor.config)
 
 
-
-odrv0.axis0.motor.current_control.final_v_beta = 1.0 # Voltage Ramp Rate
+odrv0.axis0.motor.current_control.final_v_beta = 1.0  # Voltage Ramp Rate
 
 
 max_vel = 0
@@ -86,16 +86,16 @@ while odrv0.axis0.controller.current_setpoint < 3.0:
     time.sleep(0.01)
 
 
-
-
 try:
     while True:
-        print("current setpoint {:0.2f}, voltage: {:0.2f}, PH B: {:0.2f}, PH C: {:0.2f}, Iq_measured {:0.2f}, bus voltage {:0.2f}, vel estimate {:0.2f}, max_vel {:0.2f}.".format(odrv0.axis0.controller.current_setpoint, ctrl.final_v_alpha, odrv0.axis0.motor.current_meas_phB, odrv0.axis0.motor.current_meas_phC, ctrl.Iq_measured, odrv0.vbus_voltage, odrv0.axis0.encoder.vel_estimate, max_vel))
-        odrv0.axis0.controller.current_setpoint *=1.2
+        print("current setpoint {:0.2f}, voltage: {:0.2f}, PH B: {:0.2f}, PH C: {:0.2f}, Iq_measured {:0.2f}, bus voltage {:0.2f}, vel estimate {:0.2f}, max_vel {:0.2f}.".format(
+            odrv0.axis0.controller.current_setpoint, ctrl.final_v_alpha, odrv0.axis0.motor.current_meas_phB, odrv0.axis0.motor.current_meas_phC, ctrl.Iq_measured, odrv0.vbus_voltage, odrv0.axis0.encoder.vel_estimate, max_vel))
+        odrv0.axis0.controller.current_setpoint *= 1.2
         if odrv0.axis0.error:
-            print(dump_errors(odrv0,True))
+            print(dump_errors(odrv0, True))
             print("Gate Driver: {}".format(odrv0.axis0.motor.gate_driver))
-            print("current setpoint {:0.2f}, voltage: {:0.2f}, PH B: {:0.2f}, PH C: {:0.2f}, Iq_measured {:0.2f}, bus voltage {:0.2f}, vel estimate {:0.2f}, max_vel {:0.2f}.".format(odrv0.axis0.controller.current_setpoint, ctrl.final_v_alpha, odrv0.axis0.motor.current_meas_phB, odrv0.axis0.motor.current_meas_phC, ctrl.Iq_measured, odrv0.vbus_voltage, odrv0.axis0.encoder.vel_estimate, max_vel))
+            print("current setpoint {:0.2f}, voltage: {:0.2f}, PH B: {:0.2f}, PH C: {:0.2f}, Iq_measured {:0.2f}, bus voltage {:0.2f}, vel estimate {:0.2f}, max_vel {:0.2f}.".format(
+                odrv0.axis0.controller.current_setpoint, ctrl.final_v_alpha, odrv0.axis0.motor.current_meas_phB, odrv0.axis0.motor.current_meas_phC, ctrl.Iq_measured, odrv0.vbus_voltage, odrv0.axis0.encoder.vel_estimate, max_vel))
             sys.exit()
         time.sleep(1)
 except KeyboardInterrupt:
@@ -109,7 +109,8 @@ except KeyboardInterrupt:
 
 # This is a current-based hard block homing routine.
 while True:
-    print("current setpoint {}, voltage: {}, Iq_measured {}, bus voltage {}, vel estimate {}, max_vel {}.".format(odrv0.axis0.controller.current_setpoint, ctrl.final_v_alpha, ctrl.Iq_measured, odrv0.vbus_voltage, odrv0.axis0.encoder.vel_estimate, max_vel))
+    print("current setpoint {}, voltage: {}, Iq_measured {}, bus voltage {}, vel estimate {}, max_vel {}.".format(
+        odrv0.axis0.controller.current_setpoint, ctrl.final_v_alpha, ctrl.Iq_measured, odrv0.vbus_voltage, odrv0.axis0.encoder.vel_estimate, max_vel))
     # if reverse:
     #     if odrv0.axis0.encoder.pos_estimate - reverse_position > 400 or time.time() - reverse_start_time > reverse_duration_allowed_sec:
     #         reverse = False
@@ -130,22 +131,21 @@ while True:
         #reverse = True
         reverse_start_time = time.time()
         reverse_position = odrv0.axis0.encoder.pos_estimate
-    #if max_vel >
+    # if max_vel >
     time.sleep(0.1)
 
 
-print(dump_errors(odrv0,True))
+print(dump_errors(odrv0, True))
 print(odrv0.axis0.encoder.pos_estimate)
 print(odrv0.axis0.encoder.pos_estimate)
 print(odrv0.axis0.encoder.pos_estimate)
 odrv0.axis0.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
 idle_wait()
 print("Index Search complete")
-print(dump_errors(odrv0,True))
+print(dump_errors(odrv0, True))
 
 print(odrv0.axis0.encoder.pos_estimate)
 print(odrv0.axis0.encoder.pos_estimate)
-
 
 
 print("Bus voltage is " + str(odrv0.vbus_voltage) + "V")
@@ -183,11 +183,12 @@ if True:
     min = base_position - offset
     count = 0
     steps = 6
-    #sys.exit()
+    # sys.exit()
     while True:
-        print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(odrv0.axis0.controller.pos_setpoint, odrv0.axis0.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
-        #odrv0.axis0.encoder.pos_estimate
-        #print(dump_errors(odrv0))
+        print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(
+            odrv0.axis0.controller.pos_setpoint, odrv0.axis0.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
+        # odrv0.axis0.encoder.pos_estimate
+        # print(dump_errors(odrv0))
         time.sleep(0.1)
         if time.time() - timer > 0.5:
             timer = time.time()
@@ -199,9 +200,10 @@ if True:
             odrv0.axis0.controller.move_to_pos(min + (2*offset)*count/steps)
             if count == 0:
                 timer += 1.0
-                #time.sleep(1)
+                # time.sleep(1)
         if odrv0.axis0.error:
-            print(dump_errors(odrv0,True))
+            print(dump_errors(odrv0, True))
             print("Gate Driver: {}".format(odrv0.axis0.motor.gate_driver))
-            print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(odrv0.axis0.controller.pos_setpoint, odrv0.axis0.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
+            print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(
+                odrv0.axis0.controller.pos_setpoint, odrv0.axis0.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
             sys.exit()

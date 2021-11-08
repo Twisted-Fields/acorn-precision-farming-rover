@@ -28,12 +28,12 @@ user marcelrobitaille.
 https://discourse.odriverobotics.com/t/fw-0-4-1-why-does-odrive-instance-takes-30s-to-be-created/791/14
 """
 
+
 import json
 import logging
 import threading
 import fibre
 from fibre.utils import Logger
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 fibre_logger = Logger(verbose=logger.getEffectiveLevel() == logging.DEBUG)
@@ -148,6 +148,7 @@ class OdriveManager:
 
 
 if __name__ == '__main__':
-    od = OdriveManager(path='/dev/ttySC3', serial_number='336B31643536').find_odrive()
+    od = OdriveManager(path='/dev/ttySC3',
+                       serial_number='336B31643536').find_odrive()
     while True:
         print(od.vbus_voltage)

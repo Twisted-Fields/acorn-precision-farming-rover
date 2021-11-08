@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+from remote_control_process import EnergySegment
 import redis
 import time
 import pickle
@@ -32,7 +33,6 @@ import sys
 
 from scipy.interpolate import splprep, splev
 sys.path.append('../vehicle')
-from remote_control_process import EnergySegment
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -60,7 +60,7 @@ r = redis.Redis(
 
 
 for key in r.scan_iter():
-    #print(key)
+    # print(key)
     if 'energy_segment' in str(key):
         orig_x = []
         orig_y = []
@@ -80,17 +80,16 @@ for key in r.scan_iter():
         watt_seconds = False
         now = time.time()
         today = time.localtime(now)
-        power_vals = [[],[],[],[]]
+        power_vals = [[], [], [], []]
 
         day_index = 0
         total_daily_meters = [0]
-
 
         # report distance
         total_meters_traveled = 0
         for idx in range(list_length-1, 0, -1):
             segment = pickle.loads(r.lindex(key, idx))
-            #print(segment.subsampled_points)
+            # print(segment.subsampled_points)
             try:
                 segment.subsampled_points
             except:
@@ -99,7 +98,6 @@ for key in r.scan_iter():
                 print("{}, {}".format(point.lat, point.lon))
                 orig_x.append(point.lat)
                 orig_y.append(point.lon)
-
 
         fig = plt.figure()
         #ax = fig.add_subplot(111, projection = '3d')
@@ -120,37 +118,30 @@ for key in r.scan_iter():
         # ax.plot(orig_y4)
         plt.show()
 
-            # this_stamp = segment.start_gps.time_stamp
-            # stamp_localtime = time.localtime(this_stamp)
-            # if stamp_localtime.tm_year == today.tm_year and stamp_localtime.tm_yday == today.tm_yday - day_index:
-            #     #print(stamp_localtime)
-            #     total_meters_traveled += segment.distance_sum
-            #     total_daily_meters[day_index]+= segment.distance_sum
-            # else:
-            #     if day_index > 5:
-            #         print(total_daily_meters)
-            #         print(sum(total_daily_meters))
-            #         sys.exit()
-            #     day_index += 1
-            #     total_daily_meters.append(0)
-                #print(total_daily_meters)
-                #print("Traveled {} meters today!".format(total_meters_traveled))
-                #sys.exit()
+        # this_stamp = segment.start_gps.time_stamp
+        # stamp_localtime = time.localtime(this_stamp)
+        # if stamp_localtime.tm_year == today.tm_year and stamp_localtime.tm_yday == today.tm_yday - day_index:
+        #     #print(stamp_localtime)
+        #     total_meters_traveled += segment.distance_sum
+        #     total_daily_meters[day_index]+= segment.distance_sum
+        # else:
+        #     if day_index > 5:
+        #         print(total_daily_meters)
+        #         print(sum(total_daily_meters))
+        #         sys.exit()
+        #     day_index += 1
+        #     total_daily_meters.append(0)
+        # print(total_daily_meters)
+        #print("Traveled {} meters today!".format(total_meters_traveled))
+        # sys.exit()
 
-
-
-            #total_meters_traveled += segment.distance_sum
-            #print("Traveled {} meters today!".format(total_meters_traveled))
-            # if now - this_stamp < 3600:
-            #     print(this_stamp)
-            # else:
-            #     sys.exit()
-            # continue
-
-
-
-
-
+        #total_meters_traveled += segment.distance_sum
+        #print("Traveled {} meters today!".format(total_meters_traveled))
+        # if now - this_stamp < 3600:
+        #     print(this_stamp)
+        # else:
+        #     sys.exit()
+        # continue
 
         #
         #
@@ -226,7 +217,6 @@ for key in r.scan_iter():
         # plt.show()
         #
 
-
        # #     newkey = str(key).replace('-key\'',':key')
        # #     newkey = newkey.replace('b\'','')
        # # #     print(newkey)
@@ -272,10 +262,6 @@ for key in r.scan_iter():
        #
        #
 
-
-
-
-
         # plt.plot(orig_x, orig_y, 'ro')
     #    plt.plot(lat_smooth, lon_smooth, 'bo')
     #    plt.plot(point_of_interest['lat'],point_of_interest['lon'], 'go', markersize=20)
@@ -283,59 +269,51 @@ for key in r.scan_iter():
     #    plt.plot(coord2.lat, coord2.lon, 'yo', markersize=20)
         # plt.title(str(key))
         # plt.show()
-         #   print(value)
-         #   point_data = []
-         #   lats = []
-         #   lons = []
-         #   utm_x = []
-         #   utm_y = []
-         # #  try:
-         #
-         #
-         #   for line in value:
-         #       lats.append(line['lat'])
-         #       lons.append(line['lon'])
-         #       point_data.append((line['lat'], line['lon']))
-         #       utm_coord = utm.from_latlon(line['lat'], line['lon'])
-         #       utm_x.append(utm_coord[0])
-         #       utm_x.append(utm_coord[1])
-         #   x, y = np.array(lats), np.array(lons)
-         #   #simple_coords = rdp(point_data, epsilon=1e-4)
-         #   #print("{} points reduced to {}!".format(coords.shape[0], simple_coords.shape[0]))
-         #   #plt.plot(simple_coords[:, 0], simple_coords[:, 1], 'ro')
-         #   #plt.show()
-         #
-         #   smooth_factor = 1
-         #
-         #
-         #
-         #   dat = np.array([(x,y) for x,y in zip(lats, lons)])
-         #    #dat = np.array([(x,y) for x,y in zip(coords.lon[::18], coords.lat[::18])])
-         #   tck, u = splprep(dat.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10)
-         #   u_new = np.linspace(u.min(), u.max(), 200)
-         #   x_new, y_new = splev(u_new, tck, der=0)
-         #   #print(x_new)
+        #   print(value)
+        #   point_data = []
+        #   lats = []
+        #   lons = []
+        #   utm_x = []
+        #   utm_y = []
+        # #  try:
+        #
+        #
+        #   for line in value:
+        #       lats.append(line['lat'])
+        #       lons.append(line['lon'])
+        #       point_data.append((line['lat'], line['lon']))
+        #       utm_coord = utm.from_latlon(line['lat'], line['lon'])
+        #       utm_x.append(utm_coord[0])
+        #       utm_x.append(utm_coord[1])
+        #   x, y = np.array(lats), np.array(lons)
+        #   #simple_coords = rdp(point_data, epsilon=1e-4)
+        #   #print("{} points reduced to {}!".format(coords.shape[0], simple_coords.shape[0]))
+        #   #plt.plot(simple_coords[:, 0], simple_coords[:, 1], 'ro')
+        #   #plt.show()
+        #
+        #   smooth_factor = 1
+        #
+        #
+        #
+        #   dat = np.array([(x,y) for x,y in zip(lats, lons)])
+        #    #dat = np.array([(x,y) for x,y in zip(coords.lon[::18], coords.lat[::18])])
+        #   tck, u = splprep(dat.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10)
+        #   u_new = np.linspace(u.min(), u.max(), 200)
+        #   x_new, y_new = splev(u_new, tck, der=0)
+        #   #print(x_new)
 
-
-
-
-
-
-
-
-           # print(point_data)
-           # plt.plot(x, y, 'ro', ms=5)
-           # cs = CubicSpline(x, y)
-           # xs = 2 * np.pi * np.linspace(0, 1, 100)
-           # ax.plot(xs, cs(xs), label="S")
-           # plt.show()
-           # spl = UnivariateSpline(x, y)
-           # xs = np.linspace(-3, 3, 1000)
-           # plt.plot(xs, spl(xs), 'g', lw=3)
-          # except:
-            #   print('exception unpickling key {}'.format(key))
-               #r.delete(key)
-
+        # print(point_data)
+        # plt.plot(x, y, 'ro', ms=5)
+        # cs = CubicSpline(x, y)
+        # xs = 2 * np.pi * np.linspace(0, 1, 100)
+        # ax.plot(xs, cs(xs), label="S")
+        # plt.show()
+        # spl = UnivariateSpline(x, y)
+        # xs = np.linspace(-3, 3, 1000)
+        # plt.plot(xs, spl(xs), 'g', lw=3)
+        # except:
+        #   print('exception unpickling key {}'.format(key))
+        # r.delete(key)
 
 
 # while True:

@@ -63,7 +63,7 @@ Options:
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hv",
-                                  ["help", "version", "offset="])
+                                   ["help", "version", "offset="])
 
         for o, a in opts:
             if o in ("-h", "--help"):
@@ -89,7 +89,8 @@ Options:
 
     except getopt.GetoptError:
         msg = sys.exc_info()[1]     # current exception
-        txt = 'ERROR: '+str(msg)    # that's required to get not-so-dumb result from 2to3 tool
+        # that's required to get not-so-dumb result from 2to3 tool
+        txt = 'ERROR: '+str(msg)
         print(txt)
         print(usage)
         sys.exit(2)
@@ -101,7 +102,8 @@ Options:
         # read from stdin
         fin = compat.get_binary_stdin()
     elif not os.path.isfile(fin):
-        txt = "ERROR: File not found: %s" % fin   # that's required to get not-so-dumb result from 2to3 tool
+        # that's required to get not-so-dumb result from 2to3 tool
+        txt = "ERROR: File not found: %s" % fin
         print(txt)
         sys.exit(1)
 

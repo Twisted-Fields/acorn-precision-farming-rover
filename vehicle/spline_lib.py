@@ -21,8 +21,13 @@ limitations under the License.
 *********************************************************************
 """
 
-import numpy as np, matplotlib.pyplot as pp, mpl_toolkits.mplot3d as mp
-import scipy.interpolate as si, scipy.optimize as so, scipy.spatial.distance as ssd, scipy.integrate
+import numpy as np
+import matplotlib.pyplot as pp
+import mpl_toolkits.mplot3d as mp
+import scipy.interpolate as si
+import scipy.optimize as so
+import scipy.spatial.distance as ssd
+import scipy.integrate
 import functools
 import math
 import gps_tools
@@ -41,6 +46,8 @@ _SMOOTH_MULTIPLIER = 0.00000000001
 
 # Return distance from 3d point p to a point on the spline at spline parameter u
 # Must be static function so it can be optimized in closest_point_on_spline
+
+
 def distToP(u, tck, p):
     s = si.splev(u, tck)
     result = ssd.euclidean(p, s)
@@ -55,9 +62,10 @@ class GpsSpline():
         self.num_points = num_points
 
     def calculate_3D_factors(self, gps_coords, smooth_factor, num_points, degree=3):
-        self.tck_3D, self.u_3D = self.smooth_track3D(gps_coords, smooth_factor,degree)
+        self.tck_3D, self.u_3D = self.smooth_track3D(
+            gps_coords, smooth_factor, degree)
 
-    def calc_distance_2D(self,p1, p2):
+    def calc_distance_2D(self, p1, p2):
         return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
     def filter_data(self, data, radius=5.0):
@@ -82,16 +90,15 @@ class GpsSpline():
                         done = True
                         break
                 adjust += 0.2
-                #print(adjust)
+                # print(adjust)
             sample_point = next_point
         return filtered
 
     def get_2d_spline(self, x, y, z):
         # print("BOOP")
 
-
         # try:
-            # fit = np.polyfit()
+        # fit = np.polyfit()
         # fit = np.polynomial.polynomial.Polynomial.fit(x,y,7)
         # #print(fit.linspace(100))
         # spline = np.stack(fit.linspace(50), axis=1)
@@ -99,7 +106,6 @@ class GpsSpline():
         # except Exception as e:
         #     print(e)
         #     raise e
-
 
         # spline = si.SmoothBivariateSpline(x,y,z)
         # xs = np.linspace(np.array(x).min(), np.array(x).max(), 150)
@@ -112,8 +118,6 @@ class GpsSpline():
         # xs = np.linspace(np.array(x).min(), np.array(x).max(), 150)
         # ys = spline(xs)
         # return xs, ys
-
-
 
         sp = csaps(x, y, smooth=0.05)
         xs = np.linspace(np.array(x).min(), np.array(x).max(), 150)
@@ -139,8 +143,6 @@ class GpsSpline():
         # #     np_points[idx] = (points[idx][0], points[idx][1])
         # return si.SmoothBivariateSpline(points[:,:1][0], points[:,1:2][0])
 
-
-
     def smooth_track(self, gps_coords, smooth_factor, degree=3):
         """ Calculated a spline based on a gps track.
         Args:
@@ -154,8 +156,6 @@ class GpsSpline():
             line = gps_tools.check_point(gps_coords[idx])
             np_points[idx] = (line.lat, line.lon)
         return si.splprep(np_points.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10, k=degree)
-
-
 
     def smooth_track3D(self, gps_coords, smooth_factor, degree=3):
         """ Calculated a spline based on a gps track.
@@ -192,8 +192,8 @@ class GpsSpline():
     # Return the angle in radians of the spline at u
     def slopeRadiansAtU(self, u):
         x, y = si.splev(u, self.tck, 1)
-        return math.atan2(y,x)
-        #return ssd.euclidean(0, si.splev(u, self.tck, 1))
+        return math.atan2(y, x)
+        # return ssd.euclidean(0, si.splev(u, self.tck, 1))
 
     # Return the distance from u to v along the spline
     def distAlong(self, u, v):
@@ -228,7 +228,8 @@ class GpsSpline():
             p = self.points[idx]
             # Using naive x-y distance calculation as it was found to be ~100x
             # faster than gps distance calc.
-            dist = math.sqrt(math.pow(p.lat - point.lat, 2) + math.pow(p.lon - point.lon, 2))
+            dist = math.sqrt(math.pow(p.lat - point.lat, 2) +
+                             math.pow(p.lon - point.lon, 2))
             if dist < min_distance:
                 min_dist_index = idx
                 min_distance = dist
@@ -256,7 +257,8 @@ class GpsSpline():
             p = self.points[idx]
             # Using naive x-y distance calculation as it was found to be ~100x
             # faster than gps distance calc.
-            dist = math.sqrt(math.pow(p.lat - point.lat, 2) + math.pow(p.lon - point.lon, 2))
+            dist = math.sqrt(math.pow(p.lat - point.lat, 2) +
+                             math.pow(p.lon - point.lon, 2))
             if dist < min_distance:
                 min_dist_index = idx
                 min_distance = dist

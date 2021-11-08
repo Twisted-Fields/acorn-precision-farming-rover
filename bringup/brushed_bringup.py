@@ -24,11 +24,12 @@ def idle_wait():
         time.sleep(0.1)
     print(dump_errors(odrv0))
 
+
 # Find a connected ODrive (this will block until you connect one)
 print("finding an odrive...")
 odrv0 = odrive.find_any()
 
-print(dump_errors(odrv0,True))
+print(dump_errors(odrv0, True))
 
 # Find an ODrive that is connected on the serial port /dev/ttyUSB0
 #odrv0 = odrive.find_any("serial:/dev/ttyUSB0")
@@ -45,7 +46,7 @@ SETUP_1 = False
 if SETUP_1 or DO_FULL_SETUP:
 
     AXIS.motor.config.resistance_calib_max_voltage = 4
-    AXIS.motor.config.requested_current_range = 25 #Requires config save and reboot
+    AXIS.motor.config.requested_current_range = 25  # Requires config save and reboot
 
     odrv0.save_configuration()
     try:
@@ -111,9 +112,8 @@ if SETUP_4 or DO_FULL_SETUP:
     print(odrv0.axis1.encoder)
     AXIS.encoder.config.pre_calibrated = True
 
-
     #odrv0.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
-    #idle_wait()
+    # idle_wait()
     odrv0.save_configuration()
     try:
         odrv0.reboot()
@@ -141,12 +141,10 @@ if SETUP_5:
     AXIS = eval(AXIS_STRING)
 
 
-
 AXIS.motor.config.direction = 1
 #odrv0.axis0.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
 AXIS.motor.config.motor_type = MOTOR_TYPE_BRUSHED_VOLTAGE
 #odrv0.axis0.requested_state = AXIS_STATE_BRUSHED_VOLTAGE_CONTROL
-
 
 
 # To read a value, simply read the property
@@ -170,8 +168,9 @@ try:
         AXIS.controller.current_setpoint = setpoint / 1000.0 * 24.0
         print(setpoint / 1000.0)
         if AXIS.error:
-            print("error! Setpoint: {}, axis0: {}, motor: {}".format(setpoint / 1000.0, AXIS.error, AXIS.motor.error))
-            print(dump_errors(odrv0,True))
+            print("error! Setpoint: {}, axis0: {}, motor: {}".format(
+                setpoint / 1000.0, AXIS.error, AXIS.motor.error))
+            print(dump_errors(odrv0, True))
             break
         time.sleep(0.05)
 except KeyboardInterrupt:

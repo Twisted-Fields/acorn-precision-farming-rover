@@ -20,33 +20,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+import motors
+import fibre
+import os
+from multiprocessing import Process
+import argparse
+import click
+import pickle
+import zmq
+from steering import calculate_steering
+from evdev import InputDevice, list_devices, categorize, ecodes, KeyEvent
+from odrive.utils import dump_errors
+import math
+import time
+import serial
+from corner_actuator import COUNTS_PER_REVOLUTION, OdriveConnection
+import corner_actuator
 import sys
 sys.path.append('../vehicle')
-
-import corner_actuator
-from corner_actuator import COUNTS_PER_REVOLUTION, OdriveConnection
-import serial
-import time
-import math
-from odrive.utils import dump_errors
-from evdev import InputDevice, list_devices, categorize, ecodes, KeyEvent
-from steering import calculate_steering
-import zmq
-import pickle
-import click
-import argparse
-from multiprocessing import Process
-import os
-import fibre
-import motors
 
 
 control = motors.AcornMotorInterface(manual_control=True)
 control.odrive_connections = [
-        OdriveConnection(name='front_right', serial="335E31483536", path="/dev/ttySC1"),
-        #OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0"),
-        #OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2"),
-        #OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3")
-        ]
+    OdriveConnection(name='front_right',
+                     serial="335E31483536", path="/dev/ttySC1"),
+    #OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0"),
+    #OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2"),
+    #OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3")
+]
 
 control.run_debug_control(enable_steering=True, enable_traction=False)

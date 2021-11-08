@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+from remote_control_process import EnergySegment
 import redis
 import time
 import pickle
@@ -32,7 +33,6 @@ import sys
 
 from scipy.interpolate import splprep, splev
 sys.path.append('../vehicle')
-from remote_control_process import EnergySegment
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -60,7 +60,7 @@ r = redis.Redis(
 
 
 for key in r.scan_iter():
-    #print(key)
+    # print(key)
     if 'energy_segment' in str(key):
         orig_x = []
         orig_y1 = []
@@ -79,11 +79,10 @@ for key in r.scan_iter():
         watt_seconds = False
         now = time.time()
         today = time.localtime(now)
-        power_vals = [[],[],[],[]]
+        power_vals = [[], [], [], []]
 
         day_index = 0
         total_daily_meters = [0]
-
 
         # report distance
 
@@ -93,9 +92,9 @@ for key in r.scan_iter():
             this_stamp = segment.start_gps.time_stamp
             stamp_localtime = time.localtime(this_stamp)
             if stamp_localtime.tm_year == today.tm_year and stamp_localtime.tm_yday == today.tm_yday - day_index:
-                #print(stamp_localtime)
+                # print(stamp_localtime)
                 total_meters_traveled += segment.distance_sum
-                total_daily_meters[day_index]+= segment.distance_sum
+                total_daily_meters[day_index] += segment.distance_sum
             else:
                 if day_index > 6:
                     print(total_daily_meters)
@@ -104,9 +103,7 @@ for key in r.scan_iter():
                 day_index += 1
                 total_daily_meters.append(0)
                 #print("Traveled {} meters today!".format(total_meters_traveled))
-                #sys.exit()
-
-
+                # sys.exit()
 
             #total_meters_traveled += segment.distance_sum
             #print("Traveled {} meters today!".format(total_meters_traveled))
@@ -115,11 +112,6 @@ for key in r.scan_iter():
             # else:
             #     sys.exit()
             # continue
-
-
-
-
-
 
         #
         #
@@ -195,7 +187,6 @@ for key in r.scan_iter():
         # plt.show()
         #
 
-
        # #     newkey = str(key).replace('-key\'',':key')
        # #     newkey = newkey.replace('b\'','')
        # # #     print(newkey)
@@ -241,10 +232,6 @@ for key in r.scan_iter():
        #
        #
 
-
-
-
-
         # plt.plot(orig_x, orig_y, 'ro')
     #    plt.plot(lat_smooth, lon_smooth, 'bo')
     #    plt.plot(point_of_interest['lat'],point_of_interest['lon'], 'go', markersize=20)
@@ -285,13 +272,6 @@ for key in r.scan_iter():
          #   x_new, y_new = splev(u_new, tck, der=0)
          #   #print(x_new)
 
-
-
-
-
-
-
-
            # print(point_data)
            # plt.plot(x, y, 'ro', ms=5)
            # cs = CubicSpline(x, y)
@@ -303,8 +283,7 @@ for key in r.scan_iter():
            # plt.plot(xs, spl(xs), 'g', lw=3)
           # except:
             #   print('exception unpickling key {}'.format(key))
-               #r.delete(key)
-
+               # r.delete(key)
 
 
 # while True:

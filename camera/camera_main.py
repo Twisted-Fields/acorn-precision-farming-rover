@@ -33,10 +33,12 @@ _FRAME_RATE = 14
 # _VIDEO_COMMAND = "bash video_command_13mp.sh"
 # _FRAME_RATE = 9
 
+
 def run_camera_process():
 
     frame_child_conn, frame_parent_conn = mp.Pipe()
-    frame_proc = mp.Process(target=frame_control.run_frame_control, args=(frame_child_conn,))
+    frame_proc = mp.Process(
+        target=frame_control.run_frame_control, args=(frame_child_conn,))
     frame_proc.start()
 
     hid_proc = mp.Process(target=hid_trigger.run_hid_process, args=())

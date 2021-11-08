@@ -83,7 +83,7 @@ def AcornServerComms(acorn_pipe, server_endpoint, logging, logging_details):
             client.close()
             if retries_left == 0:
                 logger.error("Server seems to be offline, abandoning")
-                #sys.exit()
+                # sys.exit()
 
             logger.info("Reconnecting to server…")
             # Create new connection

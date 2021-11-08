@@ -37,6 +37,7 @@
 of compared data.
 """
 
+import sys
 VERSION = '2.2'
 
 USAGE = '''hexdiff: diff dumps of 2 hex files.
@@ -48,8 +49,6 @@ Options:
     -v, --version           version info.
 '''
 
-import sys
-
 
 def main(argv=None):
     import getopt
@@ -59,7 +58,7 @@ def main(argv=None):
     try:
         opts, args = getopt.gnu_getopt(argv, 'hv', ['help', 'version'])
 
-        for o,a in opts:
+        for o, a in opts:
             if o in ('-h', '--help'):
                 print(USAGE)
                 return 0

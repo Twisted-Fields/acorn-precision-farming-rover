@@ -35,6 +35,7 @@
 
 """Show content of hex file as hexdump."""
 
+import sys
 VERSION = '2.2'
 
 USAGE = '''hex2dump: show content of hex file as hexdump.
@@ -54,9 +55,9 @@ Arguments:
                 from stdin)
 '''
 
-import sys
 
 DEFAULT_WIDTH = 16
+
 
 def hex2dump(hexfile, start=None, end=None, width=DEFAULT_WIDTH):
     import intelhex
@@ -69,7 +70,7 @@ def hex2dump(hexfile, start=None, end=None, width=DEFAULT_WIDTH):
         sys.stderr.write('Error reading file: %s\n' % e)
         return 1
     if not (start is None and end is None):
-        ih = ih[slice(start,end)]
+        ih = ih[slice(start, end)]
     ih.dump(tofile=sys.stdout, width=width)
     return 0
 
@@ -86,7 +87,7 @@ def main(argv=None):
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hvp:r:",
-                                  ["help", "version", "range=", "width="])
+                                   ["help", "version", "range=", "width="])
         for o, a in opts:
             if o in ("-h", "--help"):
                 print(USAGE)
@@ -116,7 +117,8 @@ def main(argv=None):
             raise getopt.GetoptError('Too many arguments')
     except getopt.GetoptError:
         msg = sys.exc_info()[1]     # current exception
-        txt = 'ERROR: '+str(msg)  # that's required to get not-so-dumb result from 2to3 tool
+        # that's required to get not-so-dumb result from 2to3 tool
+        txt = 'ERROR: '+str(msg)
         print(txt)
         print(USAGE)
         return 2

@@ -80,21 +80,22 @@ while True:
     data = device.read(BUFFER_LENGTH, timeout)
     print(data)
 
-    if data[6]==GET_SUCCESS:
-        if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1]==GET_LED_CONTROL_FSCAM_CU135 and data[6]==GET_SUCCESS:
-            ledstatus=data[2]
-            powerctl=data[3]
-            stream=data[4]
-            trigger=data[5]
+    if data[6] == GET_SUCCESS:
+        if data[0] == CAMERA_CONTROL_FSCAM_CU135 and data[1] == GET_LED_CONTROL_FSCAM_CU135 and data[6] == GET_SUCCESS:
+            ledstatus = data[2]
+            powerctl = data[3]
+            stream = data[4]
+            trigger = data[5]
 
-
-
-    print("ledstatus {}, powerctl {}, stream {}, trigger {}".format(ledstatus, powerctl, stream, trigger))
+    print("ledstatus {}, powerctl {}, stream {}, trigger {}".format(
+        ledstatus, powerctl, stream, trigger))
     import sys
     sys.exit()
-    g_out_packet_buf = [0, 0, 0, 0, 0 , 0]
-    g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135 # /* set camera control code */
-    g_out_packet_buf[1] = SET_LED_CONTROL_FSCAM_CU135 # /* set led control code */
+    g_out_packet_buf = [0, 0, 0, 0, 0, 0]
+    # /* set camera control code */
+    g_out_packet_buf[0] = CAMERA_CONTROL_FSCAM_CU135
+    # /* set led control code */
+    g_out_packet_buf[1] = SET_LED_CONTROL_FSCAM_CU135
     if ledcontrol:
         g_out_packet_buf[2] = ENABLE_LED_CONTROL_FSCAM_CU135
     else:
@@ -108,9 +109,9 @@ while True:
     time.sleep(0.5)
 
     data = device.read(BUFFER_LENGTH, timeout)
-    #print(data)
+    # print(data)
 
-    ledcontrol = ledcontrol==False
+    ledcontrol = ledcontrol == False
 
 
 

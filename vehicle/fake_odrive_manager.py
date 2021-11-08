@@ -28,12 +28,13 @@ user marcelrobitaille.
 https://discourse.odriverobotics.com/t/fw-0-4-1-why-does-odrive-instance-takes-30s-to-be-created/791/14
 """
 
+
+
+
 import json
 import logging
 import threading
 import random
-
-
 class FakeOdriveManager:
     _CONFIG_KEY = 'config'
     _CRC_KEY = 'crc16'
@@ -42,7 +43,6 @@ class FakeOdriveManager:
         self.channel = None
         self.path = path
         self.serial_number = serial_number
-
 
     def find_odrive(self):
         """
@@ -64,6 +64,7 @@ class FakeOdrive:
         self.fw_version_unreleased = 1
         self.user_config_loaded = True
         self.brake_resistor_armed = True
+
         class Stats:
             def __init__(self):
                 self.uptime = 216876
@@ -76,6 +77,7 @@ class FakeOdrive:
                 self.min_stack_space_usb_irq = 1796
                 self.min_stack_space_startup = 612
         self.system_stats = Stats()
+
         class Config:
             def __init__(self):
                 self.brake_resistance = 2.0
@@ -95,6 +97,7 @@ class FakeOdrive:
                 self.requested_state = 0
                 self.loop_counter = 1722222
                 self.lockin_state = 0
+
                 class AxisConfig():
                     def __init__(self):
                         self.startup_motor_calibration = False
@@ -108,6 +111,7 @@ class FakeOdrive:
                         self.step_gpio_pin = 1
                         self.dir_gpio_pin = 2
                 self.config = AxisConfig()
+
                 class Motor():
                     def __init__(self):
                         self.error = 0x0000
@@ -119,6 +123,7 @@ class FakeOdrive:
                         self.DC_calib_phC = -0.758490800857544
                         self.phase_current_rev_gain = 0.012500000186264515
                         self.thermal_current_lim = 10.0
+
                         class CurrentControl():
                             def __init__(self):
                                 self.p_gain = 9999900.0
@@ -195,6 +200,7 @@ class FakeOdrive:
                                 self.vel_ramp_rate = 20.0
                                 self.setpoints_in_cpr = False
                         self.config = ControllerConfig()
+
                     def move_to_pos(self, _):
                         return
 
@@ -277,6 +283,7 @@ class FakeOdrive:
         self.can = Can()
         self.test_property = 0
         self._remote_attributes = {}
+
     def get_adc_voltage(self, _):
         return 3.3/2.0 + 0.5 * random.choice((-1.0, 1.0))
 
@@ -290,7 +297,8 @@ class FakeOdrive:
 
 
 if __name__ == '__main__':
-    od = FakeOdriveManager(path='/dev/ttySC3', serial_number='336B31643536').find_odrive()
+    od = FakeOdriveManager(
+        path='/dev/ttySC3', serial_number='336B31643536').find_odrive()
     while True:
         print(od.vbus_voltage)
         time.sleep()

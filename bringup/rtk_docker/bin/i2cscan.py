@@ -28,7 +28,7 @@
 
 """Tiny I2C bus scanner."""
 
-#pylint: disable-msg=broad-except
+# pylint: disable-msg=broad-except
 #pylint: disable-msg=too-few-public-methods
 
 from argparse import ArgumentParser, FileType

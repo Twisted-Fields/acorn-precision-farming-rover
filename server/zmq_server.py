@@ -21,6 +21,7 @@ limitations under the License.
 *********************************************************************
 """
 
+from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
 import zmq
 import sys
 import threading
@@ -34,7 +35,6 @@ import redis_utils
 # Necessary so pickle can access class definitions from vehicle.
 sys.path.append('../vehicle')
 
-from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY,_CMD_READ_PATH_KEY
 
 _ALLOWED_ACTIVITY_LAPSE_SEC = 120
 _SOCKET_RESET_TIMEOUT_MIN = 60
@@ -51,10 +51,12 @@ def tprint(msg):
     sys.stdout.write(msg + '\n')
     sys.stdout.flush()
 
+
 class ServerTask(threading.Thread):
     """ServerTask"""
+
     def __init__(self):
-        threading.Thread.__init__ (self)
+        threading.Thread.__init__(self)
 
     def run(self):
         while True:
@@ -89,12 +91,12 @@ class ServerTask(threading.Thread):
                 backend.close()
             except Exception as e:
                 print("Closing sockets raised exception: {}".format(e))
-            #context.term()
+            # context.term()
 
 
 def REALLY_KILL():
     for proc in psutil.process_iter():
-    # check whether the process name matches
+        # check whether the process name matches
         if 'zmq_server.py' in proc.cmdline():
             print(proc.cmdline())
             proc.kill()
@@ -102,8 +104,9 @@ def REALLY_KILL():
 
 class ServerWorker(threading.Thread):
     """ServerWorker"""
+
     def __init__(self, context):
-        threading.Thread.__init__ (self)
+        threading.Thread.__init__(self)
         self.context = context
         self.last_active_time = time.time()
 
@@ -118,13 +121,13 @@ class ServerWorker(threading.Thread):
         tprint('Worker started')
         while True:
             if (connection_active and time.time() - self.last_active_time >
-                _ALLOWED_ACTIVITY_LAPSE_SEC):
+                    _ALLOWED_ACTIVITY_LAPSE_SEC):
                 print("Lost connection so killing socket.")
                 break
             if time.time() - self.last_active_time > _SOCKET_RESET_TIMEOUT_SEC:
                 print("NO RECENT ZMQ ACTIVITY SO RESTARTING PROGRAM.")
                 break
-            #print(type(worker))
+            # print(type(worker))
             try:
                 if not self.context.closed and worker.poll(_POLL_MILLISECONDS):
                     ident, command, key, msg = worker.recv_multipart()
@@ -132,7 +135,8 @@ class ServerWorker(threading.Thread):
                     self.last_active_time = time.time()
                     # msg = pickle.loads(msg)
                     tprint('Command: {} {} from {}'.format(command, key, ident))
-                    return_command, reply = handle_command(r, command, key, msg)
+                    return_command, reply = handle_command(
+                        r, command, key, msg)
                     worker.send_multipart([ident, return_command, reply])
             except zmq.error.ZMQError as e:
                 print(e)
@@ -146,11 +150,12 @@ class ServerWorker(threading.Thread):
         REALLY_KILL()
         #raise zmq.error.ZMQError
 
+
 def handle_command(r, command, key, msg):
     #tprint("GOT COMMAND {}".format(command))
     command_reply = _CMD_ACK
     if command == _CMD_WRITE_KEY:
-        #tprint(key)
+        # tprint(key)
         r.set(key, msg)
         message = bytes("ok", encoding='ascii')
     elif command == _CMD_READ_KEY:
@@ -181,7 +186,7 @@ def handle_command(r, command, key, msg):
         command_object = pickle.loads(r.get(command_key))
 
         # If the object changed definition we need to create a new one.
-        if len(dir(RobotCommand()))!=len(dir(command_object)):
+        if len(dir(RobotCommand())) != len(dir(command_object)):
             command_object = RobotCommand()
 
         if robot.autonomy_hold == True:
@@ -201,15 +206,15 @@ def handle_command(r, command, key, msg):
         tprint("NOPE")
         tprint(command)
         message = bytes("BAD_COMMAND", encoding='ascii')
-    #print(delay)
-    #time.sleep(delay)
+    # print(delay)
+    # time.sleep(delay)
     return command_reply, message
 
 #bytes(str(robot_key).replace(":key", ":command:key"), encoding='ascii')
 
 
 def update_robot(r, key, robot):
-    if robot.simulated_data==False and len(robot.energy_segment_list) > 0:
+    if robot.simulated_data == False and len(robot.energy_segment_list) > 0:
         key = redis_utils.get_energy_segment_key(key)
         print("UPDATE ENERGY SEGMENT")
         print(key)
@@ -232,6 +237,7 @@ def main():
     server = ServerTask()
     server.start()
     server.join()
+
 
 if __name__ == "__main__":
     main()

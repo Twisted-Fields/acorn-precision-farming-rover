@@ -2,13 +2,12 @@ import serial
 import time
 
 
-
 # sudo sh -c "echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
 # cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
 # 1500000
 
 
-BAUD=500000
+BAUD = 500000
 
 ser0 = serial.Serial('/dev/ttyACM0', BAUD, timeout=0.5)
 print(ser0.name)
@@ -22,7 +21,7 @@ loop = True
 while loop:
     start = time.time()
     for _ in range(100):
-        #time.sleep(0.001)
+        # time.sleep(0.001)
         #ser0.write(b'r vbus_voltage\n')
         # ser1.write(b'hababababa\n')
         ser0.readline()
@@ -39,7 +38,7 @@ while loop:
         # ser1.readline()
     #duration = time.time() - start
     #print("100 exchanges took {} milliseconds, a rate of {} Hz.".format(duration * 1000, 1.0/duration * 100))
-#data_r = ser.read(5)  # Read 5 bytes
+# data_r = ser.read(5)  # Read 5 bytes
 ser0.close()
 # ser1.close()
 # ser2.close()

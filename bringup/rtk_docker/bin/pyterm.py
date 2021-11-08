@@ -35,9 +35,12 @@
 #pylint: disable-msg=too-many-branches
 #pylint: disable-msg=too-many-statements
 #pylint: disable-msg=too-few-public-methods
-#pylint: disable-msg=broad-except
-#pylint: disable-msg=wrong-import-position
+# pylint: disable-msg=broad-except
+# pylint: disable-msg=wrong-import-position
 
+from pyftdi.misc import to_bps, add_custom_devices
+from pyftdi.ftdi import Ftdi
+from pyftdi import FtdiLogger
 from argparse import ArgumentParser, FileType
 from atexit import register
 from collections import deque
@@ -51,12 +54,9 @@ from _thread import interrupt_main
 MSWIN = platform == 'win32'
 if not MSWIN:
     from termios import TCSANOW, tcgetattr, tcsetattr
-from pyftdi import FtdiLogger
-from pyftdi.ftdi import Ftdi
-from pyftdi.misc import to_bps, add_custom_devices
 
 #pylint: disable-msg=invalid-name
-#pylint: disable-msg=import-error
+# pylint: disable-msg=import-error
 
 if os_name == 'nt':
     import msvcrt
@@ -64,7 +64,7 @@ else:
     msvcrt = None
 
 #pylint: enable-msg=invalid-name
-#pylint: enable-msg=import-error
+# pylint: enable-msg=import-error
 
 
 class MiniTerm:
@@ -316,6 +316,7 @@ def init_term(fullterm: bool) -> None:
             new[6][termios.VINTR] = 0
             new[6][termios.VSUSP] = 0
         termios.tcsetattr(tfd, termios.TCSANOW, new)
+
         def cleanup_console():
             termios.tcsetattr(tfd, termios.TCSAFLUSH, old)
             # terminal modes have to be restored on exit...
