@@ -28,6 +28,8 @@ services:
        - 6379:6379
        - 6799:6799
     working_dir: /acorn/server
+    environment:
+      - PYTHONPATH=/acorn/vehicle
     volumes:
       - .:/acorn
       - /etc/localtime:/etc/localtime:ro

@@ -21,20 +21,17 @@ limitations under the License.
 *********************************************************************
 """
 
-from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
 import zmq
 import sys
 import threading
 import time
-from random import randint, random
 import pickle
 import redis
 import psutil
 import redis_utils
-
-# Necessary so pickle can access class definitions from vehicle.
-sys.path.append('../vehicle')
-
+from master_process import RobotCommand
+from master_process import _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
+from master_process import _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
 
 _ALLOWED_ACTIVITY_LAPSE_SEC = 120
 _SOCKET_RESET_TIMEOUT_MIN = 60
@@ -120,8 +117,7 @@ class ServerWorker(threading.Thread):
             port=6379)
         tprint('Worker started')
         while True:
-            if (connection_active and time.time() - self.last_active_time >
-                    _ALLOWED_ACTIVITY_LAPSE_SEC):
+            if (connection_active and time.time() - self.last_active_time > _ALLOWED_ACTIVITY_LAPSE_SEC):
                 print("Lost connection so killing socket.")
                 break
             if time.time() - self.last_active_time > _SOCKET_RESET_TIMEOUT_SEC:
@@ -148,11 +144,11 @@ class ServerWorker(threading.Thread):
         worker.close()
         print("worker closed")
         REALLY_KILL()
-        #raise zmq.error.ZMQError
+        # raise zmq.error.ZMQError
 
 
 def handle_command(r, command, key, msg):
-    #tprint("GOT COMMAND {}".format(command))
+    # tprint("GOT COMMAND {}".format(command))
     command_reply = _CMD_ACK
     if command == _CMD_WRITE_KEY:
         # tprint(key)
@@ -189,7 +185,7 @@ def handle_command(r, command, key, msg):
         if len(dir(RobotCommand())) != len(dir(command_object)):
             command_object = RobotCommand()
 
-        if robot.autonomy_hold == True:
+        if robot.autonomy_hold:
             command_object.activate_autonomy = False
             command_object.autonomy_velocity = float(0.0)
 
@@ -199,7 +195,7 @@ def handle_command(r, command, key, msg):
         r.set(key, robot_pickle)
         print(dir(command_object))
         print(command_key)
-        #message = bytes("ok", encoding='ascii')
+        # message = bytes("ok", encoding='ascii')
         message = r.get(command_key)
         command_reply = _CMD_ROBOT_COMMAND
     else:
@@ -210,11 +206,11 @@ def handle_command(r, command, key, msg):
     # time.sleep(delay)
     return command_reply, message
 
-#bytes(str(robot_key).replace(":key", ":command:key"), encoding='ascii')
+# bytes(str(robot_key).replace(":key", ":command:key"), encoding='ascii')
 
 
 def update_robot(r, key, robot):
-    if robot.simulated_data == False and len(robot.energy_segment_list) > 0:
+    if not robot.simulated_data and len(robot.energy_segment_list) > 0:
         key = redis_utils.get_energy_segment_key(key)
         print("UPDATE ENERGY SEGMENT")
         print(key)
@@ -233,7 +229,6 @@ def update_robot(r, key, robot):
 
 def main():
     """main function"""
-    _BACKOFF_DELAY = 0.1
     server = ServerTask()
     server.start()
     server.join()

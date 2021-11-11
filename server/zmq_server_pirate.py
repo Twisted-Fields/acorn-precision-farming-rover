@@ -23,17 +23,15 @@ limitations under the License.
 # Modified from example file
 # Paranoid Pirate Worker by  Daniel Lundin <dln(at)eintr(dot)org>
 
-from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
 from random import randint
 import time
 import zmq
 import redis
-import pickle
 import zmq_server
-import sys
 
-# Necessary so pickle can access class definitions from vehicle.
-sys.path.append('../vehicle')
+# keep the two imported to keep pickle working
+# TODO: avoid this by moving the class defs to a separate module.
+from master_process import Robot, RobotCommand
 
 REDIS_PORT = 6379
 
@@ -62,10 +60,7 @@ def worker_socket(context, poller):
 
 def main():
 
-    r = redis.Redis(
-        host='localhost',
-        port=REDIS_PORT)
-
+    r = redis.Redis(host='localhost', port=REDIS_PORT)
     context = zmq.Context(1)
     poller = zmq.Poller()
 
@@ -94,10 +89,8 @@ def main():
                 # print(len(frames))
                 # print(frames)
                 ident, zero_frame, idx, command, key, msg = frames
-                return_command, reply = zmq_server.handle_command(
-                    r, command, key, msg)
-                worker.send_multipart(
-                    [ident, zero_frame, idx, return_command, reply])
+                return_command, reply = zmq_server.handle_command(r, command, key, msg)
+                worker.send_multipart([ident, zero_frame, idx, return_command, reply])
 
                 # worker.send_multipart(frames)
                 liveness = HEARTBEAT_LIVENESS

@@ -28,16 +28,12 @@ while True:
         import time
         from flask import Flask, render_template, request, send_from_directory, jsonify
         from flask_redis import FlaskRedis
-        import sys
-        from svgpathtools import svg2paths, paths2svg
         import re
         import pickle
         import json
         import datetime
         import redis_utils
-        sys.path.append('../vehicle')
-        from master_process import Robot, RobotCommand
-        from gps_tools import GpsPoint, GpsSample
+        from master_process import RobotCommand
         break
     except Exception as e:
         print(e)
@@ -71,9 +67,7 @@ def map_test():
 
 
 def date_handler(obj):
-    return (obj.isoformat() +
-            "-07:00" if isinstance(obj, (datetime.datetime,
-                                         datetime.date)) else None)
+    return (obj.isoformat() + "-07:00" if isinstance(obj, (datetime.datetime, datetime.date)) else None)
 
 
 @app.route('/api/get_herd_data')
@@ -96,7 +90,7 @@ def robots_to_json(keys):
         gps_path_data = [point._asdict() for point in robot.gps_path_data]
         try:
             debug_points = [point._asdict() for point in robot.debug_points]
-        except:
+        except BaseException:
             debug_points = []
         # print(json.dumps(robot.gps_path_data[0]._asdict()))
         robot_entry = {
@@ -182,7 +176,7 @@ def save_current_path(pathname=None):
     if not pathdata:
         return "Missing something. No path saved."
     if not pathname:
-        volatile_path = pathdata
+        # volatile_path = pathdata
         return "Updated volatile_path"
     key = get_path_key(pathname)
     redis_client.set(key, pickle.dumps(pathdata))
@@ -348,6 +342,6 @@ if __name__ == "__main__":
                     use_reloader=True,
                     host="0.0.0.0",
                     port=int("80"))
-        except:
+        except BaseException:
             print("Server had some error. Restarting...")
             time.sleep(5)
