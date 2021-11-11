@@ -21,11 +21,8 @@ limitations under the License.
 *********************************************************************
 """
 
-from master_process import Robot, RobotCommand, _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
-from gps_tools import GpsPoint, GpsSample
 import pickle
-import sys
-sys.path.append('../vehicle')
+from master_process import RobotCommand
 
 
 def get_energy_segment_key(robot_key):
@@ -84,7 +81,8 @@ def clear_autonomy_hold(redis_client=None, vehicle_name=None, value=None, active
 
 def set_vehicle_autonomy(redis_client=None, vehicle_name=None, speed=None, enable=None, active_site=None):
     if not all((vehicle_name, speed, redis_client)):
-        return "Missing something. No vehicle autonomy set.  {}  {}  {}  {}".format(vehicle_name, speed, enable, redis_client)
+        return "Missing something. No vehicle autonomy set.  {}  {}  {}  {}".format(
+            vehicle_name, speed, enable, redis_client)
     if len(active_site) == 0:
         return "Active site not set. Please load a path."
     # TODO: We have two different versions of getting a command key string now.
@@ -94,8 +92,6 @@ def set_vehicle_autonomy(redis_client=None, vehicle_name=None, speed=None, enabl
     robot_command.activate_autonomy = enable
     robot_command.autonomy_velocity = float(speed)
     redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
-    print("Set vehicle {} autonomy to {}".format(
-        vehicle_command_key, (speed, enable)))
     return "Set vehicle {} autonomy to {}".format(vehicle_command_key, (speed, enable))
 
 

@@ -28,16 +28,12 @@ while True:
         import time
         from flask import Flask, render_template, request, send_from_directory, jsonify
         from flask_redis import FlaskRedis
-        import sys
-        from svgpathtools import svg2paths, paths2svg
         import re
         import pickle
         import json
         import datetime
         import redis_utils
-        sys.path.append('../vehicle')
-        from master_process import Robot, RobotCommand
-        from gps_tools import GpsPoint, GpsSample
+        from master_process import RobotCommand
         break
     except Exception as e:
         print(e)
@@ -71,9 +67,7 @@ def map_test():
 
 
 def date_handler(obj):
-    return (obj.isoformat() +
-            "-07:00" if isinstance(obj, (datetime.datetime,
-                                         datetime.date)) else None)
+    return (obj.isoformat() + "-07:00" if isinstance(obj, (datetime.datetime, datetime.date)) else None)
 
 
 @app.route('/api/get_herd_data')
@@ -96,69 +90,41 @@ def robots_to_json(keys):
         gps_path_data = [point._asdict() for point in robot.gps_path_data]
         try:
             debug_points = [point._asdict() for point in robot.debug_points]
-        except:
+        except BaseException:
             debug_points = []
         # print(json.dumps(robot.gps_path_data[0]._asdict()))
+        loaded_path_name = ("" if not robot.loaded_path_name else
+                            robot.loaded_path_name.split('gpspath:')[1].split(':key')[0])
         robot_entry = {
-            'name':
-            robot.name,
-            'lat':
-            robot.location.lat,
-            'lon':
-            robot.location.lon,
-            'heading':
-            robot.location.azimuth_degrees,
-            'speed':
-            robot.speed,
-            'turn_intent_degrees':
-            robot.turn_intent_degrees,
-            'voltage':
-            robot.voltage,
-            'control_state':
-            robot.control_state,
-            'motor_state':
-            robot.motor_state,
-            'time_stamp':
-            time_stamp,
-            'loaded_path_name':
-            "" if not robot.loaded_path_name else
-            robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
-            'live_path_data':
-            live_path_data,
-            'gps_path_data':
-            gps_path_data,
-            'debug_points':
-            debug_points,
-            'autonomy_hold':
-            robot.autonomy_hold,
-            'activate_autonomy':
-            robot.activate_autonomy,
-            'access_point_name':
-            robot.wifi_ap_name,
-            'wifi_signal':
-            robot.wifi_strength,
-            'gps_distances':
-            robot.gps_distances,
-            'gps_angles':
-            robot.gps_angles,
-            'gps_distance_rates':
-            robot.gps_path_lateral_error_rates,
-            'gps_angle_rates':
-            robot.gps_path_angular_error_rates,
-            'strafeP':
-            robot.strafeP,
-            'steerP':
-            robot.steerP,
-            'strafeD':
-            robot.strafeD,
-            'steerD':
-            robot.steerD,
-            'autonomy_steer_cmd':
-            robot.autonomy_steer_cmd,
-            'autonomy_strafe_cmd':
-            robot.autonomy_strafe_cmd,
-            'simulated_data':
-            robot.simulated_data
+            'name': robot.name,
+            'lat': robot.location.lat,
+            'lon': robot.location.lon,
+            'heading': robot.location.azimuth_degrees,
+            'speed': robot.speed,
+            'turn_intent_degrees': robot.turn_intent_degrees,
+            'voltage': robot.voltage,
+            'control_state': robot.control_state,
+            'motor_state': robot.motor_state,
+            'time_stamp': time_stamp,
+            'loaded_path_name': loaded_path_name,
+            'live_path_data': live_path_data,
+            'gps_path_data': gps_path_data,
+            'debug_points': debug_points,
+            'autonomy_hold': robot.autonomy_hold,
+            'activate_autonomy': robot.activate_autonomy,
+            'access_point_name': robot.wifi_ap_name,
+            'wifi_signal': robot.wifi_strength,
+            'gps_distances': robot.gps_distances,
+            'gps_angles': robot.gps_angles,
+            'gps_distance_rates': robot.gps_path_lateral_error_rates,
+            'gps_angle_rates': robot.gps_path_angular_error_rates,
+            'strafeP': robot.strafeP,
+            'steerP': robot.steerP,
+            'strafeD': robot.strafeD,
+            'steerD': robot.steerD,
+            'autonomy_steer_cmd': robot.autonomy_steer_cmd,
+            'autonomy_strafe_cmd': robot.autonomy_strafe_cmd,
+            'simulated_data': robot.simulated_data
             # 'front_lat': debug_points[0].lat,
             # 'front_lon': debug_points[0].lat,
             # 'rear_lat': debug_points[1].lat,
@@ -182,7 +148,7 @@ def save_current_path(pathname=None):
     if not pathdata:
         return "Missing something. No path saved."
     if not pathname:
-        volatile_path = pathdata
+        # volatile_path = pathdata
         return "Updated volatile_path"
     key = get_path_key(pathname)
     redis_client.set(key, pickle.dumps(pathdata))
@@ -223,8 +189,7 @@ def set_vehicle_path(pathname=None, vehicle_name=None):
     robot_command.load_path = get_path_key(pathname)
     print(vehicle_command_key)
     redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
-    return "Set vehicle {} path to {}".format(vehicle_command_key,
-                                              robot_command.load_path)
+    return "Set vehicle {} path to {}".format(vehicle_command_key, robot_command.load_path)
 
 
 @app.route('/api/set_gps_recording/<vehicle_name>/<record_gps_path>')
@@ -242,8 +207,7 @@ def set_gps_recording(vehicle_name=None, record_gps_path=None):
     robot_command.record_gps_path = record_gps_path
     print(robot_command.record_gps_path)
     redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
-    return "Set vehicle {} record gps command to {}".format(
-        vehicle_command_key, record_gps_path)
+    return "Set vehicle {} record gps command to {}".format(vehicle_command_key, record_gps_path)
 
 
 @app.route('/api/set_vehicle_autonomy/<vehicle_name>/<speed>/<enable>')
@@ -332,8 +296,7 @@ def get_dense_path():
     robot_keys = redis_utils.get_robot_keys(redis_client)
     if len(robot_keys) > 0:
         # TODO(tlalexander): support multiple robots in database
-        path = redis_utils.get_dense_path(redis_client=redis_client,
-                                          robot_key=robot_keys[0])
+        path = redis_utils.get_dense_path(redis_client=redis_client, robot_key=robot_keys[0])
         path = [point._asdict() for point in path]
         print(type(path))
         print(type(path[0]))
@@ -348,6 +311,6 @@ if __name__ == "__main__":
                     use_reloader=True,
                     host="0.0.0.0",
                     port=int("80"))
-        except:
+        except BaseException:
             print("Server had some error. Restarting...")
             time.sleep(5)

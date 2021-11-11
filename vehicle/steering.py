@@ -50,6 +50,8 @@ def steering_to_numpy(calculated_values):
 
 def calculate_steering(steer, throttle, strafe, angle_limit_deg):
     """
+    Returns the steering and velocity of all 4 wheels given the required motion of the vehicle.
+
     Math given from the following page:
     https://www.chiefdelphi.com/t/paper-4-wheel-independent-drive-independent-steering-swerve/107383
     Specifically in the documents:
@@ -98,7 +100,10 @@ def calculate_steering(steer, throttle, strafe, angle_limit_deg):
     vel_right_rear = ws4
     vel_left_rear = ws3
 
-    return {"front_left": (front_left_steering, vel_left_front), "front_right": (front_right_steering, vel_right_front), "rear_left": (rear_left_steering, vel_left_rear), "rear_right": (rear_right_steering, vel_right_rear)}
+    return {"front_left": (front_left_steering, vel_left_front),
+            "front_right": (front_right_steering, vel_right_front),
+            "rear_left": (rear_left_steering, vel_left_rear),
+            "rear_right": (rear_right_steering, vel_right_rear)}
 
 
 def compare_steering_values(old_val, new_val, steering_limit=1.0, velocity_limit=0.5):

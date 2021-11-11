@@ -27,7 +27,6 @@ from geographiclib.geodesic import Geodesic
 import math
 from collections import namedtuple
 import numpy as np
-from scipy.interpolate import splprep, splev
 import copy
 
 
@@ -112,7 +111,7 @@ def find_closest_pt_on_line(pt1, pt2, pt3):
 def get_heading(start_pt, second_pt):
     start_pt = check_point(start_pt)
     second_pt = check_point(second_pt)
-    g = geod.Inverse(start_pt.lat, start_pt.lon, second_pt.lat, second_pt.lon)
+    g = geod.Inverse(start_pt.lat, start_pt.lon, second_pt.lat, second_pt.lon, Geodesic.AZIMUTH)
     return float(g['azi1'])
 
 
@@ -174,14 +173,14 @@ def offset_row(row, distance, direction, copy_data=False, make_dict=True):
         offset_pt = project_point(pt, direction, distance)
         if copy_data:
             try:
-                new_pt = GpsSample(offset_pt.lat, offset_pt.lon,
-                                   pt['height_m'], pt['status'], pt['num_sats'], pt['azimuth_degrees'], pt['time_stamp'], 0)
+                new_pt = GpsSample(offset_pt.lat, offset_pt.lon, pt['height_m'], pt['status'],
+                                   pt['num_sats'], pt['azimuth_degrees'], pt['time_stamp'], 0)
                 print("copy_ok")
-            except:
+            except BaseException:
                 try:
                     new_pt = GpsPoint3D(
                         offset_pt.lat, offset_pt.lon, pt['height_m'])
-                except:
+                except BaseException:
                     pass
         if not new_pt:
             new_pt = offset_pt
@@ -216,7 +215,8 @@ def three_point_turn(points, angle, distance_away, turn_radius, robot_length=2.0
     return [check_point(latlon_point1), check_point(latlon_point2)]
 
 
-def chain_rows(row_list, starting_point, starting_direction, connection_type, forward_navigation_parameters, connector_navigation_parameters, turn_control_vals, nav_path, asdict=False):
+def chain_rows(row_list, starting_point, starting_direction, connection_type, forward_navigation_parameters,
+               connector_navigation_parameters, turn_control_vals, nav_path, asdict=False):
     """
     Given a list of GPS rows, connect each row with a u-turn command.
     """

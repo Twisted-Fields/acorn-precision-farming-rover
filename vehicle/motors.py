@@ -193,7 +193,7 @@ class AcornMotorInterface():
             except fibre.protocol.ChannelBrokenException as e:
                 print("Exception in {} odrive.".format(drive.name))
                 raise e
-            except RuntimeError as e:
+            except RuntimeError:
                 print("RuntimeError in {} odrive.".format(drive.name))
                 return True
         return False
@@ -215,8 +215,6 @@ class AcornMotorInterface():
             raise e
 
     def run_debug_control(self, enable_steering=True, enable_traction=True):
-        motor_error = False
-        tick_time = time.time()
         print("RUN_MAIN_MOTORS")
         while True:
             try:
@@ -233,14 +231,14 @@ class AcornMotorInterface():
                     except ValueError as e:
                         print("Unrecoverable error initializing steering.")
                         raise e
-                    except RuntimeError as e:
+                    except RuntimeError:
                         print("Motor problem while initializing steering.")
                 elif not self.steering_adjusted:
                     try:
                         self.steering_adjusted = True
                         self.ask_if_adjust_steering()
                         print("Initialized Steering")
-                    except RuntimeError as e:
+                    except RuntimeError:
                         print("Motor problem while adjusting steering.")
             except Exception as e:
                 print("Exception:")
@@ -262,7 +260,7 @@ class AcornMotorInterface():
                     except ValueError as e:
                         print("Unrecoverable error initializing steering.")
                         raise e
-                    except RuntimeError as e:
+                    except RuntimeError:
                         print("Motor problem while initializing steering.")
                 elif not self.steering_adjusted:
                     try:
@@ -270,7 +268,7 @@ class AcornMotorInterface():
                         if self.manual_control:
                             self.ask_if_adjust_steering()
                         print("Initialized Steering")
-                    except RuntimeError as e:
+                    except RuntimeError:
                         print("Motor problem while adjusting steering.")
 
                 voltages = []
@@ -299,7 +297,7 @@ class AcornMotorInterface():
                 # print(velocities)
 
                 if self.check_odrive_errors():
-                    if motor_error != True:
+                    if not motor_error:
                         # Intentionally break the e-stop loop to stop all motors.
                         time.sleep(1)
                     motor_error = True

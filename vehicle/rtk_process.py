@@ -364,20 +364,18 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False,
     # if return_simulated_data:
     #     return simulated_data(logger, print_gps)
 
-    print_gps_counter = 0
     errors = 0
     # print(buffers)
     blocking_exception = None
     while True:
         try:
-            start_time = time.time()
             data0 = tcp_sock1.recv(TCP_BUFFER_SIZE).decode('utf-8')
             data1 = tcp_sock2.recv(TCP_BUFFER_SIZE).decode('utf-8')
             buffers[0] += data0
             buffers[1] += data1
             buffers[0], data1 = digest_data(buffers[0], logger)
             buffers[1], data2 = digest_data(buffers[1], logger)
-            #print("Read GPS duration {}".format(time.time() - start_time))
+            # print("Read GPS duration {}".format(time.time() - start_time))
             break
         except BlockingIOError as e:
             blocking_exception = e
