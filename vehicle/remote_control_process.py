@@ -251,7 +251,7 @@ class RemoteControl():
         throttle = None
         strafe = None
         count = 0
-        while True:
+        while self.joy:
             event = None
             try:
                 event = self.joy.read_one()
