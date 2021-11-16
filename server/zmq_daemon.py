@@ -32,18 +32,19 @@ import psutil
 import time
 
 
-ZMQ_CMD = ['/usr/bin/python3','zmq_server.py']
+ZMQ_CMD = ['/usr/bin/python3', 'zmq_server.py']
 
 
 def kill_zmq_procs():
     for proc in psutil.process_iter():
-    # check whether the process name matches
+        # check whether the process name matches
         if 'zmq_server.py' in proc.cmdline():
             print(proc.cmdline())
             proc.kill()
         if 'zmq_daemon.py' in proc.cmdline() and proc.pid != os.getpid():
             print(proc.cmdline())
             proc.kill()
+
 
 def launch_zmq_server():
 
@@ -60,7 +61,7 @@ def launch_zmq_server():
             # Exit first parent
             #os.waitid(os.P_PID, pid, os.WEXITED)
             return
-            #sys.exit(0)
+            # sys.exit(0)
     except OSError as e:
         sys.exit(1)
 
@@ -78,11 +79,11 @@ def launch_zmq_server():
         sys.exit(1)
 
     print(cwd)
-    proc = subprocess.Popen(ZMQ_CMD, cwd=cwd, stdin=None, stdout=None, stderr=None, close_fds=True, shell=False)
+    proc = subprocess.Popen(ZMQ_CMD, cwd=cwd, stdin=None,
+                            stdout=None, stderr=None, close_fds=True, shell=False)
 
     while True:
         time.sleep(0.001)
-
 
 
 kill_zmq_procs()
@@ -91,9 +92,9 @@ while True:
         zmq_server_running = False
         for proc in psutil.process_iter():
             # check whether the process name matches
-                if 'zmq_server.py' in proc.cmdline():
-                    #print(proc.cmdline())
-                    zmq_server_running = True
+            if 'zmq_server.py' in proc.cmdline():
+                # print(proc.cmdline())
+                zmq_server_running = True
         if not zmq_server_running:
             print("=======================")
             print("=                     =")
@@ -101,7 +102,7 @@ while True:
             print("=                     =")
             print("=======================")
             launch_zmq_server()
-            #pass
+            # pass
         time.sleep(10)
     except KeyboardInterrupt:
         kill_zmq_procs()

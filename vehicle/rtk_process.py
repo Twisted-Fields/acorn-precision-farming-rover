@@ -49,17 +49,18 @@ _GPS_ERRORS_ALLOWED = 3
 
 
 if sys.maxsize > 2**32:
-  TCP_TIMEOUT = struct.pack(str("ll"), int(SOCKET_TIMEOUT_SECONDS), int(0))
+    TCP_TIMEOUT = struct.pack(str("ll"), int(SOCKET_TIMEOUT_SECONDS), int(0))
 else:
-  TCP_TIMEOUT = struct.pack(str("ii"), int(SOCKET_TIMEOUT_SECONDS), int(0))
+    TCP_TIMEOUT = struct.pack(str("ii"), int(SOCKET_TIMEOUT_SECONDS), int(0))
 
 
+RTK_CMD1 = ['/usr/local/bin/rtkrcv', '-s', '-d',
+            '/dev/null', '-o', '/home/pi/vehicle/twisted.conf']
+RTK_CMD2 = ['/usr/local/bin/rtkrcv', '-s', '-d',
+            '/dev/null', '-o', '/home/pi/vehicle/twisted2.conf']
 
-RTK_CMD1 = ['/usr/local/bin/rtkrcv','-s','-d','/dev/null','-o','/home/pi/vehicle/twisted.conf']
-RTK_CMD2 = ['/usr/local/bin/rtkrcv','-s','-d','/dev/null','-o','/home/pi/vehicle/twisted2.conf']
-
-#/usr/local/bin/rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted.conf
-#/usr/local/bin/rtkrcv -s -o /home/pi/vehicle/twisted.conf
+# /usr/local/bin/rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted.conf
+# /usr/local/bin/rtkrcv -s -o /home/pi/vehicle/twisted.conf
 
 
 """
@@ -71,7 +72,7 @@ pipe given when this code was launched.
 
 
 def digest_data(buffer, logger):
-    #print(data)
+    # print(data)
     # print(buffer)
     line_buffer = buffer.splitlines(keepends=True)
     # print(line_buffer)
@@ -83,27 +84,29 @@ def digest_data(buffer, logger):
             data = line_buffer[index]
             data = data.splitlines()[0]
             data = data.split(' ')
-            #print(data)
-            data = [a for a in data if a] # Remove empty string entries.
+            # print(data)
+            data = [a for a in data if a]  # Remove empty string entries.
             # print(data)
             # print(index)
             if len(data) <= 13:
                 raise ValueError("Data incomplete.")
             lat = float(data[2])
             lon = float(data[3])
-            height_m = float(data[4].replace('\'',''))
+            height_m = float(data[4].replace('\'', ''))
             status = "fix" if data[5] == "1" else "no fix"
             num_sats = data[6]
             base_rtk_age = float(data[13])
             #print("Good GPS data recieved: {}".format(data))
-            sample = gps_tools.GpsSample(lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
+            sample = gps_tools.GpsSample(
+                lat, lon, height_m, status, num_sats, None, time.time(), base_rtk_age)
             if index < len(line_buffer) - 1:
                 buffer = "".join(line_buffer[index+1:])
-                #print(buffer)
+                # print(buffer)
             else:
                 buffer = ""
             if index > 2:
-                logger.warning("Warning, skipping {} GPS samples.".format(index))
+                logger.warning(
+                    "Warning, skipping {} GPS samples.".format(index))
             # print("Returning")
             return buffer, sample
         except Exception as e:
@@ -118,6 +121,7 @@ def digest_data(buffer, logger):
         print("Incorrect GPS data length. Recieved: {}".format(data))
         return buffer, None
 
+
 def run_rtk_system(logger, master_conn):
     launch_rtk_sub_procs(logger)
     tcp_sock1, tcp_sock2 = connect_rtk_procs()
@@ -125,7 +129,8 @@ def run_rtk_system(logger, master_conn):
     latest_sample = None
     buffers = ["", ""]
     while True:
-        buffers, latest_sample = rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=True, last_sample=latest_sample)
+        buffers, latest_sample = rtk_loop_once(
+            tcp_sock1, tcp_sock2, buffers, print_gps=True, last_sample=latest_sample)
         # buffers, latest_sample = rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=print_gps_counter % 40 == 0, last_sample=latest_sample)
         print_gps_counter += 1
         if master_conn is not None:
@@ -138,7 +143,8 @@ def run_rtk_system_single(logger):
     print_gps_counter = 0
     latest_sample = None
     while True:
-        latest_sample = rtk_loop_once_single_receiver(tcp_sock1, print_gps=(print_gps_counter % 10 == 0), last_sample=latest_sample)
+        latest_sample = rtk_loop_once_single_receiver(tcp_sock1, print_gps=(
+            print_gps_counter % 10 == 0), last_sample=latest_sample)
         print_gps_counter += 1
         # if master_conn is not None:
         #     master_conn.send(latest_sample)
@@ -146,23 +152,25 @@ def run_rtk_system_single(logger):
 
 def kill_rtk_sub_procs():
     for proc in psutil.process_iter():
-    # check whether the process name matches
+        # check whether the process name matches
         if proc.name() == 'rtkrcv':
             print(proc.cmdline())
             proc.kill()
 
+
 def check_for_rtk_sub_procs(logger, single=False):
     match_count = 0
     for proc in psutil.process_iter():
-    # check whether the process name matches
+        # check whether the process name matches
         if proc.name() == 'rtkrcv':
-        #if proc.cmdline == RTK_CMD1 or proc.cmdline == RTK_CMD2:
-            match_count+=1
+            # if proc.cmdline == RTK_CMD1 or proc.cmdline == RTK_CMD2:
+            match_count += 1
     if match_count == 2 - single*1:
         logger.info("RTK processes already running so will connect to those.")
         return True
     kill_rtk_sub_procs()
     return False
+
 
 def launch_rtk_sub_procs(logger, single=False):
     # Launch rtklib process.
@@ -178,7 +186,7 @@ def launch_rtk_sub_procs(logger, single=False):
             # Exit first parent
             #os.waitid(os.P_PID, pid, os.WEXITED)
             return
-            #sys.exit(0)
+            # sys.exit(0)
     except OSError as e:
         sys.exit(1)
 
@@ -197,9 +205,11 @@ def launch_rtk_sub_procs(logger, single=False):
 
     cwd = "/home/pi/vehicle/"
 
-    proc1 = subprocess.Popen(RTK_CMD1, cwd=cwd, stdin=None, stdout=None, stderr=None, close_fds=True, shell=False)
-    if single== False:
-        proc2 = subprocess.Popen(RTK_CMD2, cwd=cwd, stdin=None, stdout=None, stderr=None, close_fds=True, shell=False)
+    proc1 = subprocess.Popen(RTK_CMD1, cwd=cwd, stdin=None,
+                             stdout=None, stderr=None, close_fds=True, shell=False)
+    if single == False:
+        proc2 = subprocess.Popen(RTK_CMD2, cwd=cwd, stdin=None,
+                                 stdout=None, stderr=None, close_fds=True, shell=False)
 
     while True:
         time.sleep(0.001)
@@ -218,6 +228,7 @@ def reset_and_reconnect_rtk(sock1, sock2, single=False):
     time.sleep(5)
     return connect_rtk_procs(single)
 
+
 def connect_rtk_procs(logger, single=False):
     tcp_sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -227,7 +238,8 @@ def connect_rtk_procs(logger, single=False):
     if single == False:
         tcp_sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, TCP_TIMEOUT)
+        tcp_sock2.setsockopt(
+            socket.SOL_SOCKET, socket.SO_RCVTIMEO, TCP_TIMEOUT)
         #tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO)
         # tcp_sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     else:
@@ -236,23 +248,23 @@ def connect_rtk_procs(logger, single=False):
     connected = False
     attempts = 0
     while True:
-      try:
-        # Connect to socket.
-        tcp_sock1.connect((TCP_IP, TCP_PORT1))
-        fcntl.fcntl(tcp_sock1, fcntl.F_SETFL, os.O_NONBLOCK)
-        if single == False:
-            logger.info("SINGLE IS FALSE")
-            tcp_sock2.connect((TCP_IP, TCP_PORT2))
-            fcntl.fcntl(tcp_sock2, fcntl.F_SETFL, os.O_NONBLOCK)
-        logger.info('Connected to RTK subprocesses.')
-        break
-      except Exception as e:
-        print(e)
-        time.sleep(0.500 + attempts)
-        logger.info('Attempt failed.')
-        attempts += 1
-        if attempts > 5:
-            raise RuntimeError("Could not connect to rtkrcv TCP socket.")
+        try:
+            # Connect to socket.
+            tcp_sock1.connect((TCP_IP, TCP_PORT1))
+            fcntl.fcntl(tcp_sock1, fcntl.F_SETFL, os.O_NONBLOCK)
+            if single == False:
+                logger.info("SINGLE IS FALSE")
+                tcp_sock2.connect((TCP_IP, TCP_PORT2))
+                fcntl.fcntl(tcp_sock2, fcntl.F_SETFL, os.O_NONBLOCK)
+            logger.info('Connected to RTK subprocesses.')
+            break
+        except Exception as e:
+            print(e)
+            time.sleep(0.500 + attempts)
+            logger.info('Attempt failed.')
+            attempts += 1
+            if attempts > 5:
+                raise RuntimeError("Could not connect to rtkrcv TCP socket.")
 
     return tcp_sock1, tcp_sock2
 
@@ -271,7 +283,8 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
                 #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
                 if print_gps:
                     try:
-                        print("Lat: {:.10f}, Lon: {:.10f}, Height M: {:.4f}, Fix: {}, Period: {:.4f}".format(latest_sample.lat, latest_sample.lon, latest_sample.height_m, latest_sample.status, period))
+                        print("Lat: {:.10f}, Lon: {:.10f}, Height M: {:.4f}, Fix: {}, Period: {:.4f}".format(
+                            latest_sample.lat, latest_sample.lon, latest_sample.height_m, latest_sample.status, period))
                     except:
                         pass
                 return latest_sample
@@ -306,7 +319,6 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
 # Good GPS data recieved: ["b'2138", '345204', '37.353039214', '-122.333725704', '79.7374', '1', '16', '0.0055', '0.0054', '0.0152', '-0.0031', '0.0048', '-0.0039', '0.40', "276.4'"]
 
 
-
 # def read_to_newline(sock, retries=3):
 #     errors = 0
 #     data = []
@@ -330,7 +342,6 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
 #                     return None
 
 
-
 # def simulated_data(logger, print_gps):
 #     lat = 37.353 + random.random() * 0.0001
 #     lon = -122.332 + random.random() * 0.0001
@@ -345,7 +356,6 @@ def rtk_loop_once_single_receiver(tcp_sock, print_gps=False, last_sample=None):
 #     return [], latest_sample
 
 
-
 def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False,
                   last_sample=None, retries=3, logger=None):
     if not logger:
@@ -356,7 +366,7 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False,
 
     print_gps_counter = 0
     errors = 0
-    #print(buffers)
+    # print(buffers)
     blocking_exception = None
     while True:
         try:
@@ -384,23 +394,26 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False,
 
     try:
         if data1 and data2:
-            azimuth_degrees = gps_tools.get_heading(data1, data2) + VEHICLE_AZIMUTH_OFFSET_DEG
-            d = gps_tools.get_distance(data1,data2)
+            azimuth_degrees = gps_tools.get_heading(
+                data1, data2) + VEHICLE_AZIMUTH_OFFSET_DEG
+            d = gps_tools.get_distance(data1, data2)
             lat = (data1.lat + data2.lat) / 2.0
             lon = (data1.lon + data2.lon) / 2.0
             #print("HEIGHT DIFFERENCE {}".format(data1.height_m - data2.height_m))
             height_m = (data1.height_m + data2.height_m) / 2.0
             rtk_age = max([data1.rtk_age, data2.rtk_age])
-            latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data1.status, data2.status), (data1.num_sats, data2.num_sats), azimuth_degrees, data1.time_stamp, rtk_age)
+            latest_sample = gps_tools.GpsSample(lat, lon, height_m, (data1.status, data2.status), (
+                data1.num_sats, data2.num_sats), azimuth_degrees, data1.time_stamp, rtk_age)
             if last_sample:
                 period = latest_sample.time_stamp - last_sample.time_stamp
             else:
                 period = None
             #print("GPS DEBUG: FIX reads... : {}".format(latest_sample.status))
             if print_gps:
-                fix1=data1.status=="fix"
-                fix2=data2.status=="fix"
-                logger.info("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fixes: ({}, {}), Period: {:.2f}".format(latest_sample.lat, latest_sample.lon, azimuth_degrees, d, fix1, fix2, period))
+                fix1 = data1.status == "fix"
+                fix2 = data2.status == "fix"
+                logger.info("Lat: {:.10f}, Lon: {:.10f}, Azimuth: {:.2f}, Distance: {:.4f}, Fixes: ({}, {}), Period: {:.2f}".format(
+                    latest_sample.lat, latest_sample.lon, azimuth_degrees, d, fix1, fix2, period))
             return buffers, latest_sample
         else:
             logger.error("Missing GPS Data")
@@ -420,6 +433,6 @@ def start_gps(master_conn):
     rtk_proc.start()
 
 
-if __name__=="__main__":
-    #run_rtk_system_single()
+if __name__ == "__main__":
+    # run_rtk_system_single()
     run_rtk_system(None)

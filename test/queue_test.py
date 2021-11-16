@@ -11,6 +11,7 @@ def AppendFIFO(list, value, max_values):
         list.pop(0)
     return list
 
+
 def send_slow(queue1, queue2):
     somelist = []
     maxlen = 500

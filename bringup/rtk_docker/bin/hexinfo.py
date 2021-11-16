@@ -38,6 +38,7 @@
         data (if any), in YAML format.
 """
 
+import sys
 VERSION = '2.2'
 
 USAGE = '''hexinfo: summarize a hex file's contents.
@@ -49,10 +50,10 @@ Options:
     -v, --version           version info.
 '''
 
-import sys
 
 INDENT = '  '
 INLIST = '- '
+
 
 def summarize_yaml(fname):
     print("{:s}file: '{:s}'".format(INLIST, fname))
@@ -60,7 +61,7 @@ def summarize_yaml(fname):
     ih = IntelHex(fname)
     if ih.start_addr:
         keys = sorted(ih.start_addr.keys())
-        if keys == ['CS','IP']:
+        if keys == ['CS', 'IP']:
             entry = ih.start_addr['CS'] * 65536 + ih.start_addr['IP']
         elif keys == ['EIP']:
             entry = ih.start_addr['EIP']
@@ -71,8 +72,10 @@ def summarize_yaml(fname):
     if segments:
         print("{:s}data:".format(INDENT))
         for s in segments:
-            print("{:s}{:s}{{ first: 0x{:08X}, last: 0x{:08X}, length: 0x{:08X} }}".format(INDENT, INLIST, s[0], s[1]-1, s[1]-s[0]))
+            print("{:s}{:s}{{ first: 0x{:08X}, last: 0x{:08X}, length: 0x{:08X} }}".format(
+                INDENT, INLIST, s[0], s[1]-1, s[1]-s[0]))
     print("")
+
 
 def main(argv=None):
     import getopt
@@ -82,7 +85,7 @@ def main(argv=None):
     try:
         opts, args = getopt.gnu_getopt(argv, 'hv', ['help', 'version'])
 
-        for o,a in opts:
+        for o, a in opts:
             if o in ('-h', '--help'):
                 print(USAGE)
                 return 0
@@ -97,12 +100,14 @@ def main(argv=None):
         return 1
 
     if len(args) < 1:
-        sys.stderr.write("ERROR: You should specify one or more files to summarize.\n")
+        sys.stderr.write(
+            "ERROR: You should specify one or more files to summarize.\n")
         sys.stderr.write(USAGE+"\n")
         return 1
 
     for fname in args:
         summarize_yaml(fname)
+
 
 if __name__ == '__main__':
     sys.exit(main())

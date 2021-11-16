@@ -20,6 +20,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+import gps_tools
+import spline_lib
+from remote_control_process import EnergySegment
 import redis
 import time
 import pickle
@@ -32,9 +35,6 @@ import sys
 
 from scipy.interpolate import splprep, splev
 sys.path.append('../vehicle')
-from remote_control_process import EnergySegment
-import spline_lib
-import gps_tools
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -46,7 +46,6 @@ _SMOOTH_MULTIPLIER = 0.00000000001
 r = redis.Redis(
     host='192.168.1.170',
     port=6379)
-
 
 
 # self.sequence_num = sequence_num
@@ -64,16 +63,16 @@ idx = 0
 orig_x = []
 orig_y = []
 colors = []
-path_cuts = [(0,0), (23,0), (0,48)]
+path_cuts = [(0, 0), (23, 0), (0, 48)]
 final_path = []
 path1 = []
 path2 = []
 path3 = []
 paths = [path1, path2, path3]
 for key in r.scan_iter():
-    #print(key)
+    # print(key)
     if 'gpspath' in str(key):
-        #if "row_cross" in str(key) or "new_big_field_row_shortened" in str(key) or "row_2_full" in str(key):
+        # if "row_cross" in str(key) or "new_big_field_row_shortened" in str(key) or "row_2_full" in str(key):
         if "test" in str(key):
             path = pickle.loads(r.get(key))
             # for item in path:
@@ -95,13 +94,15 @@ for track in lat_lon_tracks:
         next_track = []
         for point in track:
             #point = gps_tools.GpsPoint(point[0], point[1])
-            point = {'lat':point[0], 'lon':point[1]}
+            point = {'lat': point[0], 'lon': point[1]}
             print(point)
             next_track.append(point)
             track_set_complete.append(point)
         print(next_track)
-        r.set('twistedfields:gpspath:autogen_1_row_{}:key'.format(tracknum), pickle.dumps(next_track))
+        r.set('twistedfields:gpspath:autogen_1_row_{}:key'.format(
+            tracknum), pickle.dumps(next_track))
         tracknum += 1
     print("#################")
 
-r.set('twistedfields:gpspath:autogen_1_complete:key', pickle.dumps(track_set_complete))
+r.set('twistedfields:gpspath:autogen_1_complete:key',
+      pickle.dumps(track_set_complete))

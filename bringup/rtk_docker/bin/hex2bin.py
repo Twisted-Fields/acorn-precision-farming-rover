@@ -69,8 +69,8 @@ Options:
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hvp:r:l:s:",
-                                  ["help", "version", "pad=", "range=",
-                                   "length=", "size="])
+                                   ["help", "version", "pad=", "range=",
+                                    "length=", "size="])
 
         for o, a in opts:
             if o in ("-h", "--help"):
@@ -100,7 +100,8 @@ Options:
                     raise getopt.GetoptError('Bad size value')
 
         if start != None and end != None and size != None:
-            raise getopt.GetoptError('Cannot specify START:END and SIZE simultaneously')
+            raise getopt.GetoptError(
+                'Cannot specify START:END and SIZE simultaneously')
 
         if not args:
             raise getopt.GetoptError('Hex file is not specified')
@@ -110,14 +111,16 @@ Options:
 
     except getopt.GetoptError:
         msg = sys.exc_info()[1]     # current exception
-        txt = 'ERROR: '+str(msg)  # that's required to get not-so-dumb result from 2to3 tool
+        # that's required to get not-so-dumb result from 2to3 tool
+        txt = 'ERROR: '+str(msg)
         print(txt)
         print(usage)
         sys.exit(2)
 
     fin = args[0]
     if not os.path.isfile(fin):
-        txt = "ERROR: File not found: %s" % fin  # that's required to get not-so-dumb result from 2to3 tool
+        # that's required to get not-so-dumb result from 2to3 tool
+        txt = "ERROR: File not found: %s" % fin
         print(txt)
         sys.exit(1)
 

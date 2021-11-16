@@ -35,6 +35,7 @@
 
 """Merge content of several hex files into one file."""
 
+import sys
 VERSION = '2.2'
 
 USAGE = '''hexmerge: merge content of hex files.
@@ -80,8 +81,6 @@ or
     filename::
 '''
 
-import sys
-
 
 def main(args=None):
     import getopt
@@ -99,9 +98,9 @@ def main(args=None):
                                        ['help', 'version',
                                         'output=', 'range=',
                                         'no-start-addr', 'overlap=',
-                                       ])
+                                        ])
 
-        for o,a in opts:
+        for o, a in opts:
             if o in ('-h', '--help'):
                 print(USAGE)
                 return 0

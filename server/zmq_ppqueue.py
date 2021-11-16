@@ -43,6 +43,7 @@ class Worker(object):
         self.address = address
         self.expiry = time.time() + HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS
 
+
 class WorkerQueue(object):
     def __init__(self):
         self.queue = OrderedDict()
@@ -66,11 +67,12 @@ class WorkerQueue(object):
         address, worker = self.queue.popitem(False)
         return address
 
+
 context = zmq.Context(1)
 
-frontend = context.socket(zmq.ROUTER) # ROUTER
+frontend = context.socket(zmq.ROUTER)  # ROUTER
 backend = context.socket(zmq.ROUTER)  # ROUTER
-frontend.bind("tcp://*:5570") # For clients
+frontend.bind("tcp://*:5570")  # For clients
 backend.bind("tcp://*:5569")  # For workers
 
 poll_workers = zmq.Poller()
@@ -108,7 +110,7 @@ while True:
             if msg[0] not in (PPP_READY, PPP_HEARTBEAT):
                 print("E: Invalid message from worker: %s" % msg)
         else:
-            #print(msg)
+            # print(msg)
             tracker = frontend.send_multipart(msg)
 
         # Send heartbeats to idle workers if it's time
@@ -124,6 +126,5 @@ while True:
 
         frames.insert(0, workers.next())
         backend.send_multipart(frames)
-
 
     workers.purge()

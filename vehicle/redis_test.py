@@ -41,7 +41,6 @@ r = redis.Redis(
 # r.set('foo', 'bar')
 
 
-
 # def smooth_track(gps_coords, smooth_factor, num_points):
 #     """ Calculated a spline based on a gps track.
 #     Args:
@@ -66,7 +65,6 @@ r = redis.Redis(
 #     return lat_smooth, lon_smooth, orig_lats, orig_lons
 
 
-
 for key in r.scan_iter():
     print(key)
     if 'gpspath' in str(key) and 'long_strawberry_parking2' in str(key):
@@ -78,7 +76,8 @@ for key in r.scan_iter():
        # #     # # #newkey = "twistedfields:gpspath:{}-key".format(str(key))
        #     r.delete(key)
         gps_coords = pickle.loads(r.get(key))
-        spline = spline_lib.GpsSpline(gps_coords, smooth_factor=1, num_points=500)
+        spline = spline_lib.GpsSpline(
+            gps_coords, smooth_factor=1, num_points=500)
         #lat_smooth, lon_smooth, orig_x, orig_y = smooth_track(gps_coords, smooth_factor=10, num_points=200)
         #print(list(zip(lat_smooth, lon_smooth)))
         #plt.plot(dat[:,0], dat[:,1],'ro')
@@ -94,13 +93,14 @@ for key in r.scan_iter():
             orig_y.append(p['lon'])
             print(p['lat'], p['lon'])
 
-
-        point_of_interest = {'lat':37.35409860533507, 'lon':-122.33325479993744}
-        point_of_interest = {'lat':37.35398195436689, 'lon':-122.33308312401907}
+        point_of_interest = {'lat': 37.35409860533507,
+                             'lon': -122.33325479993744}
+        point_of_interest = {'lat': 37.35398195436689,
+                             'lon': -122.33308312401907}
         point_of_interest = {'lat': 37.3540842425, 'lon': -122.3333173125}
         point_of_interest = {'lat': 37.35402, 'lon': -122.3334}
 
-            #37.3540842425, -122.3333173125
+        #37.3540842425, -122.3333173125
         start = time.time()
         for _ in range(1000):
             closeu = spline.closestUOnSpline(point_of_interest)
@@ -119,67 +119,59 @@ for key in r.scan_iter():
         #mag = mag[0]/mag[1] * 90
         print("closeu {}, coord {}, mag {}".format(closeu, coord, mag))
 
-
         plt.plot(orig_x, orig_y, 'ro')
         plt.plot(lat_smooth, lon_smooth, 'bo')
-        plt.plot(point_of_interest['lat'],point_of_interest['lon'], 'go', markersize=20)
+        plt.plot(point_of_interest['lat'],
+                 point_of_interest['lon'], 'go', markersize=20)
         plt.plot(coord.lat, coord.lon, 'mo', markersize=20)
         plt.plot(coord2.lat, coord2.lon, 'yo', markersize=20)
         plt.title(str(key))
         plt.show()
-         #   print(value)
-         #   point_data = []
-         #   lats = []
-         #   lons = []
-         #   utm_x = []
-         #   utm_y = []
-         # #  try:
-         #
-         #
-         #   for line in value:
-         #       lats.append(line['lat'])
-         #       lons.append(line['lon'])
-         #       point_data.append((line['lat'], line['lon']))
-         #       utm_coord = utm.from_latlon(line['lat'], line['lon'])
-         #       utm_x.append(utm_coord[0])
-         #       utm_x.append(utm_coord[1])
-         #   x, y = np.array(lats), np.array(lons)
-         #   #simple_coords = rdp(point_data, epsilon=1e-4)
-         #   #print("{} points reduced to {}!".format(coords.shape[0], simple_coords.shape[0]))
-         #   #plt.plot(simple_coords[:, 0], simple_coords[:, 1], 'ro')
-         #   #plt.show()
-         #
-         #   smooth_factor = 1
-         #
-         #
-         #
-         #   dat = np.array([(x,y) for x,y in zip(lats, lons)])
-         #    #dat = np.array([(x,y) for x,y in zip(coords.lon[::18], coords.lat[::18])])
-         #   tck, u = splprep(dat.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10)
-         #   u_new = np.linspace(u.min(), u.max(), 200)
-         #   x_new, y_new = splev(u_new, tck, der=0)
-         #   #print(x_new)
+        #   print(value)
+        #   point_data = []
+        #   lats = []
+        #   lons = []
+        #   utm_x = []
+        #   utm_y = []
+        # #  try:
+        #
+        #
+        #   for line in value:
+        #       lats.append(line['lat'])
+        #       lons.append(line['lon'])
+        #       point_data.append((line['lat'], line['lon']))
+        #       utm_coord = utm.from_latlon(line['lat'], line['lon'])
+        #       utm_x.append(utm_coord[0])
+        #       utm_x.append(utm_coord[1])
+        #   x, y = np.array(lats), np.array(lons)
+        #   #simple_coords = rdp(point_data, epsilon=1e-4)
+        #   #print("{} points reduced to {}!".format(coords.shape[0], simple_coords.shape[0]))
+        #   #plt.plot(simple_coords[:, 0], simple_coords[:, 1], 'ro')
+        #   #plt.show()
+        #
+        #   smooth_factor = 1
+        #
+        #
+        #
+        #   dat = np.array([(x,y) for x,y in zip(lats, lons)])
+        #    #dat = np.array([(x,y) for x,y in zip(coords.lon[::18], coords.lat[::18])])
+        #   tck, u = splprep(dat.T, u=None, s=smooth_factor * _SMOOTH_MULTIPLIER, per=0, t=10)
+        #   u_new = np.linspace(u.min(), u.max(), 200)
+        #   x_new, y_new = splev(u_new, tck, der=0)
+        #   #print(x_new)
 
-
-
-
-
-
-
-
-           # print(point_data)
-           # plt.plot(x, y, 'ro', ms=5)
-           # cs = CubicSpline(x, y)
-           # xs = 2 * np.pi * np.linspace(0, 1, 100)
-           # ax.plot(xs, cs(xs), label="S")
-           # plt.show()
-           # spl = UnivariateSpline(x, y)
-           # xs = np.linspace(-3, 3, 1000)
-           # plt.plot(xs, spl(xs), 'g', lw=3)
-          # except:
-            #   print('exception unpickling key {}'.format(key))
-               #r.delete(key)
-
+        # print(point_data)
+        # plt.plot(x, y, 'ro', ms=5)
+        # cs = CubicSpline(x, y)
+        # xs = 2 * np.pi * np.linspace(0, 1, 100)
+        # ax.plot(xs, cs(xs), label="S")
+        # plt.show()
+        # spl = UnivariateSpline(x, y)
+        # xs = np.linspace(-3, 3, 1000)
+        # plt.plot(xs, spl(xs), 'g', lw=3)
+        # except:
+        #   print('exception unpickling key {}'.format(key))
+        # r.delete(key)
 
 
 # while True:

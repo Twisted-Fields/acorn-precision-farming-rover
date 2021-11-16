@@ -29,9 +29,10 @@ import time
 
 _POLLING_DELAY_S = 0.01
 
+
 def run_frame_control(parent_conn):
 
-    BAUD=500000
+    BAUD = 500000
 
     ser0 = serial.Serial('/dev/ttyACM0', BAUD, timeout=0.5)
     print(ser0.name)

@@ -33,7 +33,7 @@ my_drive.axis0.controller.pos_setpoint = 3.14
 print("Position setpoint is " + str(my_drive.axis0.controller.pos_setpoint))
 
 # And this is how function calls are done:
-for i in [1,2,3,4]:
+for i in [1, 2, 3, 4]:
     print('voltage on GPIO{} is {} Volt'.format(i, my_drive.get_adc_voltage(i)))
 
 # A sine wave to test
@@ -50,4 +50,5 @@ while True:
 my_drive.vbus_voltage = 11.0  # fails with `AttributeError: can't set attribute`
 
 # Assign an incompatible value:
-my_drive.motor0.pos_setpoint = "I like trains"  # fails with `ValueError: could not convert string to float`
+# fails with `ValueError: could not convert string to float`
+my_drive.motor0.pos_setpoint = "I like trains"

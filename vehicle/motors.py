@@ -63,7 +63,8 @@ _ACCELERATION_COUNTS_SEC = 0.5
 class simulated_GPIO():
     def __init__(self):
         self.estop_state = True
-    def output(self,*args):
+
+    def output(self, *args):
         pass
 
 
@@ -72,10 +73,14 @@ class AcornMotorInterface():
     def __init__(self, manual_control=False, simulated_hardware=False):
 
         self.odrive_connections = [
-        OdriveConnection(name='front_right', serial="335E31483536", path="/dev/ttySC1", enable_steering=True, enable_traction=True),
-        OdriveConnection(name='front_left', serial="335B314C3536", path="/dev/ttySC0", enable_steering=True, enable_traction=True),
-        OdriveConnection(name='rear_right', serial="3352316E3536", path="/dev/ttySC2", enable_steering=True, enable_traction=True),
-        OdriveConnection(name='rear_left', serial="205F3882304E", path="/dev/ttySC3", enable_steering=True, enable_traction=True)
+            OdriveConnection(name='front_right', serial="335E31483536",
+                             path="/dev/ttySC1", enable_steering=True, enable_traction=True),
+            OdriveConnection(name='front_left', serial="335B314C3536",
+                             path="/dev/ttySC0", enable_steering=True, enable_traction=True),
+            OdriveConnection(name='rear_right', serial="3352316E3536",
+                             path="/dev/ttySC2", enable_steering=True, enable_traction=True),
+            OdriveConnection(name='rear_left', serial="205F3882304E",
+                             path="/dev/ttySC3", enable_steering=True, enable_traction=True)
         ]
 
         self.command_socket = self.create_socket()
@@ -91,13 +96,11 @@ class AcornMotorInterface():
             self.GPIO = GPIO
             self.setup_GPIO(self.GPIO)
 
-
     def create_socket(self, port=5590):
         context = zmq.Context()
         socket = context.socket(zmq.REP)
         socket.bind("tcp://*:{}".format(port))
         return socket
-
 
     def ask_if_adjust_steering(self):
         self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
@@ -112,7 +115,8 @@ class AcornMotorInterface():
         speed = 0
         while True:
             drive = self.odrives[index]
-            print("(Use arrow keys or d if done) Adjusting Odrive: {} with home position: {}".format(drive.name, drive.home_position))
+            print("(Use arrow keys or d if done) Adjusting Odrive: {} with home position: {}".format(
+                drive.name, drive.home_position))
             c = click.getchar()
             click.echo()
             if c == 'd':
@@ -120,10 +124,10 @@ class AcornMotorInterface():
                 self.steering_adjusted = True
                 return
             elif c == 'w':
-                speed+= 100
+                speed += 100
                 print("SPEED UP: {}".format(speed))
             elif c == 's':
-                speed-= 100
+                speed -= 100
                 print("SPEED DOWN: {}".format(speed))
             elif c == _UP_KEYCODE:
                 print("UP")
@@ -142,7 +146,7 @@ class AcornMotorInterface():
                 speed = 0.0
                 index -= 1
                 if index < 0:
-                   index = len(self.odrives) - 1
+                    index = len(self.odrives) - 1
             else:
                 print(repr(c))
                 speed = 0.0
@@ -153,11 +157,11 @@ class AcornMotorInterface():
         self.odrives = []
         for drive in self.odrive_connections:
             corner = corner_actuator.CornerActuator(GPIO=self.GPIO,
-                connection_definition=drive,
-                enable_steering=drive.enable_steering,
-                enable_traction=drive.enable_traction,
-                simulated_hardware=self.simulated_hardware,
-                disable_steering_limits=self.manual_control)
+                                                    connection_definition=drive,
+                                                    enable_steering=drive.enable_steering,
+                                                    enable_traction=drive.enable_traction,
+                                                    simulated_hardware=self.simulated_hardware,
+                                                    disable_steering_limits=self.manual_control)
             self.odrives.append(corner)
         self.odrives_connected = True
 
@@ -168,9 +172,11 @@ class AcornMotorInterface():
             if drive.enable_steering:
                 steering = 0.0
                 if "rear" in drive.name:
-                    drive.initialize_steering(steering_flipped=True, skip_homing=self.manual_control)
+                    drive.initialize_steering(
+                        steering_flipped=True, skip_homing=self.manual_control)
                 else:
-                    drive.initialize_steering(steering_flipped=False, skip_homing=self.manual_control)
+                    drive.initialize_steering(
+                        steering_flipped=False, skip_homing=self.manual_control)
                 drive.update_actuator(steering, 0.0)
         for drive in self.odrives:
             if drive.enable_traction:
@@ -199,14 +205,14 @@ class AcornMotorInterface():
             while self.command_socket.poll(timeout=20):
                 corner_actuator.gpio_toggle(self.GPIO)
                 recv = pickle.loads(self.command_socket.recv_pyobj())
-                self.command_socket.send_pyobj(pickle.dumps((state, voltages, ibus, temperatures)),flags=zmq.DONTWAIT)
+                self.command_socket.send_pyobj(pickle.dumps(
+                    (state, voltages, ibus, temperatures)), flags=zmq.DONTWAIT)
                 corner_actuator.gpio_toggle(self.GPIO)
                 return recv
             # print("no incoming messages")
         except zmq.error.ZMQError as e:
             print("Error with motor command socket: {}".format(e))
             raise e
-
 
     def run_debug_control(self, enable_steering=True, enable_traction=True):
         motor_error = False
@@ -215,7 +221,8 @@ class AcornMotorInterface():
         while True:
             try:
                 if not self.odrives_connected:
-                    self.connect_to_motors(enable_steering=enable_steering, enable_traction=enable_traction)
+                    self.connect_to_motors(
+                        enable_steering=enable_steering, enable_traction=enable_traction)
                     print("CONNECTED TO MOTORS")
                     print(self.odrives)
                 elif not self.motors_initialized:
@@ -239,7 +246,6 @@ class AcornMotorInterface():
                 print("Exception:")
                 print(e)
                 time.sleep(1)
-
 
     def run_main(self):
         motor_error = False
@@ -267,7 +273,6 @@ class AcornMotorInterface():
                     except RuntimeError as e:
                         print("Motor problem while adjusting steering.")
 
-
                 voltages = []
                 bus_currents = []
                 temperatures = []
@@ -277,11 +282,13 @@ class AcornMotorInterface():
                         vehicle_corner.update_voltage()
                         vehicle_corner.update_thermistor_temperature_C()
                     except Exception as e:
-                        print("Error in vehicle corner {}".format(vehicle_corner.name))
+                        print("Error in vehicle corner {}".format(
+                            vehicle_corner.name))
                         raise e
                     corner_actuator.gpio_toggle(self.GPIO)
                     voltages.append(vehicle_corner.voltage)
-                    bus_currents.append(abs(vehicle_corner.ibus_0) + abs(vehicle_corner.ibus_1))
+                    bus_currents.append(
+                        abs(vehicle_corner.ibus_0) + abs(vehicle_corner.ibus_1))
                     temperatures.append(vehicle_corner.temperature_c)
 
                 # velocities = []
@@ -293,7 +300,8 @@ class AcornMotorInterface():
 
                 if self.check_odrive_errors():
                     if motor_error != True:
-                        time.sleep(1) # Intentionally break the e-stop loop to stop all motors.
+                        # Intentionally break the e-stop loop to stop all motors.
+                        time.sleep(1)
                     motor_error = True
                     time.sleep(0.5)
                     corner_actuator.toggling_sleep(self.GPIO, 0.2)
@@ -302,11 +310,14 @@ class AcornMotorInterface():
                         print("Drive: {}:".format(drive.name))
                         start = time.time()
                         drive.print_errors(clear_errors=True)
-                        print("clear_errors_duration {}".format(start - time.time()))
+                        print("clear_errors_duration {}".format(
+                            start - time.time()))
                     print("ERROR DETECTED IN ODRIVES.")
-                    corner_actuator.toggling_sleep(self.GPIO, _ERROR_RECOVERY_DELAY_S)
-                    #time.sleep(_ERROR_RECOVERY_DELAY_S)
-                    recv = self.communicate_message(_STATE_DISABLED, voltages, bus_currents, temperatures)
+                    corner_actuator.toggling_sleep(
+                        self.GPIO, _ERROR_RECOVERY_DELAY_S)
+                    # time.sleep(_ERROR_RECOVERY_DELAY_S)
+                    recv = self.communicate_message(
+                        _STATE_DISABLED, voltages, bus_currents, temperatures)
                     if recv:
                         print("Got motor command but motors are in error state.")
                         print("Motor command was {}".format(recv))
@@ -318,7 +329,8 @@ class AcornMotorInterface():
                             print("Recovered from e-stop.")
                             motor_error = False
 
-                    calc = self.communicate_message(_STATE_ENABLED, voltages, bus_currents, temperatures)
+                    calc = self.communicate_message(
+                        _STATE_ENABLED, voltages, bus_currents, temperatures)
                     corner_actuator.gpio_toggle(self.GPIO)
                     if calc:
                         if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
@@ -334,9 +346,8 @@ class AcornMotorInterface():
                             #     this_pos = 0
                             #     this_vel_cmd = 0
 
-
                         #    if "rear_left" in drive.name:
-                                # this_vel_cmd *= 0.63
+                            # this_vel_cmd *= 0.63
                             #    this_vel_cmd *= 0.70
                             #     drive.odrv0.axis1.controller.config.vel_gain = 0 # 0.02
                             #     drive.odrv0.axis1.controller.config.vel_integrator_gain = 0 # 0.1
@@ -344,27 +355,30 @@ class AcornMotorInterface():
                             #     this_vel_cmd = 0
                             # this_pos = 0
                             try:
-                                drive.update_actuator(this_pos, this_vel_cmd * 1000)
+                                drive.update_actuator(
+                                    this_pos, this_vel_cmd * 1000)
                             except RuntimeError as e:
                                 print("Error updating actuator.")
                                 print(e)
                             except AttributeError as e:
                                 print("Attribute Error while updating actuator.")
                                 print(e)
-                                print("self.motors_initialized {}".format(self.motors_initialized))
+                                print("self.motors_initialized {}".format(
+                                    self.motors_initialized))
                                 print("self {}".format(self))
-                            #time.sleep(0.02)
+                            # time.sleep(0.02)
                             corner_actuator.toggling_sleep(self.GPIO, 0.02)
 
                     if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
-                        print("COMMS LOST SLOWING ACTUATOR. ~~ {}".format(time.time()))
+                        print("COMMS LOST SLOWING ACTUATOR. ~~ {}".format(
+                            time.time()))
                         for drive in self.odrives:
                             try:
                                 drive.slow_actuator(0.95)
                             except RuntimeError as e:
                                 print("Error updating actuator.")
                                 print(e)
-                        #time.sleep(0.05)
+                        # time.sleep(0.05)
                         corner_actuator.toggling_sleep(self.GPIO, 0.05)
 
         except KeyboardInterrupt:
@@ -386,7 +400,6 @@ class AcornMotorInterface():
             GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
 
 
-
 def e_stop_square_wave(GPIO):
     delay = 0.01
     while True:
@@ -398,9 +411,12 @@ def e_stop_square_wave(GPIO):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run the Acorn motors process.')
-    parser.add_argument('--manual', dest='manual_control', default=False, action='store_true')
-    parser.add_argument('--simulated_hardware', dest='simulated_hardware', default=False, action='store_true')
+    parser = argparse.ArgumentParser(
+        description='Run the Acorn motors process.')
+    parser.add_argument('--manual', dest='manual_control',
+                        default=False, action='store_true')
+    parser.add_argument('--simulated_hardware',
+                        dest='simulated_hardware', default=False, action='store_true')
     args = parser.parse_args()
     control = AcornMotorInterface(args.manual_control, args.simulated_hardware)
     control.run_main()

@@ -48,19 +48,22 @@ app.config['REDIS_URL'] = "redis://:@localhost:6379/0"
 redis_client = FlaskRedis(app)
 
 
-volatile_path = [] # When the robot is streaming a path, save it in RAM here.
+volatile_path = []  # When the robot is streaming a path, save it in RAM here.
 active_site = "twistedfields"
 
-date_handler = lambda obj: (
+
+def date_handler(obj): return (
     obj.isoformat() + "-07:00"
     if isinstance(obj, (datetime.datetime, datetime.date))
     else None
 )
 
+
 def send_herd_data():
     keys = get_robot_keys()
     robots = robots_to_json(keys)
     return jsonify(robots)
+
 
 def get_robot_keys():
     robot_keys = []
@@ -78,6 +81,7 @@ def load_first_robot(redis_client):
         time_stamp = json.dumps(robot.time_stamp, default=date_handler)
         return robot
 
+
 def robots_to_json(keys):
     robots_list = []
     for key in keys:
@@ -86,37 +90,37 @@ def robots_to_json(keys):
         live_path_data = robot.live_path_data
         gps_path_data = robot.gps_path_data
         debug_points = robot.debug_points
-        #print(debug_points)
-        robot_entry = { 'name': robot.name, 'lat': robot.location.lat, 'lon':
-        robot.location.lon, 'heading': robot.location.azimuth_degrees,
-        'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
-        'voltage': robot.voltage, 'control_state': robot.control_state,
-        'motor_state': robot.motor_state, 'time_stamp': time_stamp,
-        'loaded_path_name': "" if not robot.loaded_path_name else robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
-        'live_path_data' : live_path_data,
-        'gps_path_data' : gps_path_data,
-        'debug_points' : debug_points,
-        'autonomy_hold' : robot.autonomy_hold,
-        'activate_autonomy' : robot.activate_autonomy,
-        'access_point_name' : robot.wifi_ap_name,
-        'wifi_signal' : robot.wifi_strength,
-        'gps_distances' : robot.gps_distances,
-        'gps_angles' : robot.gps_angles,
-        'gps_distance_rates' : robot.gps_path_lateral_error_rates,
-        'gps_angle_rates' : robot.gps_path_angular_error_rates,
-        'strafe' : robot.strafe,
-        'rotation' : robot.rotation,
-        'strafeD' : robot.strafeD,
-        'steerD' : robot.steerD
-        # 'front_lat': debug_points[0].lat,
-        # 'front_lon': debug_points[0].lat,
-        # 'rear_lat': debug_points[1].lat,
-        # 'rear_lon': debug_points[1].lat,
-        # 'front_close_lat': debug_points[2].lat,
-        # 'front_close_lon': debug_points[2].lat,
-        # 'rear_close_lat': debug_points[3].lat,
-        # 'rear_close_lon': debug_points[3].lat,
-        }
+        # print(debug_points)
+        robot_entry = {'name': robot.name, 'lat': robot.location.lat, 'lon':
+                       robot.location.lon, 'heading': robot.location.azimuth_degrees,
+                       'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
+                       'voltage': robot.voltage, 'control_state': robot.control_state,
+                       'motor_state': robot.motor_state, 'time_stamp': time_stamp,
+                       'loaded_path_name': "" if not robot.loaded_path_name else robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
+                       'live_path_data': live_path_data,
+                       'gps_path_data': gps_path_data,
+                       'debug_points': debug_points,
+                       'autonomy_hold': robot.autonomy_hold,
+                       'activate_autonomy': robot.activate_autonomy,
+                       'access_point_name': robot.wifi_ap_name,
+                       'wifi_signal': robot.wifi_strength,
+                       'gps_distances': robot.gps_distances,
+                       'gps_angles': robot.gps_angles,
+                       'gps_distance_rates': robot.gps_path_lateral_error_rates,
+                       'gps_angle_rates': robot.gps_path_angular_error_rates,
+                       'strafe': robot.strafe,
+                       'rotation': robot.rotation,
+                       'strafeD': robot.strafeD,
+                       'steerD': robot.steerD
+                       # 'front_lat': debug_points[0].lat,
+                       # 'front_lon': debug_points[0].lat,
+                       # 'rear_lat': debug_points[1].lat,
+                       # 'rear_lon': debug_points[1].lat,
+                       # 'front_close_lat': debug_points[2].lat,
+                       # 'front_close_lon': debug_points[2].lat,
+                       # 'rear_close_lat': debug_points[3].lat,
+                       # 'rear_close_lon': debug_points[3].lat,
+                       }
         robots_list.append(robot_entry)
     return robots_list
 
@@ -131,9 +135,9 @@ if __name__ == "__main__":
             counter = 0
             match_found = False
             while match_found == False:
-            #for value in old_list:
+                # for value in old_list:
                 if oldlist[offset+counter] == newlist[counter]:
-                    counter+=1
+                    counter += 1
                     if counter > 50:
                         print("Found Match, offset: {}".format(offset))
                         match_found = True
@@ -142,5 +146,5 @@ if __name__ == "__main__":
                     counter = 0
         oldlist = newlist
 
-        #print(robot.gps_path_lateral_error_rates)
+        # print(robot.gps_path_lateral_error_rates)
         time.sleep(1)

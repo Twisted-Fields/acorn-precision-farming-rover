@@ -2,14 +2,13 @@ import serial
 import time
 
 
-
 # sudo sh -c "echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
 # cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
 # 1500000
 
-port_names = ('/dev/ttySC0','/dev/ttySC1','/dev/ttySC2','/dev/ttySC3')
+port_names = ('/dev/ttySC0', '/dev/ttySC1', '/dev/ttySC2', '/dev/ttySC3')
 
-BAUD=115200
+BAUD = 115200
 
 port_list = []
 

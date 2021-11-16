@@ -1,5 +1,5 @@
 #
-##  Paranoid Pirate queue
+# Paranoid Pirate queue
 #
 #   Author: Daniel Lundin <dln(at)eintr(dot)org>
 #
@@ -21,6 +21,7 @@ class Worker(object):
     def __init__(self, address):
         self.address = address
         self.expiry = time.time() + HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS
+
 
 class WorkerQueue(object):
     def __init__(self):
@@ -45,11 +46,12 @@ class WorkerQueue(object):
         address, worker = self.queue.popitem(False)
         return address
 
+
 context = zmq.Context(1)
 
-frontend = context.socket(zmq.ROUTER) # ROUTER
+frontend = context.socket(zmq.ROUTER)  # ROUTER
 backend = context.socket(zmq.ROUTER)  # ROUTER
-frontend.bind("tcp://*:5555") # For clients
+frontend.bind("tcp://*:5555")  # For clients
 backend.bind("tcp://*:5556")  # For workers
 
 poll_workers = zmq.Poller()
@@ -103,6 +105,5 @@ while True:
 
         frames.insert(0, workers.next())
         backend.send_multipart(frames)
-
 
     workers.purge()

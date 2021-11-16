@@ -20,15 +20,17 @@ def idle_wait():
         time.sleep(0.1)
     print(dump_errors(odrv0))
 
+
 # Find a connected ODrive (this will block until you connect one)
 print("finding an odrive...")
 
-odrv0 = OdriveManager(path='/dev/ttySC0', serial_number='336B31643536').find_odrive()
+odrv0 = OdriveManager(path='/dev/ttySC0',
+                      serial_number='336B31643536').find_odrive()
 # odrv0 = odrive.find_any()
 
 
-print(dump_errors(odrv0,True))
-print(dump_errors(odrv0,True))
+print(dump_errors(odrv0, True))
+print(dump_errors(odrv0, True))
 
 odrv0.axis1.requested_state = AXIS_STATE_IDLE
 odrv0.axis1.controller.config.control_mode = CTRL_MODE_CURRENT_CONTROL
@@ -42,7 +44,7 @@ odrv0.axis1.motor.config.current_control_bandwidth = 20
 odrv0.axis1.encoder.config.bandwidth = 100
 odrv0.axis1.motor.current_control.p_gain = 0.3
 odrv0.axis1.motor.current_control.i_gain = 0
-odrv0.axis1.motor.current_control.final_v_beta = 0.1 # Voltage Ramp Rate
+odrv0.axis1.motor.current_control.final_v_beta = 0.1  # Voltage Ramp Rate
 
 
 odrv0.axis1.requested_state = 11
@@ -50,7 +52,7 @@ odrv0.axis1.motor.current_control.p_gain = 50.0
 odrv0.axis1.motor.current_control.i_gain = 0.0
 
 
-odrv0.axis1.motor.current_control.final_v_beta = 0.1 # Voltage Ramp Rate
+odrv0.axis1.motor.current_control.final_v_beta = 0.1  # Voltage Ramp Rate
 
 
 # max_vel = 0
@@ -71,7 +73,6 @@ print(odrv0.axis1.encoder.pos_estimate)
 # time.sleep(0.2)
 
 
-
 odrv0.axis1.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
 idle_wait()
 
@@ -87,8 +88,6 @@ odrv0.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
 odrv0.axis1.motor.config.current_lim = 20.0
 odrv0.axis1.controller.config.vel_limit_tolerance = 2.5
 odrv0.axis1.controller.config.vel_limit = 2000
-
-
 
 
 backoff = True
@@ -114,15 +113,14 @@ while loop:
     time.sleep(0.01)
 
 
-
-print(dump_errors(odrv0,True))
+print(dump_errors(odrv0, True))
 print(odrv0.axis1.encoder.pos_estimate)
 print(odrv0.axis1.encoder.pos_estimate)
 print(odrv0.axis1.encoder.pos_estimate)
 odrv0.axis1.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
 idle_wait()
 print("Index Search complete")
-print(dump_errors(odrv0,True))
+print(dump_errors(odrv0, True))
 
 print(odrv0.axis1.encoder.pos_estimate)
 print(odrv0.axis1.encoder.pos_estimate)
@@ -187,13 +185,15 @@ if True:
     # odrv0.axis1.controller.pos_setpoint = base_position
     # odrv0.axis1.controller.move_to_pos(position)
     delay = 2
-    positions = [base_position, base_position - offset, base_position, base_position + offset]
+    positions = [base_position, base_position -
+                 offset, base_position, base_position + offset]
     while True:
         for position in positions:
             try:
                 time.sleep(delay)
                 odrv0.axis1.controller.move_to_pos(position)
-                print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(odrv0.axis1.controller.pos_setpoint, odrv0.axis1.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
+                print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(
+                    odrv0.axis1.controller.pos_setpoint, odrv0.axis1.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
             except KeyboardInterrupt:
                 odrv0.axis1.requested_state = AXIS_STATE_IDLE
                 sys.exit()
@@ -202,11 +202,12 @@ if True:
     min = base_position - offset
     count = 0
     steps = 6
-    #sys.exit()
+    # sys.exit()
     while True:
-        print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(odrv0.axis1.controller.pos_setpoint, odrv0.axis1.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
-        #odrv0.axis1.encoder.pos_estimate
-        #print(dump_errors(odrv0))
+        print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(
+            odrv0.axis1.controller.pos_setpoint, odrv0.axis1.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
+        # odrv0.axis1.encoder.pos_estimate
+        # print(dump_errors(odrv0))
         time.sleep(0.1)
         if time.time() - timer > 0.5:
             timer = time.time()
@@ -218,9 +219,10 @@ if True:
             odrv0.axis1.controller.move_to_pos(min + (2*offset)*count/steps)
             if count == 0:
                 timer += 1.0
-                #time.sleep(1)
+                # time.sleep(1)
         if odrv0.axis1.error:
-            print(dump_errors(odrv0,True))
+            print(dump_errors(odrv0, True))
             print("Gate Driver: {}".format(odrv0.axis1.motor.gate_driver))
-            print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(odrv0.axis1.controller.pos_setpoint, odrv0.axis1.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
+            print("For setpoint {}, estimate is {}, current: {}, bus_voltage {}".format(
+                odrv0.axis1.controller.pos_setpoint, odrv0.axis1.encoder.pos_estimate, ctrl.Iq_measured, odrv0.vbus_voltage))
             sys.exit()
