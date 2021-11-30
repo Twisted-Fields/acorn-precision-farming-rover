@@ -310,7 +310,7 @@ class RemoteControl():
         self.loaded_path_name = self.robot_object.loaded_path_name
         if self.simulated_hardware and simulation_teleport:
             # Place simulated robot at start of path.
-            if len(path.points) == 2:
+            if len(self.nav_path.points) == 2:
                 start_index = 0
             else:
                 start_index = int(len(self.nav_path.spline.points)/2) - 5
