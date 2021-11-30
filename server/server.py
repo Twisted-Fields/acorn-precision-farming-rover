@@ -30,7 +30,6 @@ while True:
         from flask_redis import FlaskRedis
         import re
         import pickle
-        import json
         import datetime
         import redis_utils
         from master_process import RobotCommand
@@ -49,7 +48,7 @@ active_site = "twistedfields"
 
 
 def get_svg_path(filename):
-    p = re.compile('\s+[d][=]["]([M][^"]+)["]')
+    p = re.compile(r'\s+[d][=]["]([M][^"]+)["]')
     with open(filename) as f:
         for line in f:
             matches = p.match(line)
@@ -67,7 +66,10 @@ def map_test():
 
 
 def date_handler(obj):
-    return (obj.isoformat() + "-07:00" if isinstance(obj, (datetime.datetime, datetime.date)) else None)
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat() + "-07:00"
+    else:
+        return None
 
 
 @app.route('/api/get_herd_data')
@@ -93,8 +95,10 @@ def robots_to_json(keys):
         except BaseException:
             debug_points = []
         # print(json.dumps(robot.gps_path_data[0]._asdict()))
-        loaded_path_name = ("" if not robot.loaded_path_name else
-                            robot.loaded_path_name.split('gpspath:')[1].split(':key')[0])
+        loaded_path_name = ""
+        if robot.loaded_path_name:
+            loaded_path_name = robot.loaded_path_name.split('gpspath:')[1].split(':key')[0]
+
         robot_entry = {
             'name': robot.name,
             'lat': robot.location.lat,
@@ -136,6 +140,7 @@ def robots_to_json(keys):
         }
         # print(robot_entry)
         robots_list.append(robot_entry)
+
     return robots_list
 
 
