@@ -695,7 +695,9 @@ class RemoteControl():
         vehicle_dir = self.nav_path.navigation_parameters.vehicle_travel_direction
         path_dir = self.nav_path.navigation_parameters.path_following_direction
         drive_solution_okay = (vehicle_dir == Direction.EITHER or
-                               vehicle_dir == path_dir and abs(calculated_rotation) <= _MAXIMUM_ROTATION_ERROR_DEGREES)
+                               vehicle_dir == path_dir or
+                               path_dir == Direction.EITHER and
+                               abs(calculated_rotation) <= _MAXIMUM_ROTATION_ERROR_DEGREES)
         self.driving_direction = -1 if vehicle_dir == Direction.BACKWARD else 1
         if vehicle_dir == Direction.EITHER and (abs(calculated_rotation) > 90 or self.nav_direction == -1):
             self.driving_direction = -1
@@ -800,6 +802,7 @@ class RemoteControl():
             self.logger.info("MET END CONDITIONS {} {}".format(calculated_rotation, absolute_path_distance))
             if self.nav_path.navigation_parameters.loop_path:
                 self.load_path(self.nav_path, simulation_teleport=False, generate_spline=False)
+                self.load_path_time = time.time()
             else:
                 self.nav_path_index += 1
                 if self.nav_path_index < len(self.nav_path_list):
@@ -814,7 +817,6 @@ class RemoteControl():
                     # self.autonomy_hold = True
                     # self.activate_autonomy = False
 
-            self.load_path_time = time.time()
             self.gps_lateral_error_rate_averaging_list = []
             self.gps_angle_error_rate_averaging_list = []
             self.reloaded_path = True
