@@ -22,13 +22,9 @@ limitations under the License.
 """
 
 import numpy as np
-import matplotlib.pyplot as pp
-import mpl_toolkits.mplot3d as mp
 import scipy.interpolate as si
-import scipy.optimize as so
 import scipy.spatial.distance as ssd
 import scipy.integrate
-import functools
 import math
 import gps_tools
 from csaps import csaps
@@ -197,11 +193,11 @@ class GpsSpline():
 
     # Return the distance from u to v along the spline
     def distAlong(self, u, v):
-        return scipy.integrate.quad(slopeMag, u, v)[0]
+        return scipy.integrate.quad(self.slopeMag, u, v)[0]
 
     # Return the distance from u along the spline to the halfway point
     def distAlongToHalf(self, u):
-        return abs(distAlong(0.0, u) - (distAlong(0.0, 1.0)/2))
+        return abs(self.distAlong(0.0, u) - (self.distAlong(0.0, 1.0)/2))
 
     def coordAtU(self, u):
         coord = si.splev(u, self.tck)
@@ -228,8 +224,7 @@ class GpsSpline():
             p = self.points[idx]
             # Using naive x-y distance calculation as it was found to be ~100x
             # faster than gps distance calc.
-            dist = math.sqrt(math.pow(p.lat - point.lat, 2) +
-                             math.pow(p.lon - point.lon, 2))
+            dist = math.sqrt(math.pow(p.lat - point.lat, 2) + math.pow(p.lon - point.lon, 2))
             if dist < min_distance:
                 min_dist_index = idx
                 min_distance = dist
@@ -257,8 +252,7 @@ class GpsSpline():
             p = self.points[idx]
             # Using naive x-y distance calculation as it was found to be ~100x
             # faster than gps distance calc.
-            dist = math.sqrt(math.pow(p.lat - point.lat, 2) +
-                             math.pow(p.lon - point.lon, 2))
+            dist = math.sqrt(math.pow(p.lat - point.lat, 2) + math.pow(p.lon - point.lon, 2))
             if dist < min_distance:
                 min_dist_index = idx
                 min_distance = dist

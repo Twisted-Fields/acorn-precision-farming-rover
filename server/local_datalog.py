@@ -26,16 +26,11 @@ limitations under the License.
 while True:
     try:
         import time
-        from flask import Flask, render_template, request, send_from_directory, jsonify
+        from flask import Flask, jsonify
         from flask_redis import FlaskRedis
-        import sys
-        from svgpathtools import svg2paths, paths2svg
-        import re
         import pickle
         import json
         import datetime
-        sys.path.append('../vehicle')
-        from master_process import Robot, RobotCommand
         break
     except Exception as e:
         print(e)
@@ -52,11 +47,8 @@ volatile_path = []  # When the robot is streaming a path, save it in RAM here.
 active_site = "twistedfields"
 
 
-def date_handler(obj): return (
-    obj.isoformat() + "-07:00"
-    if isinstance(obj, (datetime.datetime, datetime.date))
-    else None
-)
+def date_handler(obj):
+    return obj.isoformat() + "-07:00" if isinstance(obj, (datetime.datetime, datetime.date)) else None
 
 
 def send_herd_data():
@@ -78,7 +70,7 @@ def load_first_robot(redis_client):
     keys = get_robot_keys()
     for key in keys:
         robot = pickle.loads(redis_client.get(key))
-        time_stamp = json.dumps(robot.time_stamp, default=date_handler)
+        # time_stamp = json.dumps(robot.time_stamp, default=date_handler)
         return robot
 
 
@@ -96,7 +88,8 @@ def robots_to_json(keys):
                        'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
                        'voltage': robot.voltage, 'control_state': robot.control_state,
                        'motor_state': robot.motor_state, 'time_stamp': time_stamp,
-                       'loaded_path_name': "" if not robot.loaded_path_name else robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
+                       'loaded_path_name': ("" if not robot.loaded_path_name
+                                            else robot.loaded_path_name.split('gpspath:')[1].split(':key')[0]),
                        'live_path_data': live_path_data,
                        'gps_path_data': gps_path_data,
                        'debug_points': debug_points,
@@ -134,7 +127,7 @@ if __name__ == "__main__":
             offset = 0
             counter = 0
             match_found = False
-            while match_found == False:
+            while not match_found:
                 # for value in old_list:
                 if oldlist[offset+counter] == newlist[counter]:
                     counter += 1
