@@ -28,34 +28,27 @@ while True:
         import time
         from flask import Flask, render_template, request, send_from_directory, jsonify
         from flask_redis import FlaskRedis
-        import sys
-        from svgpathtools import svg2paths, paths2svg
         import re
         import pickle
-        import json
         import datetime
         import redis_utils
-        sys.path.append('../vehicle')
-        from master_process import Robot, RobotCommand
-        from gps_tools import GpsPoint, GpsSample
+        from master_process import RobotCommand
         break
     except Exception as e:
         print(e)
         print("Server had some error. Restarting...")
         time.sleep(5)
 
-
 app = Flask(__name__, template_folder="templates")
 app.config['REDIS_URL'] = "redis://:@localhost:6379/0"
 redis_client = FlaskRedis(app)
-
 
 volatile_path = []  # When the robot is streaming a path, save it in RAM here.
 active_site = "twistedfields"
 
 
 def get_svg_path(filename):
-    p = re.compile('\s+[d][=]["]([M][^"]+)["]')
+    p = re.compile(r'\s+[d][=]["]([M][^"]+)["]')
     with open(filename) as f:
         for line in f:
             matches = p.match(line)
@@ -69,16 +62,14 @@ arrow_icon_path = get_svg_path("arrow.svg")
 
 @app.route('/')
 def map_test():
-    return render_template(
-        'acorn.html'
-    )
+    return render_template('acorn.html')
 
 
-def date_handler(obj): return (
-    obj.isoformat() + "-07:00"
-    if isinstance(obj, (datetime.datetime, datetime.date))
-    else None
-)
+def date_handler(obj):
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat() + "-07:00"
+    else:
+        return None
 
 
 @app.route('/api/get_herd_data')
@@ -101,48 +92,59 @@ def robots_to_json(keys):
         gps_path_data = [point._asdict() for point in robot.gps_path_data]
         try:
             debug_points = [point._asdict() for point in robot.debug_points]
-        except:
+        except BaseException:
             debug_points = []
         # print(json.dumps(robot.gps_path_data[0]._asdict()))
-        robot_entry = {'name': robot.name, 'lat': robot.location.lat, 'lon':
-                       robot.location.lon, 'heading': robot.location.azimuth_degrees,
-                       'speed': robot.speed, 'turn_intent_degrees': robot.turn_intent_degrees,
-                       'voltage': robot.voltage, 'control_state': robot.control_state,
-                       'motor_state': robot.motor_state, 'time_stamp': time_stamp,
-                       'loaded_path_name': "" if not robot.loaded_path_name else robot.loaded_path_name.split('gpspath:')[1].split(':key')[0],
-                       'live_path_data': live_path_data,
-                       'gps_path_data': gps_path_data,
-                       'debug_points': debug_points,
-                       'autonomy_hold': robot.autonomy_hold,
-                       'activate_autonomy': robot.activate_autonomy,
-                       'access_point_name': robot.wifi_ap_name,
-                       'wifi_signal': robot.wifi_strength,
-                       'gps_distances': robot.gps_distances,
-                       'gps_angles': robot.gps_angles,
-                       'gps_distance_rates': robot.gps_path_lateral_error_rates,
-                       'gps_angle_rates': robot.gps_path_angular_error_rates,
-                       'strafeP': robot.strafeP,
-                       'steerP': robot.steerP,
-                       'strafeD': robot.strafeD,
-                       'steerD': robot.steerD,
-                       'autonomy_steer_cmd': robot.autonomy_steer_cmd,
-                       'autonomy_strafe_cmd': robot.autonomy_strafe_cmd,
-                       'simulated_data': robot.simulated_data
-                       # 'front_lat': debug_points[0].lat,
-                       # 'front_lon': debug_points[0].lat,
-                       # 'rear_lat': debug_points[1].lat,
-                       # 'rear_lon': debug_points[1].lat,
-                       # 'front_close_lat': debug_points[2].lat,
-                       # 'front_close_lon': debug_points[2].lat,
-                       # 'rear_close_lat': debug_points[3].lat,
-                       # 'rear_close_lon': debug_points[3].lat,
-                       }
+        loaded_path_name = ""
+        if robot.loaded_path_name:
+            loaded_path_name = robot.loaded_path_name.split('gpspath:')[1].split(':key')[0]
+
+        robot_entry = {
+            'name': robot.name,
+            'lat': robot.location.lat,
+            'lon': robot.location.lon,
+            'heading': robot.location.azimuth_degrees,
+            'speed': robot.speed,
+            'turn_intent_degrees': robot.turn_intent_degrees,
+            'voltage': robot.voltage,
+            'control_state': robot.control_state,
+            'motor_state': robot.motor_state,
+            'time_stamp': time_stamp,
+            'loaded_path_name': loaded_path_name,
+            'live_path_data': live_path_data,
+            'gps_path_data': gps_path_data,
+            'debug_points': debug_points,
+            'autonomy_hold': robot.autonomy_hold,
+            'activate_autonomy': robot.activate_autonomy,
+            'access_point_name': robot.wifi_ap_name,
+            'wifi_signal': robot.wifi_strength,
+            'gps_distances': robot.gps_distances,
+            'gps_angles': robot.gps_angles,
+            'gps_distance_rates': robot.gps_path_lateral_error_rates,
+            'gps_angle_rates': robot.gps_path_angular_error_rates,
+            'strafeP': robot.strafeP,
+            'steerP': robot.steerP,
+            'strafeD': robot.strafeD,
+            'steerD': robot.steerD,
+            'autonomy_steer_cmd': robot.autonomy_steer_cmd,
+            'autonomy_strafe_cmd': robot.autonomy_strafe_cmd,
+            'simulated_data': robot.simulated_data
+            # 'front_lat': debug_points[0].lat,
+            # 'front_lon': debug_points[0].lat,
+            # 'rear_lat': debug_points[1].lat,
+            # 'rear_lon': debug_points[1].lat,
+            # 'front_close_lat': debug_points[2].lat,
+            # 'front_close_lon': debug_points[2].lat,
+            # 'rear_close_lat': debug_points[3].lat,
+            # 'rear_close_lon': debug_points[3].lat,
+        }
         # print(robot_entry)
         robots_list.append(robot_entry)
+
     return robots_list
 
 
-@app.route('/api/save_path', methods=['POST'])
+@app.route('/api/save_path/', methods=['POST'])
 @app.route('/api/save_path/<pathname>', methods=['POST'])
 def save_current_path(pathname=None):
     if request.method == 'POST':
@@ -151,7 +153,7 @@ def save_current_path(pathname=None):
     if not pathdata:
         return "Missing something. No path saved."
     if not pathname:
-        volatile_path = pathdata
+        # volatile_path = pathdata
         return "Updated volatile_path"
     key = get_path_key(pathname)
     redis_client.set(key, pickle.dumps(pathdata))
@@ -216,13 +218,20 @@ def set_gps_recording(vehicle_name=None, record_gps_path=None):
 @app.route('/api/set_vehicle_autonomy/<vehicle_name>/<speed>/<enable>')
 def set_vehicle_autonomy(vehicle_name=None, speed=None, enable=None):
     enable = enable == "true"
-    return redis_utils.set_vehicle_autonomy(redis_client=redis_client, vehicle_name=vehicle_name, speed=speed, enable=enable, active_site=active_site)
+    return redis_utils.set_vehicle_autonomy(redis_client=redis_client,
+                                            vehicle_name=vehicle_name,
+                                            speed=speed,
+                                            enable=enable,
+                                            active_site=active_site)
 
 
 @app.route('/api/modify_autonomy_hold/<vehicle_name>/<value>')
 def clear_autonomy_hold(vehicle_name=None, value=None):
     value = value == "true"
-    return redis_utils.clear_autonomy_hold(redis_client=redis_client, vehicle_name=vehicle_name, value=value, active_site=active_site)
+    return redis_utils.clear_autonomy_hold(redis_client=redis_client,
+                                           vehicle_name=vehicle_name,
+                                           value=value,
+                                           active_site=active_site)
 
 
 def get_path_key(pathname):
@@ -283,6 +292,7 @@ def send_arrow_paths():
 def send_robot_icon():
     return send_from_directory('../', "robot.svg")
 
+
 # @app.route('/api/get_dense_path/<start>/<end>')
 
 
@@ -291,8 +301,7 @@ def get_dense_path():
     robot_keys = redis_utils.get_robot_keys(redis_client)
     if len(robot_keys) > 0:
         # TODO(tlalexander): support multiple robots in database
-        path = redis_utils.get_dense_path(
-            redis_client=redis_client, robot_key=robot_keys[0])
+        path = redis_utils.get_dense_path(redis_client=redis_client, robot_key=robot_keys[0])
         path = [point._asdict() for point in path]
         print(type(path))
         print(type(path[0]))
@@ -303,8 +312,10 @@ def get_dense_path():
 if __name__ == "__main__":
     while True:
         try:
-            app.run(debug=True, use_reloader=True,
-                    host="0.0.0.0", port=int("80"))
-        except:
+            app.run(debug=True,
+                    use_reloader=True,
+                    host="0.0.0.0",
+                    port=int("80"))
+        except BaseException:
             print("Server had some error. Restarting...")
             time.sleep(5)

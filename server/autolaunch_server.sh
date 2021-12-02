@@ -1,6 +1,5 @@
 echo $PWD
 tmux new-session -d -s "redis" sh redis-command.sh&
-tmux new-session -d -s "redis-silo" sh redis-silo-command.sh&
 tmux new-session -d -s "zmq" python3 zmq_server_pirate.py&
 tmux new-session -d -s "zmq_ppq" python3 zmq_ppqueue.py&
 tmux new-session -d -s "web" python3 server.py&
