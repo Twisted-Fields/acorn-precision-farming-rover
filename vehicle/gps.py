@@ -17,7 +17,7 @@ class GPS:
             self.rtk_socket1 = None
             self.rtk_socket2 = None
         else:
-            self.rtk_process.launch_rtk_sub_procs(self.logger)
+            rtk_process.launch_rtk_sub_procs(self.logger)
             self.rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs(self.logger)
 
     def last_sample(self):
