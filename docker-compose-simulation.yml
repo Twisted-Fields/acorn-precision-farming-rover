@@ -2,37 +2,15 @@ version: "3.7"
 
 services:
   acorn_vehicle:
-    build: .
-    container_name: acorn_vehicle
-    image: acorn_docker:1.0
-    working_dir: /home/pi
+    extends:
+      file: docker-compose-vehicle.yml
+      service: acorn_vehicle
     volumes:
-      - /dev:/dev
       - .:/home/pi/
       - ./.bashrc:/home/pi/.bashrc
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-      - /usr/local/bin:/usr/local/bin
-    privileged: true
     command: sh -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
-    restart: unless-stopped
-    network_mode: "host"
     ipc: host
   acorn_server:
-    build: .
-    container_name: acorn_server
-    image: acorn_docker:1.0
-    ports:
-       - 80:80
-       - 5570:5570
-       - 6379:6379
-       - 6799:6799
-    working_dir: /acorn/server
-    environment:
-      - PYTHONPATH=/acorn/vehicle
-    volumes:
-      - .:/acorn
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-    privileged: true
-    command: sh -c /acorn/server/autolaunch_server.sh
+    extends:
+      file: docker-compose-server.yml
+      service: acorn_server

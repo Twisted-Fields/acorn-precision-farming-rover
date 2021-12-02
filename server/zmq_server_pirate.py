@@ -30,8 +30,7 @@ import redis
 import zmq_server
 
 # keep the two imported to keep pickle working
-# TODO: avoid this by moving the class defs to a separate module.
-from master_process import Robot, RobotCommand
+from model import Robot, RobotCommand
 
 REDIS_PORT = 6379
 

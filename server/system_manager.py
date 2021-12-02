@@ -25,7 +25,7 @@ from datetime import datetime
 import pickle
 import redis
 import redis_utils
-from remote_control_process import CONTROL_ONLINE
+from model import CONTROL_ONLINE
 from zmq_server_pirate import REDIS_PORT
 from server import active_site
 

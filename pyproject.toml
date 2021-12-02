@@ -1,0 +1,20 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+log_cli_level = "DEBUG"
+testpaths = [
+  "vehicle/tests",
+  "server/tests",
+]
+filterwarnings = [
+  "ignore::DeprecationWarning:evdev.*:",
+]
+
+[tool.black]
+line-length = 120
+target-version = ['py36', 'py37', 'py38']
+include = '\.pyi?$'
+
+[tool.autopep8]
+max-line-length = 120
+ignore = "E501"

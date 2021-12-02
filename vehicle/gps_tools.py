@@ -102,10 +102,10 @@ def find_closest_pt_on_line(pt1, pt2, pt3):
     x1, y1 = pt1
     x2, y2 = pt2
     x3, y3 = pt3
-    dx, dy = x2-x1, y2-y1
-    det = dx*dx + dy*dy
-    a = (dy*(y3-y1)+dx*(x3-x1))/det
-    return GpsPoint(x1+a*dx, y1+a*dy)
+    dx, dy = x2 - x1, y2 - y1
+    det = dx * dx + dy * dy
+    a = (dy * (y3 - y1) + dx * (x3 - x1)) / det
+    return GpsPoint(x1 + a * dx, y1 + a * dy)
 
 
 def get_heading(start_pt, second_pt):
@@ -120,7 +120,7 @@ def project_point(point, bearing, distance_meters):
     # Convert to geopy point for calculation.
     point = geopy.Point(point.lat, point.lon)
 
-    d = geopy.distance.VincentyDistance(kilometers=distance_meters/1000.0)
+    d = geopy.distance.geodesic(kilometers=distance_meters / 1000.0)
 
     # Use the `destination` method with a bearing of bearing degrees
     geo_point = d.destination(point=point, bearing=bearing)
@@ -139,7 +139,7 @@ def get_closest_points_at_distance(point_index, distance_meters, path):
     while True:
         if index_down > 0:
             index_down -= 1
-        if index_up < len(path)-1:
+        if index_up < len(path) - 1:
             index_up += 1
         dist_up = get_distance(path[point_index], path[index_up])
         this_err_up = math.fabs(distance_meters - dist_up)
@@ -151,7 +151,7 @@ def get_closest_points_at_distance(point_index, distance_meters, path):
         if math.fabs(distance_meters - dist_down) < min_err_down:
             best_index_down = index_down
             min_err_down = this_err_down
-        if index_down == 0 and index_up == len(path)-1:
+        if index_down == 0 and index_up == len(path) - 1:
             return path[best_index_up], path[best_index_down]
 
 
@@ -162,7 +162,7 @@ def get_approx_distance_point_from_line(point, line_pt1, line_pt2):
     p3 = np.asarray((point.lat, point.lon))
 
     # https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points#
-    d1 = np.cross(p2-p1, p1-p3) / np.linalg.norm(p2-p1) * -1
+    d1 = np.cross(p2 - p1, p1 - p3) / np.linalg.norm(p2 - p1) * -1
     return d1 * _GPS_DISTANCE_SCALAR
 
 
@@ -192,7 +192,7 @@ def offset_row(row, distance, direction, copy_data=False, make_dict=True):
 
 def interpolate_points(points, num_points):
     total_distance = get_distance(points[0], points[1])
-    increment_distance = total_distance/num_points
+    increment_distance = total_distance / num_points
     heading = get_heading(points[0], points[1])
     last_point = points[0]
     interpolated_points = [points[0]]
@@ -235,7 +235,7 @@ def chain_rows(row_list, starting_point, starting_direction, connection_type, fo
 
         if idx + 1 >= len(row_list):
             return row_chain
-        next_row = row_list[idx+1]
+        next_row = row_list[idx + 1]
         angle_reverse = starting_direction
         if get_distance(row[-1], next_row[0]) > get_distance(row[-1], next_row[-1]):
             next_row.reverse()

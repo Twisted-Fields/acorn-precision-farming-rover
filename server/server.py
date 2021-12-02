@@ -32,7 +32,7 @@ while True:
         import pickle
         import datetime
         import redis_utils
-        from master_process import RobotCommand
+        from model import RobotCommand
         break
     except Exception as e:
         print(e)

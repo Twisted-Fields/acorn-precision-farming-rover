@@ -24,7 +24,7 @@ limitations under the License.
 import netifaces
 import subprocess
 import time
-import coloredlogs
+import utils
 
 _LOG_SKIP_COUNT = 20
 
@@ -62,13 +62,9 @@ access_points = {
 }
 
 
-def wifi_process(master_conn, logging, logging_details):
+def wifi_process(stop_signal, master_conn, logging, debug):
     logger = logging.getLogger('main.wifi')
-    _LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL = logging_details
-    coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
-                        datefmt=_LOGGER_DATE_FORMAT,
-                        level=_LOGGER_LEVEL,
-                        logger=logger)
+    utils.config_logging(logger, debug)
     interfaces = netifaces.interfaces()
     if "wlan0" in interfaces and "wlan1" in interfaces:
         wlan0_ip = None
@@ -95,7 +91,7 @@ def wifi_process(master_conn, logging, logging_details):
             logger.info("wlan0 IP: {}  | wlan1 IP: {}".format(
                 wlan0_ip, wlan1_ip))
         log_counter = 0
-        while True:
+        while not stop_signal.is_set():
             linkdata = subprocess.check_output("iw dev wlan1 link", shell=True)
             linkdata = linkdata.splitlines()
             tempdata = subprocess.check_output(
@@ -124,7 +120,7 @@ def wifi_process(master_conn, logging, logging_details):
                     logger.info("Wifi RSSI: {} dBm".format(signal))
             except Exception as e:
                 print(e)
-                #raise e
+                # raise e
             time.sleep(0.5)
     else:
         logger.info(

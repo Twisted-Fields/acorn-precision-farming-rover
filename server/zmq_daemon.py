@@ -59,10 +59,10 @@ def launch_zmq_server():
         pid = os.fork()
         if pid > 0:
             # Exit first parent
-            #os.waitid(os.P_PID, pid, os.WEXITED)
+            # os.waitid(os.P_PID, pid, os.WEXITED)
             return
             # sys.exit(0)
-    except OSError as e:
+    except OSError:
         sys.exit(1)
 
     # Decouple from parent environment
@@ -75,12 +75,12 @@ def launch_zmq_server():
         pid = os.fork()
         if pid > 0:
             sys.exit(0)
-    except OSError as e:
+    except OSError:
         sys.exit(1)
 
     print(cwd)
-    proc = subprocess.Popen(ZMQ_CMD, cwd=cwd, stdin=None,
-                            stdout=None, stderr=None, close_fds=True, shell=False)
+    _ = subprocess.Popen(ZMQ_CMD, cwd=cwd, stdin=None,
+                         stdout=None, stderr=None, close_fds=True, shell=False)
 
     while True:
         time.sleep(0.001)

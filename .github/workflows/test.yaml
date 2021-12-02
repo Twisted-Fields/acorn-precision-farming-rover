@@ -1,0 +1,22 @@
+name: test
+
+on: [pull_request, push, workflow_dispatch]
+
+concurrency:
+  group: test-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: "ubuntu-latest"
+    # To push new image: docker build . -t merlinran/acorn_docker --platform linux/amd64 && docker push merlinran/acorn_docker
+    container: docker://merlinran/acorn_docker:latest
+    strategy:
+      fail-fast: true
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - name: Run tests
+        run: pytest

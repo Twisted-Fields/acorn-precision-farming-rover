@@ -24,52 +24,48 @@ limitations under the License.
 # Lazy Pirate poll by  Daniel Lundin <dln(at)eintr(dot)org>
 
 import itertools
-import sys
 import zmq
-import coloredlogs
-import time
+import utils
 
 
 _POLL_TIMEOUT_SEC = 2.5
 
 
-def AcornServerComms(acorn_pipe, server_endpoint, logging, logging_details):
+def AcornServerComms(stop_signal, acorn_pipe, server_endpoint, logging):
     logger = logging.getLogger('main.comms')
-    _LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, _LOGGER_LEVEL = logging_details
-    coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
-                        datefmt=_LOGGER_DATE_FORMAT,
-                        level=_LOGGER_LEVEL,
-                        logger=logger)
+    utils.config_logging(logger, debug=False)
 
     REQUEST_TIMEOUT = 4500
     REQUEST_RETRIES = 30
 
+    logger.info("Connecting to server at {} …".format(server_endpoint))
     context = zmq.Context()
-
-    logger.info("Connecting to server…")
     client = context.socket(zmq.REQ)
     client.connect(server_endpoint)
 
     for sequence in itertools.count():
-        while not acorn_pipe.poll(timeout=_POLL_TIMEOUT_SEC):
+        if stop_signal.is_set():
+            break
+        if not acorn_pipe.poll(timeout=_POLL_TIMEOUT_SEC):
             logger.error("No data from master.")
+            continue
 
+        request = acorn_pipe.recv()
         seq_string = str(sequence).encode()
         logger.debug("Sending (%s)", seq_string)
-        request = acorn_pipe.recv()
         request.insert(0, seq_string)
         client.send_multipart(request)
 
         # time.sleep(0.5)
 
         retries_left = REQUEST_RETRIES
-        while True:
+        while not stop_signal.is_set() and retries_left > 0:
             if (client.poll(REQUEST_TIMEOUT) & zmq.POLLIN) != 0:
                 reply = client.recv_multipart()
                 # print(reply)
 
                 if int(reply[0]) == sequence:
-                    logger.debug("Server replied OK (%s)", reply)
+                    logger.debug("Server replied OK (%s...)", reply[:2])
                     acorn_pipe.send(reply[1:])
                     break
                 else:
@@ -81,10 +77,6 @@ def AcornServerComms(acorn_pipe, server_endpoint, logging, logging_details):
             # Socket is confused. Close and remove it.
             client.setsockopt(zmq.LINGER, 0)
             client.close()
-            if retries_left == 0:
-                logger.error("Server seems to be offline, abandoning")
-                # sys.exit()
-
             logger.info("Reconnecting to server…")
             # Create new connection
             client = context.socket(zmq.REQ)

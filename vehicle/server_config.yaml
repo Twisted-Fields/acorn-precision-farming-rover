@@ -1,5 +1,5 @@
 vehicle_name: acorn1
 #server: 192.168.1.152
-server: 192.168.1.170
+server: 192.168.1.170:5570
 #server: 192.168.86.69
 site: twistedfields
