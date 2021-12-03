@@ -1,11 +1,35 @@
-sudo apt update
-sudo apt install python3-pip git
-sudo apt install libatlas3-base
-sudo bash -c "echo dtoverlay=sc16is752-merge >> /boot/config.txt"
-sudo cp overlay/sc16is752-merge.dtbo /boot/overlays/
-sudo pip3 install pyserial RPi.GPIO board adafruit-blinka adafruit-circuitpython-mcp230xx
-git clone https://github.com/switchdoclabs/SDL_Pi_HDC1080_Python3.git
+#!/bin/bash
+if [ $# -eq 0 ]; then
+ echo "no arguments"
+ exit 1
+fi
+
+DIR="/media/$USER/boot"
+
+if [ ! -d "$DIR" ]; then
+  # script statements if $DIR doesn't exist.
+  sudo rpiboot
+  sleep 10
+fi
+
+if [ ! -d "$DIR" ]; then
+  # script statements if $DIR doesn't exist.
+  echo "Failed. Directory doesn't exist."
+  exit 1
+fi
+
+sudo touch /media/$USER/boot/ssh
+sudo cp raspberry/wpa_supplicant.conf /media/$USER/boot/
+mkdir /media/$USER/rootfs/home/pi/acorn
+sudo rsync -aP ../. /media/$USER/rootfs/home/pi/acorn/
+sudo ls /media/$USER/rootfs/home/pi
+sudo sed -i "s/raspberrypi/$1/" /media/$USER/rootfs/etc/hosts
+sudo sed -i "s/raspberrypi/$1/" /media/$USER/rootfs/etc/hostname
 
 
-# rsync RTKLIB folder to pi
-# ~/RTKLIB/app $ sudo make install
+echo "Completed"
+
+sync
+
+sudo umount /media/$USER/rootfs
+sudo umount /media/$USER/boot
