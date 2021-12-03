@@ -695,9 +695,9 @@ class RemoteControl():
         vehicle_dir = self.nav_path.navigation_parameters.vehicle_travel_direction
         path_dir = self.nav_path.navigation_parameters.path_following_direction
         drive_solution_okay = (vehicle_dir == Direction.EITHER or
-                               vehicle_dir == path_dir or
-                               path_dir == Direction.EITHER and
-                               abs(calculated_rotation) <= _MAXIMUM_ROTATION_ERROR_DEGREES)
+                               path_dir == Direction.EITHER or
+                               (vehicle_dir == path_dir and
+                                abs(calculated_rotation) <= _MAXIMUM_ROTATION_ERROR_DEGREES))
         self.driving_direction = -1 if vehicle_dir == Direction.BACKWARD else 1
         if vehicle_dir == Direction.EITHER and (abs(calculated_rotation) > 90 or self.nav_direction == -1):
             self.driving_direction = -1
