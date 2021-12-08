@@ -8,8 +8,8 @@ concurrency:
 
 jobs:
   test:
-    runs-on: "ubuntu-latest"
-    # To push new image: docker build . -t merlinran/acorn_docker --platform linux/amd64 && docker push merlinran/acorn_docker
+    runs-on: ubuntu-latest
+    # To create and push new image: docker buildx build -t merlinran/acorn_docker --platform linux/amd64,linux/arm64 --push .
     container: docker://merlinran/acorn_docker:latest
     strategy:
       fail-fast: true
@@ -19,4 +19,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run tests
-        run: pytest
+        run: coverage run -m pytest
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v1

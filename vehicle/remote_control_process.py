@@ -400,7 +400,7 @@ class RemoteControl():
             raise(e)
 
         if not isinstance(recieved_robot_object, model.Robot):
-            self.logger.info("%s" % type(recieved_robot_object))
+            self.logger.info("Got unexpected type {}".format(type(recieved_robot_object)))
             self.logger.info("Waiting for valid robot object before running remote control code.")
             time.sleep(_SLOW_POLLING_SLEEP_S)
             return

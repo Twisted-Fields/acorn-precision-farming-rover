@@ -14,4 +14,5 @@ RUN apk add tmux vim mercurial
 RUN python3 -m pip install adafruit-circuitpython-mcp230xx coloredlogs
 RUN apk add iw
 RUN apk add raspberrypi; exit 0 # Only succeeds on raspberry pi but not needed otherwise.
-RUN python3 -m pip install pytest
+RUN python3 -m pip install pytest coverage[toml]
+RUN apk add --no-cache bash # required by codecov GH action
