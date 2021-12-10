@@ -1,16 +1,15 @@
 // actions are triggered by UI events. It mostly involves calling backend API, and as a result, updating the store.
 
-// <------- THIS FUNCTION GETS ROBOT DATA FROM SERVER AND UPDATES MARKERS AT INTERVAL ------->
 function getRobotData() {
-  //request herd data from server API
   api("get_herd_data")
     .then((resp) => resp.json())
     .then(function (herd) {
+      store.robots = herd;
+
       //loop through herd data from server
       for (const robot of herd) {
         const date = Date.parse(robot.time_stamp);
-        const data_age_sec = (new Date() - date) / 1000.0;
-        robot.data_age_sec = data_age_sec;
+        robot.data_age_sec = (new Date() - date) / 1000.0;
 
         // clear autonomy once on page open?
         if (store.have_cleared_autonomy == false) {
@@ -36,7 +35,6 @@ function getRobotData() {
           if (robot.live_path_data[0].lat != store.first_path_point) {
             // console.log("UPDATING PATH ")
             // console.log(store.first_path_point)
-            renderPathLive(robot.live_path_data);
             store.livePathName = robot.loaded_path_name;
             store.first_path_point = robot.live_path_data[0].lat;
           }
@@ -45,19 +43,16 @@ function getRobotData() {
         //console.log(robot.debug_points)
 
         if (robot.debug_points) {
-          renderPathDebug(robot.debug_points);
           store.debugPointsLength = robot.debug_points.length;
         }
 
         if (store.displayed_dense_path.length > 0) {
-          renderPathDebug(store.displayed_dense_path);
         }
 
         //console.log(robot.gps_path_data.length)
 
         if (robot.gps_path_data.length != store.gpsPathLength) {
           store.gps_path = robot.gps_path_data;
-          renderPathGPS(robot.gps_path_data);
           store.gpsPathLength = robot.gps_path_data.length;
         }
 
@@ -96,7 +91,7 @@ function getRobotData() {
           store.arrowMarkerStore[robot.id].setRotationAngle(
             robot.turn_intent_degrees + robot.heading
           );
-          store.arrowMarkerStore[robot.id].addTo(store.map);
+          // store.arrowMarkerStore[robot.id].addTo(store.map);
         }
 
         if (store.robotMarkerStore.hasOwnProperty(robot.id)) {
@@ -115,13 +110,12 @@ function getRobotData() {
           //add new marker to store.robotMarkerStore array
           store.robotMarkerStore[robot.id] = marker;
           store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
-          store.robotMarkerStore[robot.id].addTo(store.map);
+          // store.robotMarkerStore[robot.id].addTo(store.map).on('mouseover', function(e) {
+          //   alert("mouseover!")
+          // });
         }
       }
-      store.robots = herd;
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 
@@ -277,7 +271,6 @@ function loadPath(pathname) {
   api("get_path/" + pathname)
     .then((resp) => resp.json())
     .then(function (pathData) {
-      //check data from server in console
       console.log(pathData);
       store.displayed_path = pathData;
       store.path_start = 0;
@@ -285,11 +278,8 @@ function loadPath(pathname) {
       store.path_point_to_remove = store.displayed_path.length;
 
       console.log("pathData Length: ", pathData.length);
-      renderPath(store.displayed_path);
       store.displayed_path_name = pathname;
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
@@ -299,7 +289,6 @@ function loadDensePath() {
   api("get_dense_path")
     .then((resp) => resp.json())
     .then(function (densePathData) {
-      //check data from server in console
       console.log(densePathData);
       store.displayed_dense_path = densePathData;
       // store.path_start = 0;
@@ -307,260 +296,83 @@ function loadDensePath() {
       // store.path_point_to_remove =  store.displayed_path.length;
       //
       // console.log("pathData Length: ", pathData.length)
-      renderPathDebug(store.displayed_dense_path);
       //store.displayed_path_name = pathname
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
 
 function updateServerPath(pathname, pathData) {
-  //push path to server with the specified name
   api("save_path/" + pathname, {
     method: "POST", // or 'PUT'
     body: JSON.stringify(pathData), // data can be `string` or {object}!
     headers: {
       "Content-Type": "application/json",
-    },
-  })
+    }})
     .then(function (reply) {
-      //check data from server in console
       console.log(reply);
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
 
 function savePolygonToServer(polygonName, polygonData) {
-  //push path to server with the specified name
   api("save_polygon/" + polygonName, {
     method: "POST", // or 'PUT'
     body: JSON.stringify(polygonData), // data can be `string` or {object}!
     headers: {
       "Content-Type": "application/json",
-    },
-  })
+    }})
     .then(function (reply) {
-      //check data from server in console
       console.log(reply);
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
 
 function deletePath(pathname) {
-  //push path to server with the specified name
   api("delete_path/" + pathname)
     .then(function (reply) {
-      //check data from server in console
       console.log(reply);
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
 
 function updateVehiclePath(pathname, vehicle_name) {
-  //push path to server with the specified name
   api("set_vehicle_path/" + pathname + "/" + vehicle_name)
     .then(function (reply) {
-      //check data from server in console
       console.log(reply);
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
 
 function modifyAutonomyHold(vehicle_name, clear_hold) {
-  //push path to server with the specified name
   api("modify_autonomy_hold/" + vehicle_name + "/" + clear_hold)
     .then(function (reply) {
-      //check data from server in console
       console.log(reply);
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
 
 function updateVehicleAutonomy(vehicle_name, speed, enabled) {
-  //push path to server with the specified name
   api("set_vehicle_autonomy/" + vehicle_name + "/" + speed + "/" + enabled)
     .then(function (reply) {
-      //check data from server in console
       //console.log(reply);
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }
 
 function updateGpsRecordCommand(vehicle_name, record_gps_command) {
-  //push path to server with the specified name
   api("set_gps_recording/" + vehicle_name + "/" + record_gps_command)
     .then(function (reply) {
-      //check data from server in console
       console.log(reply);
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
-}
-
-function renderPath(pathData) {
-  //check data from server in console
-  //console.log(pathData);
-  //console.log("Markers Length: ", markers.length)
-  for (let i = 0; i < store.savedPathMarkers.length; i++) {
-    store.savedPathMarkers[i].remove();
-  }
-  store.savedPathMarkers = [];
-  //loop through circle data
-  for (var i = 0, len = pathData.length; i < len; i++) {
-    //draw circles on map
-
-    var color = "#FF6600";
-    if (i < store.path_start || i > store.path_end) {
-      color = "#F006FF";
-    }
-    if (i == store.path_point_to_remove) {
-      color = "#FF0000";
-    }
-
-    var marker = new L.Circle(new L.LatLng(pathData[i].lat, pathData[i].lon), {
-      //radius: 0.6, // in meters
-      radius: 0.3, // in meters
-      fillColor: color,
-      fillOpacity: 0.3,
-      color: "#FFF",
-      weight: 1,
-      interactive: false,
-    });
-
-    marker.addTo(store.map);
-    store.savedPathMarkers.push(marker);
-  }
-}
-
-function renderPathDebug(pathData) {
-  //check data from server in console
-  //  console.log(pathData);
-  for (let i = 0; i < store.debugPointMarkers.length; i++) {
-    store.debugPointMarkers[i].remove();
-  }
-  store.debugPointMarkers = [];
-  //loop through circle data
-  for (var i = 0, len = pathData.length; i < len; i++) {
-    //draw circles on map
-
-    var color = "#FFFFFF";
-    if (i > 1) {
-      color = "#00FFFF";
-    }
-
-    var marker = new L.Circle(new L.LatLng(pathData[i].lat, pathData[i].lon), {
-      radius: 0.2, // in meters
-      fillColor: color,
-      fillOpacity: 1.0,
-      color: "#FFF",
-      weight: 1,
-      interactive: false,
-    });
-    marker.addTo(store.map);
-    store.debugPointMarkers.push(marker);
-  }
-}
-
-function renderPathLive(pathData) {
-  //return;
-  //check data from server in console
-  //  console.log(pathData);
-  for (let i = 0; i < store.livePathMarkers.length; i++) {
-    store.livePathMarkers[i].remove();
-  }
-  store.livePathMarkers = [];
-  //loop through circle data
-  for (var i = 0, len = pathData.length; i < len; i++) {
-    //draw circles on map
-
-    var color = "#FFFF00";
-
-    var offset = 0.000001;
-    //  var offset = 0.000005 ;
-
-    var triangleCoords = [
-      [pathData[i].lat - offset * 0.7, pathData[i].lon - offset],
-      [pathData[i].lat + offset * 0.7, pathData[i].lon],
-      [pathData[i].lat - offset * 0.7, pathData[i].lon + offset],
-      [pathData[i].lat - offset * 0.7, pathData[i].lon - offset],
-    ];
-
-    var marker = new L.Polygon(triangleCoords, {
-      color: "#FF00FF",
-      opacity: 0.0,
-      weight: 2,
-      fillColor: "#00FF00",
-      fillOpacity: 1.0,
-    });
-
-    marker.addTo(store.map);
-    store.livePathMarkers.push(marker);
-  }
-}
-
-function renderPathGPS(pathData) {
-  //  return;
-  //check data from server in console
-  console.log("PATHDATA");
-  console.log(pathData);
-  for (let i = 0; i < store.gpsPathMarkers.length; i++) {
-    store.gpsPathMarkers[i].remove();
-  }
-  store.gpsPathMarkers = [];
-  //loop through circle data
-  for (var i = 0, len = pathData.length; i < len; i++) {
-    //draw circles on map
-
-    var color = "#FFFF00";
-
-    var offset = 0.000025;
-
-    var triangleCoords = [
-      [pathData[i].lat + offset * 0.7, pathData[i].lon - offset],
-      [pathData[i].lat - offset * 0.7, pathData[i].lon],
-      [pathData[i].lat + offset * 0.7, pathData[i].lon + offset],
-      [pathData[i].lat + offset * 0.7, pathData[i].lon - offset],
-    ];
-
-    try {
-      var marker = new L.Polygon(triangleCoords, {
-        color: "#FF00FF",
-        opacity: 0.0,
-        weight: 2,
-        fillColor: "#FFA500 ",
-        fillOpacity: 1.0,
-      });
-      marker.addTo(store.map);
-      store.gpsPathMarkers.push(marker);
-    } catch (error) {
-      console.error(error);
-      console.log(pathData[i]);
-      // expected output: ReferenceError: nonExistentFunction is not defined
-      // Note - error messages will vary depending on browser
-    }
-  }
 }
 
 function modifyDisplayedPath() {
@@ -585,18 +397,14 @@ function modifyDisplayedPath() {
   store.path_start = 0;
   store.path_end = store.displayed_path.length - 1;
   store.path_point_to_remove = store.displayed_path.length;
-  renderPath(store.displayed_path);
 }
 
 function loadPathList() {
-  //request circle data from server API
   api("get_path_names")
     .then((resp) => resp.json())
     .then(function (pathnames) {
       store.pathNames = pathnames
-    })
-    //catch any errors
-    .catch(function (error) {
+    }).catch(function (error) {
       console.log(error);
     });
 }

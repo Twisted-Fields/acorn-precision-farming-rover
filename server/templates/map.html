@@ -1,0 +1,18 @@
+<map-canvas
+    v-bind:robots="robots"
+    v-bind:displayed_path="displayed_path"
+    v-bind:displayed_dense_path="displayed_dense_path"
+    inline-template>
+  <l-map ref="map" :zoom="zoom" :center="center">
+    <l-tile-layer v-for="(layer, i) in layers" :key="'layer-' + i" :url="layer.url" :options="layer.options"></l-tile-layer>
+    <path-point v-for="(point, i) in displayed_path" :key="i" :index="i" :point="point"></path-point>
+    <debug-path-point v-for="(point, i) in displayed_dense_path" :key="'dense-' + i" :index="i" :point="point"></debug-path-point>
+    <div v-for="robot in robots" :key="robot.name">
+      <debug-path-point v-for="(point, i) in robot.debug_points" :key="'debug-' + i" :index="i" :point="point"></debug-path-point>
+      <gps-point v-for="(point, i) in robot.gps_path_data" :key="'gps-' + i" :pt="point"></gps-point>
+      <l-polyline :lat-lngs="robot.live_path_data" :color="'#00FF00'"></l-polyline>
+      <l-marker :lat-lng="[robot.lat, robot.lon]" :icon="arrowIcon" :options="{rotationAngle: robot.turn_intent_degrees + robot.heading}"></l-marker>
+      <l-marker :lat-lng="[robot.lat, robot.lon]" :icon="robotIcon" :options="{rotationAngle: robot.heading}"></l-marker>
+    </div>
+  </l-map>
+</map-canvas>
