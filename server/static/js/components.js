@@ -134,3 +134,141 @@ Vue.component("control-panel", {
 Vue.component("plots", {
   props: ["show-plots"],
 });
+
+Vue.component("map-canvas", {
+  props: ["robots", "displayed_path", "displayed_dense_path"],
+  components: {
+      'l-map': window.Vue2Leaflet.LMap,
+      'l-tile-layer': window.Vue2Leaflet.LTileLayer,
+      'l-marker': window.Vue2Leaflet.LMarker,
+      'l-icon': window.Vue2Leaflet.LIcon,
+      'l-polyline': window.Vue2Leaflet.LPolyline,
+  },
+  updated() {
+          // Without this the map would partially show up somehow.
+          this.$refs.map.mapObject.invalidateSize();
+  },
+  data: function() {
+    const mapbox_layer = {
+      url: "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
+      options: {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 22,
+        id: "mapbox/satellite-v9",
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: "pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g",
+      },
+    };
+    let layers = {Mapbox: mapbox_layer};
+    if (store.access_token_data) {
+      const open_drone_map_layer = {
+        url: "http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}",
+        options: {
+          attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.twistedfields.com/">Twisted Fields</a>',
+          maxZoom: 22,
+          tileSize: 256,
+          zoomOffset: 0,
+          id: "",
+          accessToken: store.access_token_data["token"],
+          tms: false,
+        },
+      };
+      layers["Drone Map"] = open_drone_map_layer;
+    }
+    return {
+      zoom: 18,
+      center: [37.353, -122.332],
+      layers: layers,
+      arrowIcon: L.icon({
+        iconUrl: "/static/images/arrow.png",
+        iconSize: [60, 40],
+        iconAnchor: [30, 35],
+      }),
+      robotIcon: L.icon({
+        iconUrl: "/static/images/robot.png",
+        iconSize: [30, 40],
+        iconAnchor: [15, 20],
+      }),
+    }
+  },
+});
+
+Vue.component("path-point", {
+  props: ["point", "index"],
+  template: '<l-circle :lat-lng="point" :options="options"></l-circle>',
+  components: {
+    'l-circle': window.Vue2Leaflet.LCircle,
+  },
+  data: function() {
+    let color = "#FF6600";
+    if (this.index < store.path_start || this.index > store.path_end) {
+      color = "#F006FF";
+    }
+    if (this.index == store.path_point_to_remove) {
+      color = "#FF0000";
+    }
+    return {
+      options: {
+        radius: 0.3, // in meters
+        fillColor: color,
+        fillOpacity: 0.3,
+        color: "#FFF",
+        weight: 1,
+        interactive: false,
+      },
+    }
+  },
+});
+
+
+Vue.component("debug-path-point", {
+  props: ["point", "index"],
+  template: '<l-circle :lat-lng="point" :options="options"></l-circle>',
+  components: {
+    'l-circle': window.Vue2Leaflet.LCircle,
+  },
+  data: function() {
+    let color = "#FFFFFF";
+    if (this.index > 1) {
+      color = "#00FFFF";
+    }
+    return {
+      options: {
+        radius: 0.2, // in meters
+        fillColor: color,
+        fillOpacity: 1.0,
+        color: "#FFF",
+        weight: 1,
+        interactive: false,
+      },
+    }
+  },
+});
+
+
+Vue.component("gps-point", {
+  props: ["pt"],
+  template: '<l-polygon :lat-lngs="coords" :options="options"></l-polygon>',
+  components: {
+    'l-polygon': window.Vue2Leaflet.LPolygon,
+  },
+  data: function() {
+    const offset = 0.000025;
+    return {
+      options: {
+        color: "#00FF00",
+        opacity: 0.0,
+        weight: 2,
+        fillColor: "#FFA500",
+        fillOpacity: 1.0,
+      },
+      coords: [
+        [this.pt.lat + this.offset * 0.7, this.pt.lon - this.offset],
+        [this.pt.lat - this.offset * 0.7, this.pt.lon],
+        [this.pt.lat + this.offset * 0.7, this.pt.lon + this.offset],
+        [this.pt.lat + this.offset * 0.7, this.pt.lon - this.offset],
+      ],
+    }
+  },
+});

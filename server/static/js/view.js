@@ -1,3 +1,4 @@
+
 // http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles.json
 //
 // http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{Z}/{X}/{Y}.png
@@ -26,8 +27,8 @@ var app = new Vue({
           throw new Error("unexpected HTTP " + resp.status);
         }
       })
-      .then(setup_map_with_opendronemap)
-      .catch(setup_map_only_mapbox)
+      .then((access_token_data) => {store.access_token_data = access_token_data})
+      .catch(()=>{})
       .finally(getRobotData); // kick off the ball after the map gets setup.
   },
 });
