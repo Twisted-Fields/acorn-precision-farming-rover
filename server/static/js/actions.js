@@ -63,8 +63,8 @@ function getRobotData() {
 
         var arrow_icon = L.icon({
           iconUrl: "/static/images/arrow.png",
-          iconSize: [20, 70],
-          iconAnchor: [10, 70],
+          iconSize: [60, 40],
+          iconAnchor: [30, 35],
         });
 
         var robot_icon = L.icon({
@@ -75,24 +75,6 @@ function getRobotData() {
 
         //console.log("Turn intent degrees: ", robot.turn_intent_degrees)
         //check store.robotMarkerStore array if we have marker already
-        if (store.robotMarkerStore.hasOwnProperty(robot.id)) {
-          //if we do, set new position attribute to existing marker
-          store.robotMarkerStore[robot.id].setIcon(robot_icon);
-          store.robotMarkerStore[robot.id].setLatLng(
-            new L.latLng(robot.lat, robot.lon)
-          );
-          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
-          //console.log(goat_path);
-        } else {
-          //if we don't, create new marker and set attributes
-          var marker = L.marker([robot.lat, robot.lon], {
-            icon: robot_icon,
-          });
-          //add new marker to store.robotMarkerStore array
-          store.robotMarkerStore[robot.id] = marker;
-          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
-          store.robotMarkerStore[robot.id].addTo(store.map);
-        }
         //check store.robotMarkerStore array if we have marker already
         if (store.arrowMarkerStore.hasOwnProperty(robot.id)) {
           //if we do, set new position attribute to existing marker
@@ -115,6 +97,25 @@ function getRobotData() {
             robot.turn_intent_degrees + robot.heading
           );
           store.arrowMarkerStore[robot.id].addTo(store.map);
+        }
+
+        if (store.robotMarkerStore.hasOwnProperty(robot.id)) {
+          //if we do, set new position attribute to existing marker
+          store.robotMarkerStore[robot.id].setIcon(robot_icon);
+          store.robotMarkerStore[robot.id].setLatLng(
+            new L.latLng(robot.lat, robot.lon)
+          );
+          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
+          //console.log(goat_path);
+        } else {
+          //if we don't, create new marker and set attributes
+          var marker = L.marker([robot.lat, robot.lon], {
+            icon: robot_icon,
+          });
+          //add new marker to store.robotMarkerStore array
+          store.robotMarkerStore[robot.id] = marker;
+          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
+          store.robotMarkerStore[robot.id].addTo(store.map);
         }
       }
       store.robots = herd;
