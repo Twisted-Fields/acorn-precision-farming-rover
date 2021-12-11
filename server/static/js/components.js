@@ -132,7 +132,154 @@ Vue.component("control-panel", {
 });
 
 Vue.component("plots", {
-  props: ["show-plots"],
+  props: ["robot"],
+  components: { 'plotly': window['vue-plotly'].Plotly },
+  data: function() {
+    const distances = {
+      y: this.robot.gps_distances,
+      type: "scatter",
+      mode: "lines",
+      name: "Distance error m",
+    };
+
+    const angles = {
+      y: this.robot.gps_angles,
+      type: "scatter",
+      mode: "lines",
+      name: "Angle error deg",
+    };
+
+    const distance_rates = {
+      y: this.robot.gps_distance_rates,
+      type: "scatter",
+      mode: "lines",
+      name: "Distance error rate",
+    };
+
+    const angle_rates = {
+      y: this.robot.gps_angle_rates,
+      type: "scatter",
+      mode: "lines",
+      name: "Angle error rate",
+    };
+
+    const strafeD = {
+      y: this.robot.strafeD,
+      type: "scatter",
+      mode: "lines",
+      name: "strafeD",
+    };
+
+    const steerD = {
+      y: this.robot.steerD,
+      type: "scatter",
+      mode: "lines",
+      name: "steerD",
+    };
+
+    const steerP = {
+      y: this.robot.steerP,
+      type: "scatter",
+      mode: "lines",
+      name: "steerP",
+    };
+
+    const strafeP = {
+      y: this.robot.strafeP,
+      type: "scatter",
+      mode: "lines",
+      name: "strafeP",
+    };
+
+    for (let i = 0; i < this.robot.autonomy_steer_cmd.length; i++) {
+      this.robot.autonomy_steer_cmd[i] = this.robot.autonomy_steer_cmd[i] * 30;
+    }
+
+    const autonomy_steer_cmd = {
+      y: this.robot.autonomy_steer_cmd,
+      type: "scatter",
+      mode: "lines",
+      name: "autonomy_steer_cmd",
+    };
+
+    const autonomy_strafe_cmd = {
+      y: this.robot.autonomy_strafe_cmd,
+      type: "scatter",
+      mode: "lines",
+      name: "autonomy_strafe_cmd",
+    };
+
+    const layout_lateral = {
+      title: {
+        text: "Lateral Error",
+        font: {
+          family: "Courier New, monospace",
+          size: 24,
+        },
+        xref: "paper",
+        x: 0.05,
+      },
+    };
+
+    const layout_angle = {
+      title: {
+        text: "Angle Error",
+        font: {
+          family: "Courier New, monospace",
+          size: 24,
+        },
+        xref: "paper",
+        x: 0.05,
+      },
+    };
+
+    const layout_lateral_rates = {
+      title: {
+        text: "Lateral Error Rates",
+        font: {
+          family: "Courier New, monospace",
+          size: 24,
+        },
+        xref: "paper",
+        x: 0.05,
+      },
+    };
+
+    const layout_angle_rates = {
+      title: {
+        text: "Angular Error Rates",
+        font: {
+          family: "Courier New, monospace",
+          size: 24,
+        },
+        xref: "paper",
+        x: 0.05,
+      },
+    };
+
+    return {plots: [
+      {
+        data: [distances, distance_rates, strafeP, strafeD, autonomy_strafe_cmd],
+        layout: layout_lateral_rates,
+        height: '300px',
+      },
+      {
+        data: [angles, angle_rates, steerP, steerD, autonomy_steer_cmd],
+        layout: layout_angle_rates,
+        height: '300px',
+      },
+      {
+        data: [distances],
+        layout: layout_lateral,
+        height: '500px',
+      },
+      {
+        data: [angles],
+        layout: layout_angle,
+        height: '500px',
+      },
+    ]}
+  },
 });
 
 Vue.component("map-canvas", {

@@ -1,0 +1,7 @@
+<div v-if="showPlots" v-for="robot in robots">
+  <plots v-bind:robot="robot" inline-template>
+    <div class="col-lg">
+      <plotly v-for="(plot, i) in plots" :key="i" :data="plot.data" :layout="plot.layout" style="width: 100%; height: plot.height"></plotly>
+    </div>
+  </plots>
+</div>
