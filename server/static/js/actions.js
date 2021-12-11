@@ -1,5 +1,7 @@
 // actions are triggered by UI events. It mostly involves calling backend API, and as a result, updating the store.
 
+var INTERVAL = 2000;
+
 function getRobotData() {
   api("get_herd_data")
     .then((resp) => resp.json())
@@ -12,8 +14,8 @@ function getRobotData() {
         robot.data_age_sec = (new Date() - date) / 1000.0;
 
         // clear autonomy once on page open?
-        if (store.have_cleared_autonomy == false) {
-          store.have_cleared_autonomy = true;
+        if (store.have_cleared_autonomy[robot.name] == false) {
+          store.have_cleared_autonomy[robot.name] = true;
           modifyAutonomyHold(`${robot.name}`, false);
         }
 
@@ -28,102 +30,16 @@ function getRobotData() {
 
         plotStats(robot);
 
-        // Set store.simulation value.
-        store.simulation = robot.simulated_data;
-
-        if (robot.live_path_data.length > 0) {
-          if (robot.live_path_data[0].lat != store.first_path_point) {
-            // console.log("UPDATING PATH ")
-            // console.log(store.first_path_point)
-            store.livePathName = robot.loaded_path_name;
-            store.first_path_point = robot.live_path_data[0].lat;
-          }
-        }
-
-        //console.log(robot.debug_points)
-
-        if (robot.debug_points) {
-          store.debugPointsLength = robot.debug_points.length;
-        }
-
-        if (store.displayed_dense_path.length > 0) {
-        }
-
-        //console.log(robot.gps_path_data.length)
-
         if (robot.gps_path_data.length != store.gpsPathLength) {
           store.gps_path = robot.gps_path_data;
           store.gpsPathLength = robot.gps_path_data.length;
-        }
-
-        var arrow_icon = L.icon({
-          iconUrl: "/static/images/arrow.png",
-          iconSize: [60, 40],
-          iconAnchor: [30, 35],
-        });
-
-        var robot_icon = L.icon({
-          iconUrl: "/static/images/robot.png",
-          iconSize: [30, 40],
-          iconAnchor: [15, 20],
-        });
-
-        //console.log("Turn intent degrees: ", robot.turn_intent_degrees)
-        //check store.robotMarkerStore array if we have marker already
-        //check store.robotMarkerStore array if we have marker already
-        if (store.arrowMarkerStore.hasOwnProperty(robot.id)) {
-          //if we do, set new position attribute to existing marker
-          store.arrowMarkerStore[robot.id].setIcon(arrow_icon);
-          store.arrowMarkerStore[robot.id].setLatLng(
-            new L.latLng(robot.lat, robot.lon)
-          );
-          store.arrowMarkerStore[robot.id].setRotationAngle(
-            robot.turn_intent_degrees + robot.heading
-          );
-          //console.log(goat_path);
-        } else {
-          //if we don't, create new marker and set attributes
-          var arrow_marker = L.marker([robot.lat, robot.lon], {
-            icon: arrow_icon,
-          });
-          //add new marker to store.robotMarkerStore array
-          store.arrowMarkerStore[robot.id] = arrow_marker;
-          store.arrowMarkerStore[robot.id].setRotationAngle(
-            robot.turn_intent_degrees + robot.heading
-          );
-          // store.arrowMarkerStore[robot.id].addTo(store.map);
-        }
-
-        if (store.robotMarkerStore.hasOwnProperty(robot.id)) {
-          //if we do, set new position attribute to existing marker
-          store.robotMarkerStore[robot.id].setIcon(robot_icon);
-          store.robotMarkerStore[robot.id].setLatLng(
-            new L.latLng(robot.lat, robot.lon)
-          );
-          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
-          //console.log(goat_path);
-        } else {
-          //if we don't, create new marker and set attributes
-          var marker = L.marker([robot.lat, robot.lon], {
-            icon: robot_icon,
-          });
-          //add new marker to store.robotMarkerStore array
-          store.robotMarkerStore[robot.id] = marker;
-          store.robotMarkerStore[robot.id].setRotationAngle(robot.heading);
-          // store.robotMarkerStore[robot.id].addTo(store.map).on('mouseover', function(e) {
-          //   alert("mouseover!")
-          // });
         }
       }
     }).catch(function (error) {
       console.log(error);
     });
 
-  if (store.simulation) {
-    window.setTimeout(getRobotData, SIMULATION_INTERVAL);
-  } else {
     window.setTimeout(getRobotData, INTERVAL);
-  }
 }
 
 // plotStats plots robot stats on several graphs. The graphs can only be shown
