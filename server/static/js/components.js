@@ -79,7 +79,7 @@ Vue.component("control-panel", {
       loadPathList();
     },
     selectPath: function (name) {
-      store.livePathName = this.pathName = name;
+      this.pathName = name;
       loadPath(name);
     },
     deletePath: function () {
