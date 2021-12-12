@@ -8,7 +8,9 @@ var store = {
   debug: true,
   map: null,
   showPlots: false,
+  drawing_polygon: false,
   robots: [],
+  current_robot_index: 0, // select the first robot by default
   pathNames: [],
   gps_path: [],
   displayed_path: [],

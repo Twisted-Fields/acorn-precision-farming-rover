@@ -26,19 +26,12 @@
       <br />
       <div class="container-fluid">
         {% include "control-panel.html" %}
-        {% include "plots.html" %}
-
         <div class="row">
           <div class="col-lg">
             {% include "map.html" %}
           </div>
-          <div id="robot_detail" class="col-lg-2">
-            <div id="robots-view">
-              <div class="card" style="width: 18rem">
-                {% include "robot-cardview.html" %}
-              </div>
-            </div>
-          </div>
+          {% include "robot-cardview.html" %}
+          {% include "plots.html" %}
         </div>
       </div>
     </div>

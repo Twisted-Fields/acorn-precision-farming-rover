@@ -149,30 +149,6 @@ function updateGpsRecordCommand(vehicle_name, record_gps_command) {
     });
 }
 
-function modifyDisplayedPath() {
-  if (
-    store.path_point_to_remove < store.displayed_path.length &&
-    store.path_point_to_remove > 0
-  ) {
-    store.displayed_path.splice(store.path_point_to_remove, 1);
-    store.path_end -= 1;
-  }
-
-  if (
-    store.path_start > 0 ||
-    store.path_end < store.displayed_path.length - 1
-  ) {
-    length = store.path_end - store.path_start - 1;
-    store.displayed_path = store.displayed_path.splice(
-      store.path_start,
-      length
-    );
-  }
-  store.path_start = 0;
-  store.path_end = store.displayed_path.length - 1;
-  store.path_point_to_remove = store.displayed_path.length;
-}
-
 function loadPathList() {
   api("get_path_names")
     .then((resp) => resp.json())
