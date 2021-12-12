@@ -3,8 +3,32 @@
   height: 1000px;
 }
 
+#map_canvas .selected-acorn {
+  border: 3px red solid;
+}
+
 @media (max-width: 767px) {
   #map_canvas {
     display: none;
   }
+}
+
+#robot_detail {
+    position: absolute;
+    right: 0;
+    z-index: 999;
+    background-color: black;
+    opacity: 0.8;
+    padding: 0;
+    overflow: scroll;
+}
+
+#plots {
+    position: fixed;
+    bottom: 0;
+    max-height: 50%;
+    z-index: 990;
+    opacity: 0.8;
+    padding: 0;
+    overflow: scroll;
 }

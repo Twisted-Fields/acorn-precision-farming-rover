@@ -1,72 +1,17 @@
-Vue.component("robot-cardview", {
-  props: ["robot"],
-  data: function () {
-    return {
-      velRange: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-      velocity: 0.2,
-      gpsCommands: ["Record", "Pause", "Cancel"],
-      currentGPSCommand: "Cancel",
-    };
-  },
-  methods: {
-    loadPath: function (event) {
-      console.log("You clicked the load button ", event.target.innerText);
-      updateVehiclePath(store.displayed_path_name, this.robot.name);
-    },
-    setVelocity: function (event) {
-      console.log("velocity is set to ", event.target.innerText);
-      this.velocity = event.target.innerText;
-    },
-    toggleAutonomy: function (event) {
-      if (this.robot.autonomy_hold) {
-        console.log("clicked button but autonomy not allowed");
-        return;
-      }
-      console.log(
-        `${event.target.innerText} for ${this.robot.name} with velocity ${this.velocity}`
-      );
-      updateVehicleAutonomy(
-        this.robot.name,
-        this.velocity,
-        !this.robot.activate_autonomy
-      );
-    },
-    clearAutonomyHold: function () {
-      modifyAutonomyHold(this.robot.name, true);
-    },
-    gpsAction: function (event) {
-      const cmd = event.target.innerText;
-      this.currentGPSCommand = cmd;
-      updateGpsRecordCommand(this.robot.name, cmd);
-    },
-  },
-});
-
 Vue.component("control-panel", {
   props: ["show-plots", "map", "path-names"],
   data: function () {
     return {
       isDrawingPolygon: false,
-      userPolygon: null,
       pathName: "",
     };
   },
   methods: {
-    toggleCollapsePlots: function () {
-      store.showPlots = !store.showPlots;
-    },
     loadDensePath: function () {
       loadDensePath();
     },
     togglePolygon: function () {
-      this.isDrawingPolygon = !this.isDrawingPolygon;
-      if (this.isDrawingPolygon) {
-        this.userPolygon = this.map.editTools.startPolygon();
-      } else {
-        this.map.editTools.stopDrawing();
-        console.log(this.userPolygon.toGeoJSON(10));
-        savePolygonToServer("default", this.userPolygon.toGeoJSON(10));
-      }
+      this.isDrawingPolygon = store.drawing_polygon = !store.drawing_polygon;
     },
     saveGPSPath: function () {
       if (!this.pathName) {
@@ -101,7 +46,6 @@ Vue.component("control-panel", {
       if (store.path_start > max) {
         store.path_start = max;
       }
-      renderPath(store.displayed_path);
     },
     incEnd: function (n) {
       store.path_end += n;
@@ -112,7 +56,6 @@ Vue.component("control-panel", {
       if (store.path_end > max) {
         store.path_end = max;
       }
-      renderPath(store.displayed_path);
     },
     incRemove: function (n) {
       store.path_point_to_remove += n;
@@ -123,10 +66,69 @@ Vue.component("control-panel", {
       if (store.path_point_to_remove > max) {
         store.path_point_to_remove = max;
       }
-      renderPath(store.displayed_path);
     },
     modifyDisplayedPath: function () {
-      modifyDisplayedPath();
+      if (store.path_point_to_remove < store.displayed_path.length &&
+          store.path_point_to_remove > 0) {
+        store.displayed_path.splice(store.path_point_to_remove, 1);
+        store.path_end -= 1;
+      }
+
+      if (store.path_start > 0 || store.path_end < store.displayed_path.length - 1) {
+        length = store.path_end - store.path_start - 1;
+        store.displayed_path = store.displayed_path.splice(
+          store.path_start, length);
+      }
+      store.path_start = 0;
+      store.path_end = store.displayed_path.length - 1;
+      store.path_point_to_remove = store.displayed_path.length;
+    },
+  },
+});
+
+Vue.component("robot-cardview", {
+  props: ["robot", "showPlots"],
+  data: function () {
+    return {
+      velRange: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+      velocity: 0.2,
+      gpsCommands: ["Record", "Pause", "Cancel"],
+      currentGPSCommand: "Cancel",
+    };
+  },
+  methods: {
+    loadPath: function (event) {
+      console.log("You clicked the load button ", event.target.innerText);
+      updateVehiclePath(store.displayed_path_name, this.robot.name);
+    },
+    toggleShowPlots: function () {
+      store.showPlots = !store.showPlots;
+    },
+    setVelocity: function (event) {
+      console.log("velocity is set to ", event.target.innerText);
+      this.velocity = event.target.innerText;
+    },
+    toggleAutonomy: function (event) {
+      if (this.robot.autonomy_hold) {
+        console.log("clicked button but autonomy not allowed");
+        return;
+      }
+      console.log(
+        `${event.target.innerText} for ${this.robot.name} with velocity ${this.velocity}`
+      );
+      updateVehicleAutonomy(
+        this.robot.name,
+        this.velocity,
+        !this.robot.activate_autonomy
+      );
+    },
+    clearAutonomyHold: function () {
+      modifyAutonomyHold(this.robot.name, true);
+    },
+    gpsAction: function (event) {
+      const cmd = event.target.innerText;
+      this.currentGPSCommand = cmd;
+      updateGpsRecordCommand(this.robot.name, cmd);
     },
   },
 });
@@ -283,7 +285,9 @@ Vue.component("plots", {
 });
 
 Vue.component("map-canvas", {
-  props: ["robots", "displayed_path", "displayed_dense_path"],
+  props: ["robots", "current_robot_index",
+          "displayed_path", "displayed_dense_path", "drawing_polygon",
+          "path_start", "path_end", "path_point_to_remove"],
   components: {
       'l-map': window.Vue2Leaflet.LMap,
       'l-tile-layer': window.Vue2Leaflet.LTileLayer,
@@ -291,9 +295,43 @@ Vue.component("map-canvas", {
       'l-icon': window.Vue2Leaflet.LIcon,
       'l-polyline': window.Vue2Leaflet.LPolyline,
   },
+  mounted() {
+    // Without this the map would partially show up somehow.
+    this.$nextTick(() => {
+      this.$refs.map.mapObject.invalidateSize();
+    })
+  },
   updated() {
-          // Without this the map would partially show up somehow.
-          this.$refs.map.mapObject.invalidateSize();
+    // this ugly trick is required because the button to start/stop polygon
+    // resides in control panel instead of this component.
+    const map = this.$refs.map.mapObject;
+    if (this.drawing_polygon) {
+      if (!this.userPolygon) {
+        this.userPolygon = map.editTools.startPolygon();
+      }
+    } else if (this.userPolygon) {
+      map.editTools.stopDrawing();
+      console.log(this.userPolygon.toGeoJSON(10));
+      savePolygonToServer("default", this.userPolygon.toGeoJSON(10));
+      this.userPolygon = null;
+    }
+  },
+  methods: {
+    selectRobot(index) {
+      if (store.current_robot_index == index) {
+        store.current_robot_index = null
+      } else {
+        store.current_robot_index = index
+      }
+    },
+    robotIcon(index) {
+      return  L.icon({
+        iconUrl: "/static/images/robot.png",
+        iconSize: [30, 40],
+        iconAnchor: [15, 20],
+        className: this.current_robot_index === index ? "selected-acorn": null,
+      })
+    },
   },
   data: function() {
     const mapbox_layer = {
@@ -324,41 +362,45 @@ Vue.component("map-canvas", {
       layers["Drone Map"] = open_drone_map_layer;
     }
     return {
-      zoom: 18,
-      center: [37.353, -122.332],
+      selectedRobot: null,
+      userPolygon: null,
+      mapOptions: {
+        zoom: 18,
+        center: [37.353, -122.332],
+        editable: true,
+      },
       layers: layers,
       arrowIcon: L.icon({
         iconUrl: "/static/images/arrow.png",
         iconSize: [60, 40],
         iconAnchor: [30, 35],
       }),
-      robotIcon: L.icon({
-        iconUrl: "/static/images/robot.png",
-        iconSize: [30, 40],
-        iconAnchor: [15, 20],
-      }),
     }
   },
 });
 
 Vue.component("path-point", {
-  props: ["point", "index"],
-  template: '<l-circle :lat-lng="point" :options="options"></l-circle>',
+  props: ["point", "index", "path_start", "path_end", "path_point_to_remove"],
+  template: '<l-circle :lat-lng="point" :fill-color="fillColor" :options="options"></l-circle>',
   components: {
     'l-circle': window.Vue2Leaflet.LCircle,
   },
-  data: function() {
-    let color = "#FF6600";
-    if (this.index < store.path_start || this.index > store.path_end) {
-      color = "#F006FF";
-    }
-    if (this.index == store.path_point_to_remove) {
-      color = "#FF0000";
-    }
+  computed: {
+    fillColor: function() {
+      let color = "#FF6600";
+      if (this.index < this.path_start || this.index > this.path_end) {
+        color = "#F006FF";
+      }
+      if (this.index == this.path_point_to_remove) {
+        color = "#FF0000";
+      }
+      return color
+    },
+  },
+  data() {
     return {
       options: {
         radius: 0.3, // in meters
-        fillColor: color,
         fillOpacity: 0.3,
         color: "#FFF",
         weight: 1,
