@@ -41,16 +41,11 @@ def test_main(fixture_path, fixture_robot_command):
                 obj = pickle.loads(motors_socket.recv_pyobj())
                 assert obj is not None, "should have sent the commands to motor"
 
-    cfg = """
-    vehicle_name: acorn1
-    server: 127.0.0.1:{}
-    site: twistedfields
-    """.format(server_port)
     server_thread = threading.Thread(target=mock_server, daemon=True)
     server_thread.start()
 
     main_process = MainProcess(simulation=True, debug=True)
-    main_process.setup(yaml.safe_load(cfg))
+    main_process.setup("test", "127.0.0.1:{}".format(server_port), "test-site")
     stop_signal = mp.Event()
     main_thread = threading.Thread(target=lambda: main_process.run(stop_signal), daemon=True)
     main_thread.start()

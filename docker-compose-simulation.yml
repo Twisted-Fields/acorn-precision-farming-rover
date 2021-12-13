@@ -1,16 +1,16 @@
 version: "3.7"
 
 services:
-  acorn_vehicle:
+  acorn_vehicle_${NAME}:
     extends:
       file: docker-compose-vehicle.yml
       service: acorn_vehicle
+    container_name: acorn_vehicle_${NAME}
+    environment:
+      VEHICLE_NAME: ${NAME}
     volumes:
       - .:/home/pi/
       - ./.bashrc:/home/pi/.bashrc
     command: sh -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
+    network_mode: "bridge"
     ipc: host
-  acorn_server:
-    extends:
-      file: docker-compose-server.yml
-      service: acorn_server

@@ -90,14 +90,9 @@ class MainProcess():
         self.logger = logging.getLogger('main')
         config_logging(self.logger, self.debug)
 
-    def setup(self, config):
+    def setup(self, name, server, site):
         # Initialize robot object.
-        name = str(config["vehicle_name"])
-        server = str(config["server"])
-        if ":" not in server:
-            server += ":5570"  # back compatibility to old server config files.
-        site = str(config["site"])
-        self.logger.info("Using server from yaml {}".format(server))
+        self.logger.info("Using server {}".format(server))
         self.acorn = model.Robot(self.simulation, self.logger)
         self.acorn.setup(name, server, site)
 
@@ -193,7 +188,7 @@ class MainProcess():
 
             updated_object |= self.update_from_remote_control(gps_count, remote_to_main_lock, remote_to_main_string)
             # print("6666")
-            seconds_since_update = (datetime.now() - self.acorn.time_stamp).total_seconds()
+            seconds_since_update = (datetime.utcnow() - self.acorn.time_stamp).total_seconds()
 
             if self.simulation:
                 period = _SIMULATION_UPDATE_PERIOD
@@ -201,7 +196,7 @@ class MainProcess():
                 period = _UPDATE_PERIOD
 
             if updated_object and seconds_since_update > period:
-                self.acorn.time_stamp = datetime.now()
+                self.acorn.time_stamp = datetime.utcnow()
                 try:
                     self.server_comms_parent_conn.send([_CMD_UPDATE_ROBOT, self.acorn.key, pickle.dumps(self.acorn)])
                     self.acorn.energy_segment_list = []
@@ -407,7 +402,10 @@ def run_main(simulation, debug):
         else:
             yaml_path = _YAML_NAME_RASPBERRY
     config = load_yaml_config(yaml_path)
-    main_process.setup(config)
+    name = os.getenv('VEHICLE_NAME', config.get('vehicle_name', 'noname'))
+    server = os.getenv('SERVER_IP', config.get('server', '127.0.0.1'))
+
+    main_process.setup(name, "{}:5570".format(server), config.get('site', 'nosite'))
     stop_signal = mp.Event()
     try:
         main_process.run(stop_signal)
