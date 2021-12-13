@@ -1026,8 +1026,8 @@ class RemoteControl():
         with open("error_log.txt", 'a+') as file1:
             file1.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n")
             file1.write("Disegagement Log\r\n")
-            file1.write(datetime.datetime.now().strftime(
-                "%a %b %d, %I:%M:%S %p\r\n"))
+            file1.write(datetime.datetime.utcnow().strftime(
+                "%a %b %d, %I:%M:%S %p+00:00\r\n"))
             file1.write("Last Wifi signal strength: {} dbm\r\n".format(
                 self.robot_object.wifi_strength))
             file1.write("Last Wifi AP associated: {}\r\n".format(

@@ -1,29 +1,40 @@
 LOCAL_IMAGE = acorn_docker:1.0
 REMOTE_IMAGE = merlinran/acorn_docker
+ACORN_NAMES ?= simulation-1
 
 .PHONY: list
 list:
 	@echo "Welcome! You may want to try one of the following:\n---"; \
 	grep "^.PHONY:" Makefile | grep "#" | cut -d ":" -f 2- | sed "s/\w*#/\t#/g" | sed "s/^/make/"
 
-.PHONY: simulation # Run the vehicle and server containers in simulation mode.
+.PHONY: simulation # Run the vehicle and server containers in simulation mode. Use envvar ACORN_NAMES to set the name of each simulated vehicle.
 simulation: docker-image
-	@DOCKER_COMPOSE_FILE=docker-compose-simulation.yml make restart-docker-compose &&\
+	@docker-compose -f docker-compose-server.yml up -d && \
+	export server_ip=`docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' acorn_server`; \
+	for name in $(ACORN_NAMES); do \
+		NAME=$${name} SERVER_IP=$${server_ip} envsubst < docker-compose-simulation.yml | COMPOSE_IGNORE_ORPHANS=true docker-compose --file /dev/stdin --project-directory . up -d; \
+	done &&\
 	echo "Please visit http://localhost"
 
-.PHONY: attach-vehicle # Attach to the shell of the vehicle container. It creates the container if it doesn't exist.
+.PHONY: attach-vehicle # Attach to the shell of the first vehicle container. It creates the container if it doesn't exist.
 attach-vehicle:
-	@test -z `docker ps -f "name=acorn_vehicle" -q` && make docker-vehicle; \
-	docker exec -it acorn_vehicle /bin/sh
+	@first_container=`docker ps --filter "name=acorn_*" -q | head -1`; \
+	if [[ -z "$${first_container}" ]]; then \
+		make docker-vehicle; \
+	fi; \
+	docker exec -it $${first_container} /bin/sh
 
 .PHONY: attach-server # Attach to the shell of the server container. It creates the container if it doesn't exist.
 attach-server:
 	@test -z `docker ps -f "name=acorn_server" -q` && make docker-server; \
 	docker exec -it acorn_server /bin/sh
 
-.PHONY: stop # Stop both the vehicle and server containers.
+.PHONY: stop # Stop all the vehicle and server containers.
 stop:
-	@docker-compose -f docker-compose-simulation.yml down --remove-orphans
+	@containers=`docker ps --filter "name=acorn_*" -q`; \
+	if [[ -n "$${containers}" ]]; then \
+		docker stop $${containers} && docker rm $${containers}; \
+	fi \
 
 .PHONY: docker-test # Start the vehicle container in test mode and run the tests in it.
 docker-test: docker-image
@@ -52,8 +63,8 @@ docker-server: docker-image
 
 .PHONY: restart-docker-compose
 restart-docker-compose:
-	@docker-compose -f $${DOCKER_COMPOSE_FILE} down --remove-orphans; \
-	docker-compose -f $${DOCKER_COMPOSE_FILE} up -d
+	@docker-compose -f $${DOCKER_COMPOSE_FILE} down --remove-orphans
+	@COMPOSE_IGNORE_ORPHANS=true docker-compose -f $${DOCKER_COMPOSE_FILE} up -d
 
 .PHONY: docker-image
 docker-image: Dockerfile
