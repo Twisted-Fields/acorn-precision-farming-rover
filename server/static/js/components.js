@@ -1,5 +1,5 @@
 Vue.component("control-panel", {
-  props: ["show-plots", "map", "path-names"],
+  props: ["path-names"],
   data: function () {
     return {
       isDrawingPolygon: false,
@@ -285,7 +285,7 @@ Vue.component("plots", {
 });
 
 Vue.component("map-canvas", {
-  props: ["robots", "current_robot_index",
+  props: ["robots", "current_robot_name",
           "displayed_path", "displayed_dense_path", "drawing_polygon",
           "path_start", "path_end", "path_point_to_remove"],
   components: {
@@ -318,18 +318,18 @@ Vue.component("map-canvas", {
   },
   methods: {
     selectRobot(index) {
-      if (store.current_robot_index == index) {
-        store.current_robot_index = null
+      if (store.current_robot_name == index) {
+        store.current_robot_name = null
       } else {
-        store.current_robot_index = index
+        store.current_robot_name = index
       }
     },
-    robotIcon(index) {
+    robotIcon(name) {
       return  L.icon({
         iconUrl: "/static/images/robot.png",
         iconSize: [30, 40],
         iconAnchor: [15, 20],
-        className: this.current_robot_index === index ? "selected-acorn": null,
+        className: this.current_robot_name === name ? "selected-acorn": null,
       })
     },
   },

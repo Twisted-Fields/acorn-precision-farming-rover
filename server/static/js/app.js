@@ -3,7 +3,7 @@
 //
 // http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{Z}/{X}/{Y}.png
 
-var app = new Vue({
+const app = new Vue({
   el: "#app",
   data: store,
   delimiters: ["${", "}"], // the default, "{{-}}", conflicts with Jinjia2
@@ -25,6 +25,17 @@ var app = new Vue({
       })
       .then((access_token_data) => {store.access_token_data = access_token_data})
       .catch(()=>{})
-      .finally(getRobotData); // kick off the ball after the map gets setup.
   },
+});
+
+const socket = io();
+socket.on("connect", () => {
+  console.log("socket connected");
+});
+
+socket.on("disconnect", () => {
+  console.log("socket diconnected");
+});
+socket.on("herd-data", (data) => {
+  updateHerdData(data)
 });

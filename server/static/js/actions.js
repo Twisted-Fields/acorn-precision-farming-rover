@@ -1,43 +1,32 @@
 // actions are triggered by UI events. It mostly involves calling backend API, and as a result, updating the store.
 
-var INTERVAL = 2000;
+function updateHerdData(herd) {
+  //loop through herd data from server
+  for (const robot of herd) {
+    const date = Date.parse(robot.time_stamp);
+    robot.data_age_sec = (new Date() - date) / 1000.0;
+    Vue.set(store.robots, robot.name, robot);
 
-function getRobotData() {
-  api("get_herd_data")
-    .then((resp) => resp.json())
-    .then(function (herd) {
-      store.robots = herd;
+    // clear autonomy once on page open?
+    if (!store.have_cleared_autonomy[robot.name]) {
+      Vue.set(store.have_cleared_autonomy,robot.name, true);
+      modifyAutonomyHold(`${robot.name}`, false);
+    }
 
-      //loop through herd data from server
-      for (const robot of herd) {
-        const date = Date.parse(robot.time_stamp);
-        robot.data_age_sec = (new Date() - date) / 1000.0;
+    // if(robot.autonomy_hold)
+    // {
+    //   let speed = 0.0;
+    //   let active = false;
+    //   updateVehicleAutonomy(`${robot.name}`, speed, active);
+    // }
+    //console.log(robot.autonomy_hold)
+    //console.log(robot.strafeD)
 
-        // clear autonomy once on page open?
-        if (store.have_cleared_autonomy[robot.name] == false) {
-          store.have_cleared_autonomy[robot.name] = true;
-          modifyAutonomyHold(`${robot.name}`, false);
-        }
-
-        // if(robot.autonomy_hold)
-        // {
-        //   let speed = 0.0;
-        //   let active = false;
-        //   updateVehicleAutonomy(`${robot.name}`, speed, active);
-        // }
-        //console.log(robot.autonomy_hold)
-        //console.log(robot.strafeD)
-
-        if (robot.gps_path_data.length != store.gpsPathLength) {
-          store.gps_path = robot.gps_path_data;
-          store.gpsPathLength = robot.gps_path_data.length;
-        }
-      }
-    }).catch(function (error) {
-      console.log(error);
-    });
-
-    window.setTimeout(getRobotData, INTERVAL);
+    if (robot.gps_path_data.length != store.gpsPathLength) {
+      store.gps_path = robot.gps_path_data;
+      store.gpsPathLength = robot.gps_path_data.length;
+    }
+  }
 }
 
 function loadPath(pathname) {
