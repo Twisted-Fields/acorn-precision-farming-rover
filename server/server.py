@@ -28,9 +28,13 @@ while True:
         import time
         from flask import Flask, render_template, request, send_from_directory, jsonify
         from flask_redis import FlaskRedis
+        from flask_socketio import SocketIO
         import re
         import pickle
         import datetime
+        import eventlet
+        eventlet.monkey_patch()  # allow flask_socketio to support WebSocket.
+
         import redis_utils
         from model import RobotCommand
         break
@@ -42,6 +46,7 @@ while True:
 app = Flask(__name__, template_folder="templates")
 app.config['REDIS_URL'] = "redis://:@localhost:6379/0"
 redis_client = FlaskRedis(app)
+socketio = SocketIO(app)
 
 volatile_path = []  # When the robot is streaming a path, save it in RAM here.
 active_site = "twistedfields"
@@ -309,13 +314,39 @@ def get_dense_path():
     return "No keys found"
 
 
+@socketio.on_error()
+def socket_io_error_handler(e):
+    print('SocketIO error: ' + str(e))
+
+
+def redis_change_handler(msg):
+    key = msg['data'].decode()
+    if redis_utils.is_robot_key(key):
+        print(key)
+        data = robots_to_json([key])
+        socketio.emit('herd-data', data, callback=lambda x: print(x))
+
+
+def exception_handler(ex, pubsub, thread):
+    print(ex)
+    thread.stop()
+    thread.join(timeout=1.0)
+    pubsub.close()
+
+
 if __name__ == "__main__":
     while True:
         try:
-            app.run(debug=True,
-                    use_reloader=True,
-                    host="0.0.0.0",
-                    port=int("80"))
-        except BaseException:
+            pubsub = redis_client.pubsub()
+            # see https://redis.io/topics/notifications
+            pubsub.psubscribe(**{'__keyevent@0__:set': redis_change_handler})
+            thread = pubsub.run_in_thread(exception_handler=exception_handler)
+            socketio.run(app,
+                         debug=True,
+                         use_reloader=True,
+                         host="0.0.0.0",
+                         port=int("80"))
+        except Exception as e:
+            print(e)
             print("Server had some error. Restarting...")
             time.sleep(5)

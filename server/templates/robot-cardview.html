@@ -1,6 +1,6 @@
 <robot-cardview
-  v-if="current_robot_index !== null && robots[current_robot_index]"
-  v-bind:robot="robots[current_robot_index]"
+  v-if="current_robot_name && robots[current_robot_name]"
+  v-bind:robot="robots[current_robot_name]"
   v-bind:show-plots="showPlots"
   inline-template
 >

@@ -72,4 +72,4 @@ docker-image: Dockerfile
 	docker build -t $(LOCAL_IMAGE) .
 
 Dockerfile: vehicle/requirements.txt server/requirements.txt
-	@docker build --no-cache -t $(LOCAL_IMAGE) . # Force rebuilding image if requirements files have been changed
+	@docker build -t $(LOCAL_IMAGE) . && touch Dockerfile # Rebuilding image if requirements files have been changed

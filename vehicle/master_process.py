@@ -55,11 +55,10 @@ _CMD_ACK = bytes('a', encoding='ascii')
 
 _MAX_GPS_DISTANCES = 1000
 
-_SIMULATION_UPDATE_PERIOD = 0.1
-_SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS = 300
-
+_SIMULATION_UPDATE_PERIOD = 0.5
+_SIMULATION_SERVER_REPLY_TIMEOUT_SECONDS = 0.3
 _UPDATE_PERIOD = 2.0
-_SERVER_REPLY_TIMEOUT_MILLISECONDS = 3000
+_SERVER_REPLY_TIMEOUT_SECONDS = 3
 
 _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC = 60
 
@@ -270,10 +269,10 @@ class MainProcess():
             time.sleep(0.5)
             while attempts < 5:
                 if self.simulation:
-                    timeout = _SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS
+                    timeout = _SIMULATION_SERVER_REPLY_TIMEOUT_SECONDS
                 else:
-                    timeout = _SERVER_REPLY_TIMEOUT_MILLISECONDS
-                if self.server_comms_parent_conn.poll(timeout=timeout / 1000.0):
+                    timeout = _SERVER_REPLY_TIMEOUT_SECONDS
+                if self.server_comms_parent_conn.poll(timeout=timeout):
                     self.logger.info("READING PATH DATA")
                     command, msg = self.server_comms_parent_conn.recv()
                     if command == _CMD_READ_KEY_REPLY:
