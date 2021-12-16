@@ -410,6 +410,7 @@ def run_main(simulation, debug):
         main_process.run(stop_signal)
     except Exception:
         stop_signal.set()  # allow sub-processes to terminate gracefully
+        raise
 
 
 if __name__ == "__main__":
