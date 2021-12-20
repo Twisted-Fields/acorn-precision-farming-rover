@@ -10,9 +10,8 @@ list:
 .PHONY: simulation # Run the vehicle and server containers in simulation mode. Use envvar ACORN_NAMES to set the name of each simulated vehicle.
 simulation: docker-image
 	@docker-compose -f docker-compose-server.yml up -d && \
-	export server_ip=`docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' acorn_server`; \
 	for name in $(ACORN_NAMES); do \
-		NAME=$${name} SERVER_IP=$${server_ip} envsubst < docker-compose-simulation.yml | COMPOSE_IGNORE_ORPHANS=true docker-compose --file /dev/stdin --project-directory . up -d; \
+		NAME=$${name} envsubst < docker-compose-simulation.yml | COMPOSE_IGNORE_ORPHANS=true docker-compose --file /dev/stdin --project-directory . up -d; \
 	done &&\
 	echo "Please visit http://localhost"
 
@@ -68,8 +67,8 @@ restart-docker-compose:
 
 .PHONY: docker-image
 docker-image: Dockerfile
-	@find Dockerfile -newermt "`docker images $(LOCAL_IMAGE) --format "{{.CreatedAt}}"`" || \
-	docker build -t $(LOCAL_IMAGE) .
+	image_time=`docker images $(LOCAL_IMAGE) --format "{{.CreatedAt}}"`; \
+	test -z `find Dockerfile -newermt "$${image_time}"` || docker build -t $(LOCAL_IMAGE) .
 
 Dockerfile: vehicle/requirements.txt server/requirements.txt
 	@docker build -t $(LOCAL_IMAGE) . && touch Dockerfile # Rebuilding image if requirements files have been changed
