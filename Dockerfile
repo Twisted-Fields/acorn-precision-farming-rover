@@ -7,7 +7,7 @@ RUN apk add bash # required by codecov GH action
 RUN apk add raspberrypi; exit 0 # Only succeeds on raspberry pi but not needed otherwise.
 RUN apk add py3-scipy py3-numpy-dev
 RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install wheel certifi==2020.06.20 pytest coverage[toml]
+RUN python3 -m pip install wheel certifi==2020.06.20 pytest pytest-mock coverage[toml]
 COPY server/requirements.txt /install/server/
 RUN python3 -m pip install -r /install/server/requirements.txt
 COPY vehicle/requirements.txt /install/vehicle/

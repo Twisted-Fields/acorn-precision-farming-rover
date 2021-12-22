@@ -1,3 +1,4 @@
+import json
 import time
 from datetime import datetime
 
@@ -54,7 +55,7 @@ class Robot:
         self.debug_points = None
         self.wifi_strength = None
         self.wifi_ap_name = None
-        self.last_server_communication_stamp = 0
+        self.server_disconnected_at = None
         self.autonomy_hold = True
         self.clear_autonomy_hold = False
         self.gps_distances = []
@@ -74,7 +75,7 @@ class Robot:
         self.logger = logger
 
     def __repr__(self):
-        return 'Robot'
+        return json.dumps(self.__dict__)
 
     def setup(self, name, server, site):
         self.name, self.server, self.site = name, server, site
@@ -91,3 +92,6 @@ class RobotCommand:
         self.clear_autonomy_hold = False
         self.autonomy_velocity = 0
         self.record_gps_path = GPS_RECORDING_CLEAR
+
+    def __repr__(self):
+        return json.dumps(self.__dict__)

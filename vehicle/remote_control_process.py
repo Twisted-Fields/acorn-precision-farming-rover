@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+import json
 import time
 import math
 import zmq
@@ -980,12 +981,13 @@ class RemoteControl():
             self.control_state = model.CONTROL_AUTONOMY_ERROR_SOLUTION_AGE
             error_messages.append("RTK solution too old so zeroing out autonomy commands.")
 
-        if time.time() - self.robot_object.last_server_communication_stamp > SERVER_COMMUNICATION_DELAY_LIMIT_SEC:
+        if (self.robot_object.server_disconnected_at and
+                (time.time() - self.robot_object.server_disconnected_at > SERVER_COMMUNICATION_DELAY_LIMIT_SEC)):
             zero_output = True
             self.resume_motion_timer = time.time()
             error_messages.append(
                 f"Server communication error so zeroing out autonomy commands. "
-                f"Last stamp age {time.time() - self.robot_object.last_server_communication_stamp} "
+                f"Last stamp age {time.time() - self.robot_object.server_disconnected_at} "
                 f"exceeds allowed age of {SERVER_COMMUNICATION_DELAY_LIMIT_SEC} seconds. "
                 f"AP name: {self.robot_object.wifi_ap_name}, "
                 f"Signal Strength {self.robot_object.wifi_strength} dbm\r\n")
@@ -994,8 +996,8 @@ class RemoteControl():
 
     def maybe_restart_wifi(self):
         if (time.time() > self.last_wifi_restart_time + 500 and
-            time.time() - self.robot_object.last_server_communication_stamp > _SERVER_DELAY_RECONNECT_WIFI_SECONDS and
-                self.robot_object.last_server_communication_stamp > 0):
+                self.robot_object.server_disconnected_at and
+                time.time() - self.robot_object.server_disconnected_at > _SERVER_DELAY_RECONNECT_WIFI_SECONDS):
             self.logger.error(
                 "Last Wifi signal strength: {} dbm\r\n".format(
                     self.robot_object.wifi_strength))

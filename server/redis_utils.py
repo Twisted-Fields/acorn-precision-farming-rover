@@ -22,6 +22,7 @@ limitations under the License.
 """
 
 import pickle
+import re
 from model import RobotCommand
 
 
@@ -38,6 +39,10 @@ def is_robot_key(key):
         if ':command:' not in key and ':energy_segment' not in key:
             return True
     return False
+
+
+def is_command_key(key):
+    return re.search(r"[^:]+:robot:[^:]+:command:key", key)
 
 
 def get_robot_keys(redis_client):

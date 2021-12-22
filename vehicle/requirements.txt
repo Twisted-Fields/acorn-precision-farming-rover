@@ -10,7 +10,9 @@ geopy==1.22.0
 netifaces
 odrive==0.4.12
 psutil
+python-socketio[asyncio_client]
 pyyaml
 scipy
 svgpathtools
+websocket-client
 zmq

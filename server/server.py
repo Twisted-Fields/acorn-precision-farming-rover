@@ -37,6 +37,8 @@ while True:
 
         import redis_utils
         from model import RobotCommand
+        from master_process import _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
+        from master_process import _CMD_READ_PATH_KEY, _CMD_READ_KEY_REPLY
         break
     except Exception as e:
         print(e)
@@ -92,61 +94,59 @@ def robots_to_json(keys):
         robot = pickle.loads(redis_client.get(key))
         if robot is None:
             print("Database returned None for key {}".format(key))
-        time_stamp = date_handler(robot.time_stamp)
-        live_path_data = [point._asdict() for point in robot.live_path_data]
-        gps_path_data = [point._asdict() for point in robot.gps_path_data]
-        try:
-            debug_points = [point._asdict() for point in robot.debug_points]
-        except BaseException:
-            debug_points = []
-        # print(json.dumps(robot.gps_path_data[0]._asdict()))
-        loaded_path_name = ""
-        if robot.loaded_path_name:
-            loaded_path_name = robot.loaded_path_name.split('gpspath:')[1].split(':key')[0]
-
-        robot_entry = {
-            'name': robot.name,
-            'lat': robot.location.lat,
-            'lon': robot.location.lon,
-            'heading': robot.location.azimuth_degrees,
-            'speed': robot.speed,
-            'turn_intent_degrees': robot.turn_intent_degrees,
-            'voltage': robot.voltage,
-            'control_state': robot.control_state,
-            'motor_state': robot.motor_state,
-            'time_stamp': time_stamp,
-            'loaded_path_name': loaded_path_name,
-            'live_path_data': live_path_data,
-            'gps_path_data': gps_path_data,
-            'debug_points': debug_points,
-            'autonomy_hold': robot.autonomy_hold,
-            'activate_autonomy': robot.activate_autonomy,
-            'access_point_name': robot.wifi_ap_name,
-            'wifi_signal': robot.wifi_strength,
-            'gps_distances': robot.gps_distances,
-            'gps_angles': robot.gps_angles,
-            'gps_distance_rates': robot.gps_path_lateral_error_rates,
-            'gps_angle_rates': robot.gps_path_angular_error_rates,
-            'strafeP': robot.strafeP,
-            'steerP': robot.steerP,
-            'strafeD': robot.strafeD,
-            'steerD': robot.steerD,
-            'autonomy_steer_cmd': robot.autonomy_steer_cmd,
-            'autonomy_strafe_cmd': robot.autonomy_strafe_cmd,
-            'simulated_data': robot.simulated_data
-            # 'front_lat': debug_points[0].lat,
-            # 'front_lon': debug_points[0].lat,
-            # 'rear_lat': debug_points[1].lat,
-            # 'rear_lon': debug_points[1].lat,
-            # 'front_close_lat': debug_points[2].lat,
-            # 'front_close_lon': debug_points[2].lat,
-            # 'rear_close_lat': debug_points[3].lat,
-            # 'rear_close_lon': debug_points[3].lat,
-        }
-        # print(robot_entry)
-        robots_list.append(robot_entry)
+        else:
+            robots_list.append(robot_to_json(robot))
 
     return robots_list
+
+
+def robot_to_json(robot):
+    time_stamp = date_handler(robot.time_stamp)
+    live_path_data = [point._asdict() for point in robot.live_path_data]
+    gps_path_data = [point._asdict() for point in robot.gps_path_data]
+    try:
+        debug_points = [point._asdict() for point in robot.debug_points]
+    except BaseException:
+        debug_points = []
+    return {
+        'name': robot.name,
+        'lat': robot.location.lat,
+        'lon': robot.location.lon,
+        'heading': robot.location.azimuth_degrees,
+        'speed': robot.speed,
+        'turn_intent_degrees': robot.turn_intent_degrees,
+        'voltage': robot.voltage,
+        'control_state': robot.control_state,
+        'motor_state': robot.motor_state,
+        'time_stamp': time_stamp,
+        'loaded_path_name': robot.loaded_path_name,
+        'live_path_data': live_path_data,
+        'gps_path_data': gps_path_data,
+        'debug_points': debug_points,
+        'autonomy_hold': robot.autonomy_hold,
+        'activate_autonomy': robot.activate_autonomy,
+        'access_point_name': robot.wifi_ap_name,
+        'wifi_signal': robot.wifi_strength,
+        'gps_distances': robot.gps_distances,
+        'gps_angles': robot.gps_angles,
+        'gps_distance_rates': robot.gps_path_lateral_error_rates,
+        'gps_angle_rates': robot.gps_path_angular_error_rates,
+        'strafeP': robot.strafeP,
+        'steerP': robot.steerP,
+        'strafeD': robot.strafeD,
+        'steerD': robot.steerD,
+        'autonomy_steer_cmd': robot.autonomy_steer_cmd,
+        'autonomy_strafe_cmd': robot.autonomy_strafe_cmd,
+        'simulated_data': robot.simulated_data
+        # 'front_lat': debug_points[0].lat,
+        # 'front_lon': debug_points[0].lat,
+        # 'rear_lat': debug_points[1].lat,
+        # 'rear_lon': debug_points[1].lat,
+        # 'front_close_lat': debug_points[2].lat,
+        # 'front_close_lon': debug_points[2].lat,
+        # 'rear_close_lat': debug_points[3].lat,
+        # 'rear_close_lon': debug_points[3].lat,
+    }
 
 
 @app.route('/api/save_path/', methods=['POST'])
@@ -196,7 +196,7 @@ def set_vehicle_path(pathname=None, vehicle_name=None):
         robot_command = pickle.loads(redis_client.get(vehicle_command_key))
     else:
         robot_command = RobotCommand()
-    robot_command.load_path = get_path_key(pathname)
+    robot_command.load_path = pathname
     print(vehicle_command_key)
     redis_client.set(vehicle_command_key, pickle.dumps(robot_command))
     return "Set vehicle {} path to {}".format(vehicle_command_key, robot_command.load_path)
@@ -314,17 +314,29 @@ def get_dense_path():
     return "No keys found"
 
 
-@socketio.on_error()
-def socket_io_error_handler(e):
-    print('SocketIO error: ' + str(e))
+@socketio.on(_CMD_UPDATE_ROBOT)
+def on_update_robot(data):
+    key, robot = data
+    redis_client.set(key, robot)
+    # to connected web UI, if any
+    socketio.emit('herd-data', [robot_to_json(pickle.loads(robot))])
+
+
+@socketio.on(_CMD_READ_PATH_KEY)
+def on_read_path(pathname):
+    path = redis_client.get(get_path_key(pathname))
+    socketio.emit(_CMD_READ_KEY_REPLY, [pathname, path])
 
 
 def redis_change_handler(msg):
     key = msg['data'].decode()
-    if redis_utils.is_robot_key(key):
-        print(key)
-        data = robots_to_json([key])
-        socketio.emit('herd-data', data, callback=lambda x: print(x))
+    if redis_utils.is_command_key(key):
+        print(f"sending to robot: {key}")
+        command_object = pickle.loads(redis_client.get(key))
+        if len(dir(RobotCommand())) != len(dir(command_object)):
+            command_object = RobotCommand()
+            redis_client.set(key, pickle.dumps(command_object))
+        socketio.emit(_CMD_ROBOT_COMMAND, pickle.dumps(command_object))
 
 
 def exception_handler(ex, pubsub, thread):
@@ -340,7 +352,7 @@ if __name__ == "__main__":
             pubsub = redis_client.pubsub()
             # see https://redis.io/topics/notifications
             pubsub.psubscribe(**{'__keyevent@0__:set': redis_change_handler})
-            thread = pubsub.run_in_thread(exception_handler=exception_handler)
+            thread = pubsub.run_in_thread(exception_handler=exception_handler, sleep_time=0.001)
             socketio.run(app,
                          debug=True,
                          use_reloader=True,
