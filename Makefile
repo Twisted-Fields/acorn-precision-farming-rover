@@ -40,6 +40,11 @@ docker-test: docker-image
 	@docker-compose -f docker-compose-test.yml up --remove-orphans -d && \
 	docker exec -it acorn_vehicle make test
 
+.PHONY: docker-test-watch # Keeps running tests for any changed files. Useful when developing.
+docker-test-watch: docker-image
+	@docker-compose -f docker-compose-test.yml up --remove-orphans -d && \
+	docker exec -it acorn_vehicle ptw --poll
+
 .PHONY: push-image # Build and push image to Docker Hub to be used by CI.
 push-image: docker-image
 ifeq ($(shell uname -m),arm64)

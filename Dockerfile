@@ -12,3 +12,5 @@ COPY server/requirements.txt /install/server/
 RUN python3 -m pip install -r /install/server/requirements.txt
 COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/vehicle/requirements.txt
+RUN python3 -m pip install pytest-watch
+

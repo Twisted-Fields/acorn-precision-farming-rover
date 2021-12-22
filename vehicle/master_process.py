@@ -36,7 +36,7 @@ import socketio
 import nvidia_power_process
 from remote_control_process import run_control
 import model
-import voltage_monitor_process
+import voltage_monitor
 from utils import AppendFIFO, config_logging
 
 
@@ -74,6 +74,8 @@ class MainProcess():
         self.last_wifi_restart_time = time.time()
         self.logger = logging.getLogger('main')
         config_logging(self.logger, self.debug)
+        self.wifi = wifi.Wifi(self.debug)
+        self.voltage_monitor = voltage_monitor.VoltageSampler(simulation)
 
     def setup(self, name, server, site):
         # Initialize robot object.
@@ -81,18 +83,13 @@ class MainProcess():
         self.acorn = model.Robot(self.simulation, self.logger)
         self.acorn.setup(name, server, site)
         self.setup_server_communication()
+        self.wifi.setup()
         # This module throws out debug messages so we change its logger level.
         i2c_logger = logging.getLogger('Adafruit_I2C')
         i2c_logger.setLevel(logging.CRITICAL)
 
     def run(self, stop_signal, fps=10):
         self.print_banner()
-
-        # Setup and start wifi config and monitor process.
-        wifi_parent_conn, wifi_child_conn = mp.Pipe()
-        wifi_proc = mp.Process(target=wifi.wifi_process,
-                               args=(stop_signal, wifi_child_conn, logging, self.debug,))
-        wifi_proc.start()
 
         # Setup and start vision config and monitor process.
         vision_parent_conn, vision_child_conn = mp.Pipe()
@@ -112,11 +109,6 @@ class MainProcess():
                                                remote_to_main_string, main_to_remote_string, logging,
                                                self.debug, self.simulation))
         remote_control_proc.start()
-
-        voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
-        voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop,
-                                  args=(stop_signal, voltage_monitor_child_conn, self.simulation,))
-        voltage_proc.start()
 
         self.ping_until_reachable(self.acorn.server.split(':')[0])
         self.wait_connect_server()
@@ -139,17 +131,10 @@ class MainProcess():
             with main_to_remote_lock:
                 main_to_remote_string["value"] = pickle.dumps(self.acorn)
 
-            # print("4444")
+            self.acorn.cell1, self.acorn.cell2, self.acorn.cell3, total = self.voltage_monitor.read()
+            updated_object = True
 
-            if voltage_monitor_parent_conn.poll():
-                self.acorn.cell1, self.acorn.cell2, self.acorn.cell3, total = voltage_monitor_parent_conn.recv()
-                # self.acorn.voltage = total
-                updated_object = True
-
-            while wifi_parent_conn.poll():
-                self.acorn.wifi_strength, self.acorn.wifi_ap_name, self.acorn.cpu_temperature_c = wifi_parent_conn.recv()
-
-            # print("5555")
+            self.acorn.wifi_strength, self.acorn.wifi_ap_name, self.acorn.cpu_temperature_c = self.wifi.collect()
 
             updated_object |= self.update_from_remote_control(gps_count, remote_to_main_lock, remote_to_main_string)
 
