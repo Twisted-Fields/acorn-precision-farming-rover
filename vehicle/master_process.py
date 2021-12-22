@@ -59,6 +59,7 @@ _UPDATE_PERIOD = 2.0
 
 _SERVER_PING_DELAY_SEC = 2
 _SERVER_CONNECT_DELAY_SEC = 2
+_SERVER_DELAY_RECONNECT_WIFI_SECONDS = 120
 
 
 # Have to keep the two aliases to be able to pickle old objects stored in Redis.
@@ -70,6 +71,7 @@ class MainProcess():
     def __init__(self, simulation, debug):
         self.simulation = simulation
         self.debug = debug
+        self.last_wifi_restart_time = time.time()
         self.logger = logging.getLogger('main')
         config_logging(self.logger, self.debug)
 
@@ -166,6 +168,7 @@ class MainProcess():
 
                 updated_object = False
 
+            self.maybe_restart_wifi()
             time_left = interval - (time.time() - start)
             if time_left > 0:
                 time.sleep(time_left)
@@ -321,6 +324,25 @@ class MainProcess():
             self.acorn.gps_path_data = []
 
         return updated_object
+
+    def maybe_restart_wifi(self):
+        if (time.time() > self.last_wifi_restart_time + 500 and
+                self.acorn.server_disconnected_at and
+                time.time() - self.acorn.server_disconnected_at > _SERVER_DELAY_RECONNECT_WIFI_SECONDS):
+            self.logger.error(
+                "Last Wifi signal strength: {} dbm\r\n".format(
+                    self.acorn.wifi_strength))
+            self.logger.error("Last Wifi AP associated: {}\r\n".format(
+                self.acorn.wifi_ap_name))
+            self.logger.error("Restarting wlan1...")
+            try:
+                subprocess.check_call("ifconfig wlan1 down",
+                                      shell=True)
+                subprocess.check_call("ifconfig wlan1 up", shell=True)
+            except BaseException:
+                pass
+            self.last_wifi_restart_time = time.time()
+            self.logger.error("Restarted wlan1.")
 
 
 def load_yaml_config(yaml_path):

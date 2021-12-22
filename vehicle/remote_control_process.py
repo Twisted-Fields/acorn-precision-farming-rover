@@ -20,7 +20,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
-import json
 import time
 import math
 import zmq
@@ -31,7 +30,6 @@ import spline_lib
 import os
 import datetime
 import gps
-import subprocess
 from enum import Enum
 from multiprocessing import shared_memory, resource_tracker
 import random
@@ -79,7 +77,6 @@ _ALLOWED_SOLUTION_AGE_SEC = 1.0
 _ALLOWED_MOTOR_SEND_LAPSE_SEC = 5
 
 SERVER_COMMUNICATION_DELAY_LIMIT_SEC = 10
-_SERVER_DELAY_RECONNECT_WIFI_SECONDS = 120
 
 _BEGIN_AUTONOMY_SPEED_RAMP_SEC = 3.0
 
@@ -248,7 +245,6 @@ class RemoteControl():
         self.last_energy_segment = None
         self.temperatures = []
         self.last_calculated_steering = calculate_steering(0, 0, 0, _STEERING_ANGLE_LIMIT_DEGREES)
-        self.last_wifi_restart_time = time.time()
         self.last_vel_cmd = 0
         self.vel_cmd = 0
 
@@ -470,8 +466,6 @@ class RemoteControl():
         if self.loop_count % _ERROR_SKIP_RATE == 0:
             for error in error_messages:
                 self.logger.error(error)
-
-        self.maybe_restart_wifi()
 
         if zero_output:
             if self.activate_autonomy and time.time() - self.disengagement_time > _DISENGAGEMENT_RETRY_DELAY_SEC:
@@ -993,25 +987,6 @@ class RemoteControl():
                 f"Signal Strength {self.robot_object.wifi_strength} dbm\r\n")
 
         return error_messages, fatal_error, zero_output
-
-    def maybe_restart_wifi(self):
-        if (time.time() > self.last_wifi_restart_time + 500 and
-                self.robot_object.server_disconnected_at and
-                time.time() - self.robot_object.server_disconnected_at > _SERVER_DELAY_RECONNECT_WIFI_SECONDS):
-            self.logger.error(
-                "Last Wifi signal strength: {} dbm\r\n".format(
-                    self.robot_object.wifi_strength))
-            self.logger.error("Last Wifi AP associated: {}\r\n".format(
-                self.robot_object.wifi_ap_name))
-            self.logger.error("Restarting wlan1...")
-            try:
-                subprocess.check_call("ifconfig wlan1 down",
-                                      shell=True)
-                subprocess.check_call("ifconfig wlan1 up", shell=True)
-            except BaseException:
-                pass
-            self.last_wifi_restart_time = time.time()
-            self.logger.error("Restarted wlan1.")
 
     def write_errors(self, error_messages):
         # Ensure we always print errors if we are deactivating autonomy.
