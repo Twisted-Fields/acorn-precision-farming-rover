@@ -58,7 +58,7 @@ def test_main(fixture_path, fixture_robot_command, mocker):
                 assert obj is not None, "should have sent the commands to motor"
 
     main_process = master_process.MainProcess(simulation=True, debug=True)
-    main_process.setup("test", "127.0.0.1:{}".format(1234), "test-site")
+    main_process.setup("test", "127.0.0.1:whatever", "test-site")
 
     # make sure all socket IO handlers are properly registered
     expected_handlers = set([_CMD_ROBOT_COMMAND, _CMD_READ_KEY_REPLY,
@@ -78,14 +78,18 @@ def test_main(fixture_path, fixture_robot_command, mocker):
     assert main_process.acorn.loaded_path == []
 
     mocked.emit = mocker.MagicMock()
+    wifi = mocker.patch('wifi.Wifi', **{'return_value.collect.return_value': (1, '', 1)})
+    voltage = mocker.patch('voltage_monitor.VoltageSampler', **{'return_value.read.return_value': (1, 2, 3, 4)})
     stop_signal = mp.Event()
-    main_thread = threading.Thread(target=lambda: main_process.run(stop_signal, fps=10), daemon=True)
+    main_thread = threading.Thread(target=lambda: main_process.run(stop_signal, frequency=10), daemon=True)
     main_thread.start()
-
     time.sleep(1)
     stop_signal.set()
     main_thread.join()
+    wifi.assert_called()
+    voltage.assert_called()
     # make sure some update calls are made
     mocked.emit.assert_called_with(_CMD_UPDATE_ROBOT, [main_process.acorn.key, mocker.ANY])
+
     for proc in psutil.process_iter():
         assert proc.ppid != os.getpid() or proc.pid == os.getpid(), "all sub-processes should have been terminated"

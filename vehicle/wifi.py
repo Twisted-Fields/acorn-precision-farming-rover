@@ -67,8 +67,6 @@ class Wifi:
         self.log_counter = 0
         self.logger = logging.getLogger('main.wifi')
         utils.config_logging(self.logger, debug)
-
-    def setup(self):
         interfaces = netifaces.interfaces()
         if "wlan0" in interfaces and "wlan1" in interfaces:
             wlan0_ip = None

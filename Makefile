@@ -55,7 +55,7 @@ endif
 
 .PHONY: test  # Run tests on Linux (if the Python dependencies are installed) or inside Docker. Otherwise, you probably want to try `make docker-test` instead.
 test:
-	coverage run -m pytest --log-cli-level DEBUG && coverage report --skip-covered --skip-empty
+	coverage run -m pytest && coverage report --skip-covered --skip-empty
 
 .PHONY: docker-vehicle
 docker-vehicle: docker-image

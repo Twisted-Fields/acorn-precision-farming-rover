@@ -32,6 +32,7 @@ import time
 import yaml
 import wifi
 import socketio
+from loop import Perceptor
 
 import nvidia_power_process
 from remote_control_process import run_control
@@ -74,21 +75,22 @@ class MainProcess():
         self.last_wifi_restart_time = time.time()
         self.logger = logging.getLogger('main')
         config_logging(self.logger, self.debug)
-        self.wifi = wifi.Wifi(self.debug)
-        self.voltage_monitor = voltage_monitor.VoltageSampler(simulation)
+        self.gps_count = 0
 
     def setup(self, name, server, site):
-        # Initialize robot object.
         self.logger.info("Using server {}".format(server))
         self.acorn = model.Robot(self.simulation, self.logger)
         self.acorn.setup(name, server, site)
         self.setup_server_communication()
-        self.wifi.setup()
         # This module throws out debug messages so we change its logger level.
         i2c_logger = logging.getLogger('Adafruit_I2C')
         i2c_logger.setLevel(logging.CRITICAL)
 
-    def run(self, stop_signal, fps=10):
+    def run(self, stop_signal, frequency=10):
+        self.wifi_monitor = Perceptor(wifi.Wifi(self.debug).collect, max_frequency=frequency)
+        self.voltage_monitor = Perceptor(
+            voltage_monitor.VoltageSampler(self.simulation).read, max_frequency=frequency)
+
         self.print_banner()
 
         # Setup and start vision config and monitor process.
@@ -113,45 +115,29 @@ class MainProcess():
         self.ping_until_reachable(self.acorn.server.split(':')[0])
         self.wait_connect_server()
 
-        # reqs = 0
-        # robot_id = bytes(self.acorn.name, encoding='ascii')
-        updated_object = False
-        gps_count = 0
-        # send_robot_object = False
-
-        interval = 1.0 / fps
+        interval = 1.0 / frequency
         while not stop_signal.is_set():
-
             start = time.time()
-            # print("3333")
-
-            # if send_robot_object:
-            #     remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
-            #     send_robot_object = False
             with main_to_remote_lock:
                 main_to_remote_string["value"] = pickle.dumps(self.acorn)
 
-            self.acorn.cell1, self.acorn.cell2, self.acorn.cell3, total = self.voltage_monitor.read()
-            updated_object = True
+            self.acorn.cell1, self.acorn.cell2, self.acorn.cell3, total = self.voltage_monitor.last()
+            self.acorn.wifi_strength, self.acorn.wifi_ap_name, self.acorn.cpu_temperature_c = self.wifi_monitor.last()
 
-            self.acorn.wifi_strength, self.acorn.wifi_ap_name, self.acorn.cpu_temperature_c = self.wifi.collect()
-
-            updated_object |= self.update_from_remote_control(gps_count, remote_to_main_lock, remote_to_main_string)
+            self.update_from_remote_control(remote_to_main_lock, remote_to_main_string)
 
             seconds_since_update = (datetime.utcnow() - self.acorn.time_stamp).total_seconds()
             if self.simulation:
                 period = _SIMULATION_UPDATE_PERIOD
             else:
                 period = _UPDATE_PERIOD
-            if updated_object and seconds_since_update > period:
+            if seconds_since_update > period:
                 self.acorn.time_stamp = datetime.utcnow()
                 try:
                     self.sio.emit(_CMD_UPDATE_ROBOT, [self.acorn.key, pickle.dumps(self.acorn)])
                     self.acorn.energy_segment_list = []
                 except socketio.exceptions.BadNamespaceError:
                     self.logger.error("Remote server unreachable.")
-
-                updated_object = False
 
             self.maybe_restart_wifi()
             time_left = interval - (time.time() - start)
@@ -161,7 +147,7 @@ class MainProcess():
     def setup_server_communication(self):
         self.sio = socketio.Client()
 
-        @self.sio.on(_CMD_ROBOT_COMMAND)
+        @ self.sio.on(_CMD_ROBOT_COMMAND)
         def on_robot_command(msg):
             robot_command = pickle.loads(msg)
             if robot_command.load_path != self.acorn.loaded_path_name and len(robot_command.load_path) > 0:
@@ -181,24 +167,24 @@ class MainProcess():
                              f"Autonomy Velocity: {robot_command.autonomy_velocity}, "
                              f"Clear Autonomy Hold: {self.acorn.clear_autonomy_hold}")
 
-        @self.sio.on(_CMD_READ_KEY_REPLY)
+        @ self.sio.on(_CMD_READ_KEY_REPLY)
         def on_path(msg):
             path_name, path = msg
             self.logger.info(f"got path for {path_name}")
             self.acorn.loaded_path_name = path_name
             self.acorn.loaded_path = pickle.loads(path)
 
-        @self.sio.event
+        @ self.sio.event
         def connect_error(data):
             self.logger.warning("fail to connect server. will retry.")
             self.acorn.server_disconnected_at = time.time()
 
-        @self.sio.event
+        @ self.sio.event
         def connect():
             self.logger.debug("connected to server.")
             self.acorn.server_disconnected_at = None
 
-        @self.sio.event
+        @ self.sio.event
         def disconnect():
             self.logger.debug("server disconnected.")
             self.acorn.server_disconnected_at = time.time()
@@ -244,7 +230,7 @@ class MainProcess():
             if ping.returncode == 0:
                 self.logger.info("Ping Successful")
                 break
-            self.logger.error("Ping failed. Will wait and retry.")
+            self.logger.error(f"Ping failed. Will retry in {_SERVER_PING_DELAY_SEC}.")
             time.sleep(_SERVER_PING_DELAY_SEC)
 
     def wait_connect_server(self):
@@ -252,10 +238,11 @@ class MainProcess():
             try:
                 self.sio.connect('http://{}'.format(self.acorn.server))
                 return
-            except socketio.exceptions.ConnectionError:
+            except socketio.exceptions.ConnectionError as e:
+                self.logger.error(f"Connection error, retry in {_SERVER_CONNECT_DELAY_SEC} seconds: {e}")
                 time.sleep(_SERVER_CONNECT_DELAY_SEC)
 
-    def update_from_remote_control(self, gps_count, remote_to_main_lock, remote_to_main_string):
+    def update_from_remote_control(self, remote_to_main_lock, remote_to_main_string):
         try:
             with remote_to_main_lock:
                 (acorn_location, self.acorn.live_path_data, self.acorn.turn_intent_degrees, self.acorn.debug_points,
@@ -263,14 +250,12 @@ class MainProcess():
                  gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
                  autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage,
                  energy_segment, self.acorn.motor_temperatures) = pickle.loads(remote_to_main_string["value"])
-            # send_robot_object = True
             if acorn_location is not None:
                 self.acorn.location = acorn_location
         except Exception as e:
             print(e)
-            return False
+            return
 
-        updated_object = False
         if gps_fix:
             self.acorn.autonomy_steer_cmd = AppendFIFO(
                 self.acorn.autonomy_steer_cmd, autonomy_steer_cmd,
@@ -297,9 +282,8 @@ class MainProcess():
         if energy_segment is not None:
             self.acorn.energy_segment_list.append(energy_segment)
 
-        updated_object = True
-        gps_count += 1
-        if gps_count % 10 == 0:
+        self.gps_count += 1
+        if self.gps_count % 10 == 0:
             if self.acorn.record_gps_command == model.GPS_RECORDING_ACTIVATE:
                 self.acorn.gps_path_data.append(self.acorn.location)
                 self.logger.info("APPEND GPS. TEMP PATH LENGTH {}".format(len(self.acorn.gps_path_data)))
@@ -307,8 +291,6 @@ class MainProcess():
             pass  # TODO: anything to do here?
         if self.acorn.record_gps_command == model.GPS_RECORDING_CLEAR:
             self.acorn.gps_path_data = []
-
-        return updated_object
 
     def maybe_restart_wifi(self):
         if (time.time() > self.last_wifi_restart_time + 500 and
