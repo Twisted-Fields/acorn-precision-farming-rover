@@ -8,8 +8,8 @@ import time
 import zmq
 
 import model
+from model import Cmd
 import master_process
-from master_process import _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND, _CMD_READ_PATH_KEY, _CMD_READ_KEY_REPLY
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def test_main(fixture_path, fixture_robot_command, mocker):
     main_process.setup("test", "127.0.0.1:whatever", "test-site")
 
     # make sure all socket IO handlers are properly registered
-    expected_handlers = set([_CMD_ROBOT_COMMAND, _CMD_READ_KEY_REPLY,
+    expected_handlers = set([Cmd.ROBOT_COMMAND, Cmd.READ_KEY_REPLY,
                              'connect_error', 'connect', 'disconnect'])
     assert set(mocked.handlers.keys()) ^ expected_handlers == set()
 
@@ -69,11 +69,11 @@ def test_main(fixture_path, fixture_robot_command, mocker):
     cmd = model.RobotCommand()
     cmd.load_path = 'abc'
     mocked.emit = mocker.MagicMock()
-    mocked.handlers[_CMD_ROBOT_COMMAND](pickle.dumps(cmd))
-    mocked.emit.assert_called_once_with(_CMD_READ_PATH_KEY, 'abc')
+    mocked.handlers[Cmd.ROBOT_COMMAND](pickle.dumps(cmd))
+    mocked.emit.assert_called_once_with(Cmd.READ_PATH_KEY, 'abc')
 
     # should be able to load path.
-    mocked.handlers[_CMD_READ_KEY_REPLY](['path_name', pickle.dumps([])])
+    mocked.handlers[Cmd.READ_KEY_REPLY](['path_name', pickle.dumps([])])
     assert main_process.acorn.loaded_path_name == 'path_name'
     assert main_process.acorn.loaded_path == []
 
@@ -89,7 +89,7 @@ def test_main(fixture_path, fixture_robot_command, mocker):
     wifi.assert_called()
     voltage.assert_called()
     # make sure some update calls are made
-    mocked.emit.assert_called_with(_CMD_UPDATE_ROBOT, [main_process.acorn.key, mocker.ANY])
+    mocked.emit.assert_called_with(Cmd.UPDATE_ROBOT, [main_process.acorn.key, mocker.ANY])
 
     for proc in psutil.process_iter():
         assert proc.ppid != os.getpid() or proc.pid == os.getpid(), "all sub-processes should have been terminated"

@@ -38,7 +38,7 @@ from joystick import Joystick
 from steering import calculate_steering, compare_steering_values, steering_to_numpy
 from utils import AppendFIFO, clamp
 import corner_actuator
-import model
+from model import Robot, Control, MotorStatus
 import utils
 
 # This file gets imported by server but we should only import GPIO on raspi.
@@ -222,8 +222,8 @@ class RemoteControl():
         self.load_path_time = time.time()
         self.loaded_path_name = ""
         self.autonomy_hold = True
-        self.control_state = model.CONTROL_STARTUP
-        self.motor_state = model.MOTOR_DISCONNECTED
+        self.control_state = Control.STARTUP
+        self.motor_state = MotorStatus.DISCONNECTED
         self.driving_direction = 1.0
         self.gps_path_lateral_error = 0
         self.gps_path_angular_error = 0
@@ -396,7 +396,7 @@ class RemoteControl():
             self.logger.error("Exception reading remote string.")
             raise(e)
 
-        if not isinstance(recieved_robot_object, model.Robot):
+        if not isinstance(recieved_robot_object, Robot):
             self.logger.info("Got unexpected type {}".format(type(recieved_robot_object)))
             self.logger.info("Waiting for valid robot object before running remote control code.")
             time.sleep(_SLOW_POLLING_SLEEP_S)
@@ -448,7 +448,7 @@ class RemoteControl():
             self.logger.info("DISABLED AUTONOMY becase joystick is activated: {}".format(self.joy))
             self.autonomy_hold = True
             self.activate_autonomy = False
-            self.control_state = model.CONTROL_OVERRIDE
+            self.control_state = Control.OVERRIDE
 
         (user_web_page_plot_steer_cmd, user_web_page_plot_strafe_cmd,
          strafe_d, steer_d, strafe_p, steer_p,
@@ -477,7 +477,7 @@ class RemoteControl():
                     self.activate_autonomy = False
         elif not self.activate_autonomy:
             self.resume_motion_timer = time.time()
-            self.control_state = model.CONTROL_ONLINE
+            self.control_state = Control.ONLINE
 
         time8 = time.time() - debug_time
 
@@ -739,7 +739,7 @@ class RemoteControl():
         if not drive_solution_okay:
             self.autonomy_hold = True
             self.activate_autonomy = False
-            self.control_state = model.CONTROL_NO_STEERING_SOLUTION
+            self.control_state = Control.NO_STEERING_SOLUTION
             self.logger.error("Could not find drive solution. Disabling autonomy.")
             self.logger.error("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}"
                               .format(calculated_rotation, self.nav_path.
@@ -791,7 +791,7 @@ class RemoteControl():
                     self.nav_path_index = 0
                     self.load_path(self.nav_path_list[self.nav_path_index],
                                    simulation_teleport=True, generate_spline=True)
-                    # self.control_state = model.CONTROL_ONLINE
+                    # self.control_state = Control.ONLINE
                     # self.autonomy_hold = True
                     # self.activate_autonomy = False
 
@@ -929,36 +929,36 @@ class RemoteControl():
         fatal_error = False
         zero_output = False
 
-        if self.motor_state != model.MOTOR_ENABLED:
+        if self.motor_state != MotorStatus.ENABLED:
             error_messages.append("Motor error so zeroing out autonomy commands.")
             zero_output = True
-            self.control_state = model.CONTROL_MOTOR_ERROR
+            self.control_state = Control.MOTOR_ERROR
             self.resume_motion_timer = time.time()
 
         if self.voltage_average < _VOLTAGE_CUTOFF:
             fatal_error = True
             error_messages.append("Voltage low so zeroing out autonomy commands.")
             zero_output = True
-            self.control_state = model.CONTROL_LOW_VOLTAGE
+            self.control_state = Control.LOW_VOLTAGE
             self.resume_motion_timer = time.time()
 
         if not self.gps.is_dual_fix():
             error_messages.append("No GPS fix so zeroing out autonomy commands.")
             zero_output = True
-            self.control_state = model.CONTROL_GPS_STARTUP
+            self.control_state = Control.GPS_STARTUP
             self.resume_motion_timer = time.time()
         elif abs(absolute_path_distance) > self.nav_path.maximum_allowed_distance_meters:
             # Distance from path exceeds allowed limit.
             zero_output = True
             self.resume_motion_timer = time.time()
-            self.control_state = model.CONTROL_AUTONOMY_ERROR_DISTANCE
+            self.control_state = Control.AUTONOMY_ERROR_DISTANCE
             error_messages.append(
                 "GPS distance {} meters too far from path so zeroing out autonomy commands."
                 .format(abs(absolute_path_distance)))
         elif abs(gps_path_angle_error) > self.nav_path.maximum_allowed_angle_error_degrees:
             zero_output = True
             self.resume_motion_timer = time.time()
-            self.control_state = model.CONTROL_AUTONOMY_ERROR_ANGLE
+            self.control_state = Control.AUTONOMY_ERROR_ANGLE
             error_messages.append(
                 "GPS path angle {} exceeds allowed limit {} so zeroing out autonomy commands."
                 .format(
@@ -967,12 +967,12 @@ class RemoteControl():
         elif self.gps.last_sample().rtk_age > _ALLOWED_RTK_AGE_SEC:
             zero_output = True
             self.resume_motion_timer = time.time()
-            self.control_state = model.CONTROL_AUTONOMY_ERROR_RTK_AGE
+            self.control_state = Control.AUTONOMY_ERROR_RTK_AGE
             error_messages.append("RTK base station data too old so zeroing out autonomy commands.")
         elif time.time() - self.gps.last_sample().time_stamp > _ALLOWED_SOLUTION_AGE_SEC:
             zero_output = True
             self.resume_motion_timer = time.time()
-            self.control_state = model.CONTROL_AUTONOMY_ERROR_SOLUTION_AGE
+            self.control_state = Control.AUTONOMY_ERROR_SOLUTION_AGE
             error_messages.append("RTK solution too old so zeroing out autonomy commands.")
 
         if (self.robot_object.server_disconnected_at and
@@ -1033,9 +1033,9 @@ class RemoteControl():
                 autonomy_vel_cmd *= autonomy_time_elapsed / _BEGIN_AUTONOMY_SPEED_RAMP_SEC
                 print(autonomy_time_elapsed)
                 # autonomy_strafe_cmd = 0
-            self.control_state = model.CONTROL_AUTONOMY
+            self.control_state = Control.AUTONOMY
             if zero_output:
-                self.control_state = model.CONTROL_AUTONOMY_PAUSE
+                self.control_state = Control.AUTONOMY_PAUSE
             else:
                 vel_cmd = autonomy_vel_cmd
                 steer_cmd = autonomy_steer_cmd
@@ -1105,12 +1105,12 @@ class RemoteControl():
                 except Exception as e:
                     self.logger.error("Error reading motor state message.")
                     self.logger.error(e)
-                    self.motor_state = model.MOTOR_DISCONNECTED
+                    self.motor_state = MotorStatus.DISCONNECTED
         except zmq.error.Again:
             self.logger.error("Remote server unreachable.")
         except zmq.error.ZMQError:
             self.logger.error("ZMQ error with motor command socket. Resetting.")
-            self.motor_state = model.MOTOR_DISCONNECTED
+            self.motor_state = MotorStatus.DISCONNECTED
             self.close_motor_socket()
 
         # If we have a GPS fix, update power consumption metrics.

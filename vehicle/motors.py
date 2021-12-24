@@ -33,7 +33,7 @@ import fibre
 
 import corner_actuator
 from corner_actuator import OdriveConnection
-import model
+from model import MotorStatus
 
 
 # This file gets imported by server but we should only import GPIO on raspi.
@@ -244,7 +244,7 @@ class AcornMotorInterface():
         try:
             while True:
                 if not self.odrives_connected:
-                    self.communicate_message(model.MOTOR_DISCONNECTED)
+                    self.communicate_message(MotorStatus.DISCONNECTED)
                     self.connect_to_motors()
                 elif not self.motors_initialized:
                     try:
@@ -307,7 +307,7 @@ class AcornMotorInterface():
                         self.GPIO, _ERROR_RECOVERY_DELAY_S)
                     # time.sleep(_ERROR_RECOVERY_DELAY_S)
                     recv = self.communicate_message(
-                        model.MOTOR__DISABLED, voltages, bus_currents, temperatures)
+                        MotorStatus.DISABLED, voltages, bus_currents, temperatures)
                     if recv:
                         print("Got motor command but motors are in error state.")
                         print("Motor command was {}".format(recv))
@@ -320,7 +320,7 @@ class AcornMotorInterface():
                             motor_error = False
 
                     calc = self.communicate_message(
-                        model.MOTOR_ENABLED, voltages, bus_currents, temperatures)
+                        MotorStatus.ENABLED, voltages, bus_currents, temperatures)
                     corner_actuator.gpio_toggle(self.GPIO)
                     if calc:
                         if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:

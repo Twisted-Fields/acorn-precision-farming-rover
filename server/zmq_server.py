@@ -29,9 +29,7 @@ import pickle
 import redis
 import psutil
 import redis_utils
-from model import RobotCommand
-from master_process import _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
-from master_process import _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
+from model import RobotCommand, Cmd
 
 _ALLOWED_ACTIVITY_LAPSE_SEC = 120
 _SOCKET_RESET_TIMEOUT_MIN = 60
@@ -147,19 +145,19 @@ class ServerWorker(threading.Thread):
 
 def handle_command(r, command, key, msg):
     # tprint("GOT COMMAND {}".format(command))
-    command_reply = _CMD_ACK
-    if command == _CMD_WRITE_KEY:
+    command_reply = Cmd.ACK
+    if command == Cmd.WRITE_KEY:
         # tprint(key)
         r.set(key, msg)
         message = bytes("ok", encoding='ascii')
-    elif command == _CMD_READ_KEY:
+    elif command == Cmd.READ_KEY:
 
         tprint("**************")
         tprint(str(key))
         tprint("**************")
         message = pickle.dumps((key, r.get(key)))
-        command_reply = _CMD_READ_KEY_REPLY
-    elif command == _CMD_READ_PATH_KEY:
+        command_reply = Cmd.READ_KEY_REPLY
+    elif command == Cmd.READ_PATH_KEY:
 
         # Got the path request. Remove the path command from the command object
         # and send the path.
@@ -168,8 +166,8 @@ def handle_command(r, command, key, msg):
         # command_object.load_path = ""
         # r.set(command_key, pickle.dumps(command_object))
         message = pickle.dumps((key, r.get(key)))
-        command_reply = _CMD_READ_KEY_REPLY
-    elif command == _CMD_UPDATE_ROBOT:
+        command_reply = Cmd.READ_KEY_REPLY
+    elif command == Cmd.UPDATE_ROBOT:
         print(key)
         robot = pickle.loads(msg)
         robot = update_robot(r, key, robot)
@@ -200,7 +198,7 @@ def handle_command(r, command, key, msg):
         print(command_key)
         # message = bytes("ok", encoding='ascii')
         message = r.get(command_key)
-        command_reply = _CMD_ROBOT_COMMAND
+        command_reply = Cmd.ROBOT_COMMAND
     else:
         tprint("NOPE")
         tprint(command)

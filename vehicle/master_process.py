@@ -37,6 +37,7 @@ from loop import Perceptor
 import nvidia_power_process
 from remote_control_process import run_control
 import model
+from model import Cmd, GPSRecording
 import voltage_monitor
 from utils import AppendFIFO, config_logging
 
@@ -44,14 +45,6 @@ from utils import AppendFIFO, config_logging
 _YAML_NAME_SIMULATION = "vehicle/server_config_sim.yaml"
 _YAML_NAME_RASPBERRY = "/home/pi/vehicle/server_config.yaml"
 _YAML_NAME_DOCKER = "/acorn/vehicle/server_config.yaml"
-
-_CMD_WRITE_KEY = bytes('w', encoding='ascii')
-_CMD_READ_KEY = bytes('readkey', encoding='ascii')
-_CMD_READ_PATH_KEY = bytes('readpathkey', encoding='ascii')
-_CMD_READ_KEY_REPLY = bytes('readkeyreply', encoding='ascii')
-_CMD_UPDATE_ROBOT = bytes('ur', encoding='ascii')
-_CMD_ROBOT_COMMAND = bytes('rc', encoding='ascii')
-_CMD_ACK = bytes('a', encoding='ascii')
 
 _MAX_GPS_DISTANCES = 1000
 
@@ -79,7 +72,7 @@ class MainProcess():
 
     def setup(self, name, server, site):
         self.logger.info("Using server {}".format(server))
-        self.acorn = model.Robot(self.simulation, self.logger)
+        self.acorn = Robot(self.simulation, self.logger)
         self.acorn.setup(name, server, site)
         self.setup_server_communication()
         # This module throws out debug messages so we change its logger level.
@@ -134,7 +127,7 @@ class MainProcess():
             if seconds_since_update > period:
                 self.acorn.time_stamp = datetime.utcnow()
                 try:
-                    self.sio.emit(_CMD_UPDATE_ROBOT, [self.acorn.key, pickle.dumps(self.acorn)])
+                    self.sio.emit(Cmd.UPDATE_ROBOT, [self.acorn.key, pickle.dumps(self.acorn)])
                     self.acorn.energy_segment_list = []
                 except socketio.exceptions.BadNamespaceError:
                     self.logger.error("Remote server unreachable.")
@@ -147,12 +140,12 @@ class MainProcess():
     def setup_server_communication(self):
         self.sio = socketio.Client()
 
-        @ self.sio.on(_CMD_ROBOT_COMMAND)
+        @ self.sio.on(Cmd.ROBOT_COMMAND)
         def on_robot_command(msg):
             robot_command = pickle.loads(msg)
             if robot_command.load_path != self.acorn.loaded_path_name and len(robot_command.load_path) > 0:
                 self.logger.info(f"requesting path for {robot_command.load_path}")
-                self.sio.emit(_CMD_READ_PATH_KEY, robot_command.load_path)
+                self.sio.emit(Cmd.READ_PATH_KEY, robot_command.load_path)
 
             if robot_command.record_gps_path:
                 self.acorn.record_gps_command = robot_command.record_gps_path
@@ -167,7 +160,7 @@ class MainProcess():
                              f"Autonomy Velocity: {robot_command.autonomy_velocity}, "
                              f"Clear Autonomy Hold: {self.acorn.clear_autonomy_hold}")
 
-        @ self.sio.on(_CMD_READ_KEY_REPLY)
+        @ self.sio.on(Cmd.READ_KEY_REPLY)
         def on_path(msg):
             path_name, path = msg
             self.logger.info(f"got path for {path_name}")
@@ -181,12 +174,12 @@ class MainProcess():
 
         @ self.sio.event
         def connect():
-            self.logger.debug("connected to server.")
+            self.logger.info("connected to server.")
             self.acorn.server_disconnected_at = None
 
         @ self.sio.event
         def disconnect():
-            self.logger.debug("server disconnected.")
+            self.logger.info("server disconnected.")
             self.acorn.server_disconnected_at = time.time()
 
     def print_banner(self):
@@ -284,12 +277,12 @@ class MainProcess():
 
         self.gps_count += 1
         if self.gps_count % 10 == 0:
-            if self.acorn.record_gps_command == model.GPS_RECORDING_ACTIVATE:
+            if self.acorn.record_gps_command == GPSRecording.ACTIVATE:
                 self.acorn.gps_path_data.append(self.acorn.location)
                 self.logger.info("APPEND GPS. TEMP PATH LENGTH {}".format(len(self.acorn.gps_path_data)))
-        if self.acorn.record_gps_command == model.GPS_RECORDING_PAUSE:
+        if self.acorn.record_gps_command == GPSRecording.PAUSE:
             pass  # TODO: anything to do here?
-        if self.acorn.record_gps_command == model.GPS_RECORDING_CLEAR:
+        if self.acorn.record_gps_command == GPSRecording.CLEAR:
             self.acorn.gps_path_data = []
 
     def maybe_restart_wifi(self):

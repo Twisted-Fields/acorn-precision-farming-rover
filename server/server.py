@@ -21,24 +21,22 @@ limitations under the License.
 *********************************************************************
 """
 # coding: utf-8
+import time
+from flask import Flask, render_template, request, send_from_directory, jsonify
+from flask_redis import FlaskRedis
+from flask_socketio import SocketIO
+import re
+import pickle
+import datetime
+import eventlet
+eventlet.monkey_patch()  # allow flask_socketio to support WebSocket.
+
 
 # Loop the imports so that temporary syntax errors in imported files does not kill server.
 while True:
     try:
-        import time
-        from flask import Flask, render_template, request, send_from_directory, jsonify
-        from flask_redis import FlaskRedis
-        from flask_socketio import SocketIO
-        import re
-        import pickle
-        import datetime
-        import eventlet
-        eventlet.monkey_patch()  # allow flask_socketio to support WebSocket.
-
         import redis_utils
-        from model import RobotCommand
-        from master_process import _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
-        from master_process import _CMD_READ_PATH_KEY, _CMD_READ_KEY_REPLY
+        from model import RobotCommand, Cmd
         break
     except Exception as e:
         print(e)
@@ -314,7 +312,7 @@ def get_dense_path():
     return "No keys found"
 
 
-@socketio.on(_CMD_UPDATE_ROBOT)
+@socketio.on(Cmd.UPDATE_ROBOT)
 def on_update_robot(data):
     key, robot = data
     redis_client.set(key, robot)
@@ -322,10 +320,10 @@ def on_update_robot(data):
     socketio.emit('herd-data', [robot_to_json(pickle.loads(robot))])
 
 
-@socketio.on(_CMD_READ_PATH_KEY)
+@socketio.on(Cmd.READ_PATH_KEY)
 def on_read_path(pathname):
     path = redis_client.get(get_path_key(pathname))
-    socketio.emit(_CMD_READ_KEY_REPLY, [pathname, path])
+    socketio.emit(Cmd.READ_KEY_REPLY, [pathname, path])
 
 
 def redis_change_handler(msg):
@@ -336,7 +334,7 @@ def redis_change_handler(msg):
         if len(dir(RobotCommand())) != len(dir(command_object)):
             command_object = RobotCommand()
             redis_client.set(key, pickle.dumps(command_object))
-        socketio.emit(_CMD_ROBOT_COMMAND, pickle.dumps(command_object))
+        socketio.emit(Cmd.ROBOT_COMMAND, pickle.dumps(command_object))
 
 
 def exception_handler(ex, pubsub, thread):
@@ -353,9 +351,9 @@ if __name__ == "__main__":
             # see https://redis.io/topics/notifications
             pubsub.psubscribe(**{'__keyevent@0__:set': redis_change_handler})
             thread = pubsub.run_in_thread(exception_handler=exception_handler, sleep_time=0.001)
+            # Note that with pytest-watch installed, either debug or use_reloader flag will stop Flask from responding.
+            # See https://github.com/eventlet/eventlet/issues/634
             socketio.run(app,
-                         debug=True,
-                         use_reloader=True,
                          host="0.0.0.0",
                          port=int("80"))
         except Exception as e:

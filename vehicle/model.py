@@ -1,32 +1,48 @@
 import json
 import time
 from datetime import datetime
+from enum import Enum
 
 import gps_tools
 
 
-CONTROL_STARTUP = "Initializing..."
-CONTROLGPS_STARTUP = "Waiting for GPS fix."
-CONTROL_ONLINE = "Online and awaiting commands."
-CONTROL_AUTONOMY = "Autonomy operating."
-CONTROL_AUTONOMY_PAUSE = "Autonomy paused with temporary error."
-CONTROL_LOW_VOLTAGE = "Low voltage Pause."
-CONTROL_AUTONOMY_ERROR_DISTANCE = "Autonomy failed - too far from path."
-CONTROL_AUTONOMY_ERROR_ANGLE = "Autonomy failed - path angle too great."
-CONTROL_AUTONOMY_ERROR_RTK_AGE = "Autonomy failed - rtk base data too old."
-CONTROL_AUTONOMY_ERROR_SOLUTION_AGE = "Autonomy failed - gps solution too old."
-CONTROL_OVERRIDE = "Remote control override."
-CONTROL_SERVER_ERROR = "Server communication error."
-CONTROL_MOTOR_ERROR = "Motor error detected."
-CONTROL_NO_STEERING_SOLUTION = "No steering solution possible."
+class Control(str, Enum):
+    STARTUP = "Initializing..."
+    GPS_STARTUP = "Waiting for GPS fix."
+    ONLINE = "Online and awaiting commands."
+    AUTONOMY = "Autonomy operating."
+    AUTONOMY_PAUSE = "Autonomy paused with temporary error."
+    LOW_VOLTAGE = "Low voltage Pause."
+    AUTONOMY_ERROR_DISTANCE = "Autonomy failed - too far from path."
+    AUTONOMY_ERROR_ANGLE = "Autonomy failed - path angle too great."
+    AUTONOMY_ERROR_RTK_AGE = "Autonomy failed - rtk base data too old."
+    AUTONOMY_ERROR_SOLUTION_AGE = "Autonomy failed - gps solution too old."
+    OVERRIDE = "Remote control override."
+    SERVER_ERROR = "Server communication error."
+    MOTOR_ERROR = "Motor error detected."
+    NO_STEERING_SOLUTION = "No steering solution possible."
 
-MOTOR_DISCONNECTED = "Not connected."
-MOTOR_DISABLED = "Motor error."
-MOTOR_ENABLED = "Motors enabled."
 
-GPS_RECORDING_ACTIVATE = "Record"
-GPS_RECORDING_PAUSE = "Pause"
-GPS_RECORDING_CLEAR = "Clear"
+class MotorStatus(str, Enum):
+    DISCONNECTED = "Not connected."
+    DISABLED = "Motor error."
+    ENABLED = "Motors enabled."
+
+
+class GPSRecording(Enum):
+    ACTIVATE = "Record"
+    PAUSE = "Pause"
+    CLEAR = "Clear"
+
+
+class Cmd(bytes, Enum):
+    WRITE_KEY = bytes('w', encoding='ascii')
+    READ_KEY = bytes('readkey', encoding='ascii')
+    READ_PATH_KEY = bytes('readpathkey', encoding='ascii')
+    READ_KEY_REPLY = bytes('readkeyreply', encoding='ascii')
+    UPDATE_ROBOT = bytes('ur', encoding='ascii')
+    ROBOT_COMMAND = bytes('rc', encoding='ascii')
+    ACK = bytes('a', encoding='ascii')
 
 
 class Robot:
@@ -42,13 +58,13 @@ class Robot:
         self.site = ""
         self.turn_intent_degrees = 0
         self.speed = 0
-        self.control_state = CONTROL_STARTUP
-        self.motor_state = MOTOR_DISCONNECTED
+        self.control_state = Control.STARTUP
+        self.motor_state = MotorStatus.DISCONNECTED
         self.loaded_path_name = ""
         self.loaded_path = []
         self.live_path_data = []
         self.gps_path_data = []
-        self.record_gps_command = GPS_RECORDING_CLEAR
+        self.record_gps_command = GPSRecording.CLEAR
         self.activate_autonomy = False
         self.autonomy_velocity = 0
         self.time_stamp = datetime.utcnow()
@@ -91,7 +107,7 @@ class RobotCommand:
         self.activate_autonomy = False
         self.clear_autonomy_hold = False
         self.autonomy_velocity = 0
-        self.record_gps_path = GPS_RECORDING_CLEAR
+        self.record_gps_path = GPSRecording.CLEAR
 
     def __repr__(self):
         return json.dumps(self.__dict__)
