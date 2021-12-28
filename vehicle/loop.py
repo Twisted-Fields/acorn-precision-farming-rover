@@ -14,6 +14,8 @@ class Perceptor:
     By default, fn is called whenever last() or last_n_seconds() is called, but if max_frequency > 0, fn is called no faster than the max_frequency.
     If max_frequency is none zero and executor is not None, then fn is run within the executor, so the last() or last_n_seconds() call return immediately with previously collected data.
     Lastly, max_history controls how many some historical data to be kept.
+
+    A deque is used internally to keep the history. The use of deque here is thread-safe based on what the author said at https://stackoverflow.com/a/58679519/1508412.
     """
 
     def __init__(self, fn: Callable, max_frequency: int = 0, executor: Executor = None, max_history: int = 1):

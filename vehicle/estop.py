@@ -58,14 +58,7 @@ else:
         pass
 
 
-def toggling_sleep(duration):
-    start = time.time()
-    while time.time() - start < duration:
-        toggle()
-        time.sleep(_FAST_POLLING_SLEEP_S)
-
-
-def toggle():
+def nudge():
     GPIO.estop_state = not GPIO.estop_state
     GPIO.output(_ESTOP_PIN, GPIO.estop_state)
 
@@ -74,4 +67,4 @@ def e_stop_square_wave():
     while True:
         # ESTOP approx 100Hz square wave.
         time.sleep(_FAST_POLLING_SLEEP_S)
-        toggle()
+        nudge()

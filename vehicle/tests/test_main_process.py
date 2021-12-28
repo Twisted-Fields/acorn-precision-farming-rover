@@ -81,6 +81,7 @@ def test_main(fixture_path, fixture_robot_command, mocker):
     wifi = mocker.patch('wifi.Wifi', **{'return_value.collect.return_value': (1, '', 1)})
     voltage = mocker.patch('voltage_monitor.VoltageSampler', **{'return_value.read.return_value': (1, 2, 3, 4)})
     stop_signal = mp.Event()
+
     main_thread = threading.Thread(target=lambda: main_process.run(stop_signal, frequency=10), daemon=True)
     main_thread.start()
     time.sleep(1)

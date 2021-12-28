@@ -1,6 +1,7 @@
 LOCAL_IMAGE = acorn_docker:1.0
-REMOTE_IMAGE = merlinran/acorn_docker
+REMOTE_IMAGE = merlinran/acorn_docker:latest
 ACORN_NAMES ?= simulation-1
+only ?= '' # maps to the "-k" parameter of pytest.
 
 .PHONY: list
 list:
@@ -32,18 +33,18 @@ attach-server:
 stop:
 	@containers=`docker ps --filter "name=acorn_*" -q`; \
 	if [[ -n "$${containers}" ]]; then \
-		docker stop $${containers} && docker rm $${containers}; \
+		docker stop --time 1 $${containers} && docker rm $${containers}; \
 	fi \
 
-.PHONY: docker-test # Start the vehicle container in test mode and run the tests in it.
+.PHONY: docker-test # Start the vehicle container in test mode and run the only in it.
 docker-test: docker-image
 	@docker-compose -f docker-compose-test.yml up --remove-orphans -d && \
-	docker exec -it acorn_vehicle make test
+	docker exec -it acorn_vehicle make test only=$(only)
 
-.PHONY: docker-test-watch # Keeps running tests for any changed files. Useful when developing.
+.PHONY: docker-test-watch # Keeps running only for any changed files. Useful when developing.
 docker-test-watch: docker-image
 	@docker-compose -f docker-compose-test.yml up --remove-orphans -d && \
-	docker exec -it acorn_vehicle ptw --poll
+	docker exec -it acorn_vehicle ptw --poll -- --durations=5 -k '$(only)'
 
 .PHONY: push-image # Build and push image to Docker Hub to be used by CI.
 push-image: docker-image
@@ -53,9 +54,9 @@ else
 	docker build -t $(REMOTE_IMAGE) . && docker push $(REMOTE_IMAGE)
 endif
 
-.PHONY: test  # Run tests on Linux (if the Python dependencies are installed) or inside Docker. Otherwise, you probably want to try `make docker-test` instead.
+.PHONY: test  # Run only on Linux (if the Python dependencies are installed) or inside Docker. Otherwise, you probably want to try `make docker-test` instead.
 test:
-	coverage run -m pytest && coverage report --skip-covered --skip-empty
+	coverage run -m pytest --durations=5 -k '$(only)' && coverage report --skip-covered --skip-empty
 
 .PHONY: docker-vehicle
 docker-vehicle: docker-image

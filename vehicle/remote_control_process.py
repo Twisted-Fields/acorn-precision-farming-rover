@@ -23,7 +23,6 @@ limitations under the License.
 import time
 import math
 import zmq
-import pickle
 import gps_tools
 import numpy as np
 import spline_lib
@@ -33,13 +32,17 @@ import gps
 from enum import Enum
 from multiprocessing import shared_memory, resource_tracker
 import random
+from functools import partial
+import weakref
 
 from joystick import Joystick
 from steering import calculate_steering, compare_steering_values, steering_to_numpy
 from utils import AppendFIFO, clamp
 import corner_actuator
-from model import Robot, Control, MotorStatus
+from model import Robot, Control, MotorStatus, PubsubTopic
+from model import MOTORS_TO_REMOTE_CONTROL_IPC, REMOTE_CONTROL_MOTORS_TO_IPC
 import utils
+import ipc
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
@@ -177,21 +180,21 @@ class EnergySegment():
 class RemoteControl():
     def __init__(self,
                  stop_signal,
-                 remote_to_main_lock,
-                 main_to_remote_lock,
-                 remote_to_main_string,
-                 main_to_remote_string,
+                 downward,
+                 upward,
                  logging,
                  debug,
                  simulated_hardware=False):
         self.stop_signal = stop_signal
-        self.remote_to_main_lock = remote_to_main_lock
-        self.main_to_remote_lock = main_to_remote_lock
-        self.remote_to_main_string = remote_to_main_string
-        self.main_to_remote_string = main_to_remote_string
+        self.downward, self.upward = downward, upward
         self.joy = Joystick(simulated_hardware)
         self.simulated_hardware = simulated_hardware
-        self.motor_socket = None
+        publisher = ipc.ZMQPub(REMOTE_CONTROL_MOTORS_TO_IPC)
+        weakref.finalize(self, publisher.close)
+        self.to_motors = partial(publisher.pub, PubsubTopic.REMOTE_CONTROL_TO_MOTORS)
+        subscriber = ipc.LeakyZMQSub()
+        weakref.finalize(self, subscriber.close)
+        self.from_motors = subscriber.sub(MOTORS_TO_REMOTE_CONTROL_IPC, PubsubTopic.MOTORS_TO_REMOTE_CONTROL)
         self.robot_object = None
         self.next_point_heading = -180
         self.activate_autonomy = False
@@ -268,22 +271,7 @@ class RemoteControl():
             self.alarm1.switch_to_output(value=False)
             self.alarm2.switch_to_output(value=False)
             self.alarm3.switch_to_output(value=False)
-        self.connect_to_motors()
         self.joy.connect()
-
-    def connect_to_motors(self, port=5590):
-        context = zmq.Context()
-        #  Socket to talk to motor control process
-        self.motor_socket = context.socket(zmq.REQ)
-        self.motor_socket.connect("tcp://localhost:{}".format(port))
-        self.motor_socket.setsockopt(zmq.LINGER, 50)
-        self.motor_send_okay = True
-        self.motor_last_send_time = time.time()
-
-    def close_motor_socket(self):
-        self.motor_socket.close()
-        del(self.motor_socket)
-        self.motor_socket = None
 
     def load_path(self,
                   path,
@@ -347,7 +335,7 @@ class RemoteControl():
         try:
             while not self.stop_signal.is_set():
                 self.loop_count += 1
-                self.run_once()
+                self.tick()
         except KeyboardInterrupt:
             pass
 
@@ -370,7 +358,7 @@ class RemoteControl():
                                          buffer=self.steering_debug_shared_memory.buf)
         self.steering_debug[:] = steering_tmp[:]
 
-    def run_once(self):
+    def tick(self):
         tick_time = time.time()
 
         # Get real or simulated GPS data.
@@ -389,8 +377,8 @@ class RemoteControl():
         try:
             # Read robot object from shared memory.
             # Object is sent by main process.
-            with self.main_to_remote_lock:
-                recieved_robot_object = pickle.loads(self.main_to_remote_string["value"])
+
+            recieved_robot_object = self.downward.read()
             time2 = time.time() - debug_time
         except Exception as e:
             self.logger.error("Exception reading remote string.")
@@ -529,9 +517,7 @@ class RemoteControl():
                      self.voltage_average,
                      self.last_energy_segment,
                      self.temperatures)
-        with self.remote_to_main_lock:
-            self.remote_to_main_string["value"] = pickle.dumps(send_data)
-
+        self.upward.write(send_data)
         period = time.time() - tick_time
         self.last_energy_segment = None
 
@@ -591,9 +577,6 @@ class RemoteControl():
         if self.simulated_hardware:
             if abs(steer_cmd) > 0.001 or abs(self.vel_cmd) > 0.001 or abs(strafe_cmd) > 0.001:
                 self.simulate_next_gps_sample(steer_cmd, strafe_cmd)
-        if not self.motor_socket:
-            self.logger.error("Connect to motor control socket")
-            self.connect_to_motors()
 
         time10 = self.communicate_to_motors(calc, debug_time)
 
@@ -1031,7 +1014,7 @@ class RemoteControl():
             autonomy_time_elapsed = time.time() - self.load_path_time - _PATH_END_PAUSE_SEC
             if autonomy_time_elapsed < _BEGIN_AUTONOMY_SPEED_RAMP_SEC:
                 autonomy_vel_cmd *= autonomy_time_elapsed / _BEGIN_AUTONOMY_SPEED_RAMP_SEC
-                print(autonomy_time_elapsed)
+                self.logger.info(f"autonomy_time_elapsed: {autonomy_time_elapsed}")
                 # autonomy_strafe_cmd = 0
             self.control_state = Control.AUTONOMY
             if zero_output:
@@ -1078,33 +1061,21 @@ class RemoteControl():
     def communicate_to_motors(self, calc, debug_time):
         # Try to send final drive commands to motor process.
         try:
-            if self.motor_send_okay:
-                # print("send_calc")
-                self.motor_socket.send_pyobj(pickle.dumps(calc),
-                                             flags=zmq.NOBLOCK)
-                self.motor_send_okay = False
-                self.motor_last_send_time = time.time()
-
+            self.to_motors(calc)
             time10 = time.time() - debug_time
-            # else:
-            #     print("NOT OKAY TO SEND")
-            while self.motor_socket.poll(timeout=_VERY_FAST_POLL_MILLISECONDS):
-                # print("poll motor message")
-                motor_message = pickle.loads(self.motor_socket.recv_pyobj())
-                self.motor_send_okay = True
-                # print("motor_message: {}".format(motor_message))
+            if motor_message := self.from_motors():
                 try:
                     self.motor_state, self.voltages, self.bus_currents, self.temperatures = motor_message
                     self.total_watts = 0
-                    if len(self.voltages) > 0:
+                    if self.voltages:
                         self.voltage_average = sum(self.voltages) / len(self.voltages)
-                    for volt, current in zip(self.voltages,
-                                             self.bus_currents):
-                        self.total_watts += volt * current
+                    if self.voltages and self.bus_currents:
+                        for volt, current in zip(self.voltages,
+                                                 self.bus_currents):
+                            self.total_watts += volt * current
                     # print("Drawing {} Watts.".format(int(self.total_watts)))
                 except Exception as e:
-                    self.logger.error("Error reading motor state message.")
-                    self.logger.error(e)
+                    self.logger.error(f"Error reading motor state message: {e}")
                     self.motor_state = MotorStatus.DISCONNECTED
         except zmq.error.Again:
             self.logger.error("Remote server unreachable.")
@@ -1193,17 +1164,10 @@ class RemoteControl():
         return sum(self.gps_lateral_error_rate_averaging_list) / len(self.gps_lateral_error_rate_averaging_list)
 
 
-def run_control(stop_signal, remote_to_main_lock,
-                main_to_remote_lock,
-                remote_to_main_string,
-                main_to_remote_string,
-                logging,
-                logging_details,
-                simulated_hardware=False):
-    remote_control = RemoteControl(stop_signal, remote_to_main_lock, main_to_remote_lock,
-                                   remote_to_main_string,
-                                   main_to_remote_string, logging,
-                                   logging_details, simulated_hardware)
+def run_control(stop_signal, downward, upward,
+                logging, logging_details, simulated_hardware=False):
+    remote_control = RemoteControl(stop_signal, downward, upward,
+                                   logging, logging_details, simulated_hardware)
     remote_control.run_setup()
     remote_control.run_loop()
 

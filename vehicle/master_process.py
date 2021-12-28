@@ -40,6 +40,7 @@ import model
 from model import Cmd, GPSRecording
 import voltage_monitor
 from utils import AppendFIFO, config_logging
+import ipc
 
 
 _YAML_NAME_SIMULATION = "vehicle/server_config_sim.yaml"
@@ -92,16 +93,9 @@ class MainProcess():
                                  args=(stop_signal, vision_child_conn, self.simulation,))
         vision_proc.start()
 
-        remote_control_manager = mp.Manager()
-        remote_to_main_lock = remote_control_manager.Lock()
-        main_to_remote_lock = remote_control_manager.Lock()
-        remote_to_main_string = remote_control_manager.dict()
-        main_to_remote_string = remote_control_manager.dict()
-        main_to_remote_string["value"] = pickle.dumps(self.acorn)
+        downward, upward = ipc.SharedObject().pair()
         remote_control_proc = mp.Process(target=run_control,
-                                         args=(stop_signal,
-                                               remote_to_main_lock, main_to_remote_lock,
-                                               remote_to_main_string, main_to_remote_string, logging,
+                                         args=(stop_signal, downward, upward, logging,
                                                self.debug, self.simulation))
         remote_control_proc.start()
 
@@ -111,13 +105,12 @@ class MainProcess():
         interval = 1.0 / frequency
         while not stop_signal.is_set():
             start = time.time()
-            with main_to_remote_lock:
-                main_to_remote_string["value"] = pickle.dumps(self.acorn)
+            downward.write(self.acorn)
 
             self.acorn.cell1, self.acorn.cell2, self.acorn.cell3, total = self.voltage_monitor.last()
             self.acorn.wifi_strength, self.acorn.wifi_ap_name, self.acorn.cpu_temperature_c = self.wifi_monitor.last()
 
-            self.update_from_remote_control(remote_to_main_lock, remote_to_main_string)
+            self.update_from_remote_control(upward)
 
             seconds_since_update = (datetime.utcnow() - self.acorn.time_stamp).total_seconds()
             if self.simulation:
@@ -235,18 +228,20 @@ class MainProcess():
                 self.logger.error(f"Connection error, retry in {_SERVER_CONNECT_DELAY_SEC} seconds: {e}")
                 time.sleep(_SERVER_CONNECT_DELAY_SEC)
 
-    def update_from_remote_control(self, remote_to_main_lock, remote_to_main_string):
+    def update_from_remote_control(self, upward):
         try:
-            with remote_to_main_lock:
-                (acorn_location, self.acorn.live_path_data, self.acorn.turn_intent_degrees, self.acorn.debug_points,
-                 self.acorn.control_state, self.acorn.motor_state, self.acorn.autonomy_hold, gps_distance, gps_angle,
-                 gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
-                 autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage,
-                 energy_segment, self.acorn.motor_temperatures) = pickle.loads(remote_to_main_string["value"])
+            acorn = upward.read()
+            if not acorn:
+                return
+            (acorn_location, self.acorn.live_path_data, self.acorn.turn_intent_degrees, self.acorn.debug_points,
+             self.acorn.control_state, self.acorn.motor_state, self.acorn.autonomy_hold, gps_distance, gps_angle,
+             gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
+             autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage,
+             energy_segment, self.acorn.motor_temperatures) = acorn
             if acorn_location is not None:
                 self.acorn.location = acorn_location
         except Exception as e:
-            print(e)
+            self.logger.error(f"update_from_remote_control: {e}")
             return
 
         if gps_fix:

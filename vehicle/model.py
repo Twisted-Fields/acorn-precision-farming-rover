@@ -6,6 +6,15 @@ from enum import Enum
 import gps_tools
 
 
+MOTORS_TO_REMOTE_CONTROL_IPC = "ipc:///tmp/motors_to_control.sock"
+REMOTE_CONTROL_MOTORS_TO_IPC = "ipc:///tmp/control_to_motors.sock"
+
+
+class PubsubTopic(bytes, Enum):
+    MOTORS_TO_REMOTE_CONTROL = b'motors_to_control'
+    REMOTE_CONTROL_TO_MOTORS = b'control_to_motors'
+
+
 class Control(str, Enum):
     STARTUP = "Initializing..."
     GPS_STARTUP = "Waiting for GPS fix."

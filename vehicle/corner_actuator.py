@@ -20,25 +20,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
-
-import odrive_manager
-import fake_odrive_manager
-try:
-    from odrive.enums import CTRL_MODE_POSITION_CONTROL, CTRL_MODE_VELOCITY_CONTROL
-except ImportError:
-    print("WARNING: potentially incompatible odrive library version!")
-    from odrive.enums import CONTROL_MODE_POSITION_CONTROL, CONTROL_MODE_VELOCITY_CONTROL
-    CTRL_MODE_POSITION_CONTROL = CONTROL_MODE_POSITION_CONTROL
-    CTRL_MODE_VELOCITY_CONTROL = CONTROL_MODE_VELOCITY_CONTROL
-from odrive.enums import AXIS_STATE_IDLE, AXIS_STATE_CLOSED_LOOP_CONTROL, AXIS_STATE_ENCODER_INDEX_SEARCH
-from odrive.enums import ENCODER_MODE_INCREMENTAL
-from odrive.utils import _VT100Colors
 import time
 import math
 import random
 import collections
+import logging
+import odrive_manager
+import fake_odrive_manager
+from odrive.utils import _VT100Colors
+from odrive.enums import ENCODER_MODE_INCREMENTAL
+from odrive.enums import AXIS_STATE_IDLE, AXIS_STATE_CLOSED_LOOP_CONTROL, AXIS_STATE_ENCODER_INDEX_SEARCH
 
 import estop
+import utils
+
+logger = logging.getLogger(__name__)
+utils.config_logging(logger, debug=False)
+
+try:
+    from odrive.enums import CTRL_MODE_POSITION_CONTROL, CTRL_MODE_VELOCITY_CONTROL
+except ImportError:
+    logger.info("WARNING: potentially incompatible odrive library version!")
+    from odrive.enums import CONTROL_MODE_POSITION_CONTROL, CONTROL_MODE_VELOCITY_CONTROL
+    CTRL_MODE_POSITION_CONTROL = CONTROL_MODE_POSITION_CONTROL
+    CTRL_MODE_VELOCITY_CONTROL = CONTROL_MODE_VELOCITY_CONTROL
 
 THERMISTOR_ADC_CHANNEL = 3
 _ADC_PORT_STEERING_POT = 5
@@ -74,6 +79,28 @@ OdriveConnection = collections.namedtuple(
 #     def init(self, interval):
 #         self.recent_samples = []
 #         self.collapse_samples_interval = interval
+
+_last_nudge = time.time()
+
+
+def estop_nudge():
+    """wraps estop.nudge with error print to help spot functions taking longer than expected."""
+    global _last_nudge
+    now = time.time()
+    if (elapsed := now - _last_nudge) > 1 / 20:
+        logger.warning(f"{elapsed*1000}ms has passed since the last estop nudge.", stack_info=True)
+    # uncomment below to find out unnecessary calls to nudge():
+    # elif elapsed < 1 / 100:
+    #     logger.warning(f"it took only {elapsed*1000}ms since the last estop nudge.", stack_info=True)
+    _last_nudge = now
+    estop.nudge()
+
+
+def toggling_sleep(duration):
+    start = time.time()
+    while time.time() - start < duration:
+        estop_nudge()
+        time.sleep(_FAST_POLLING_SLEEP_S)
 
 
 class CornerActuator:
@@ -122,25 +149,24 @@ class CornerActuator:
 
     def idle_wait(self):
         while self.odrv0.axis1.current_state != AXIS_STATE_IDLE:
-            estop.toggling_sleep(0.1)
+            toggling_sleep(0.1)
 
     def print_errors(self, clear_errors=False):
         self.dump_errors(clear_errors)
-        estop.toggle()
         if clear_errors:
             self.position = 0
             self.velocity = 0
 
     def sample_home_sensor(self):
-        estop.toggle()
+        estop_nudge()
         return self.odrv0.get_adc_voltage(_ADC_PORT_STEERING_HOME) < _VOLTAGE_MIDPOINT
 
     def sample_steering_pot(self):
-        estop.toggle()
+        estop_nudge()
         return self.odrv0.get_adc_voltage(_ADC_PORT_STEERING_POT)
 
     def initialize_traction(self):
-        estop.toggle()
+        estop_nudge()
         self.odrv0.axis1.controller.vel_integrator_current = 0
         self.odrv0.axis1.controller.config.vel_integrator_gain = 0.5
         self.odrv0.axis1.controller.config.control_mode = CTRL_MODE_VELOCITY_CONTROL
@@ -150,24 +176,24 @@ class CornerActuator:
     def check_steering_limits(self):
         rotation_sensor_val = self.sample_steering_pot()
         if self.disable_steering_limits:
-            print("{} steering sensor {}".format(
+            logger.info("{} steering sensor {}".format(
                 self.name, rotation_sensor_val))
         if rotation_sensor_val < _POT_VOLTAGE_LOW or rotation_sensor_val > _POT_VOLTAGE_HIGH:
             if self.disable_steering_limits:
-                print("WARNING POTENTIOMETER VOLTAGE OUT OF RANGE DAMAGE " +
-                      "MAY OCCUR: {}".format(rotation_sensor_val))
+                logger.info("WARNING POTENTIOMETER VOLTAGE OUT OF RANGE DAMAGE " +
+                            "MAY OCCUR: {}".format(rotation_sensor_val))
             else:
                 raise ValueError(
                     "POTENTIOMETER VOLTAGE OUT OF RANGE: {}".format(rotation_sensor_val))
 
     def recover_from_estop(self):
-        estop.toggle()
+        estop_nudge()
         self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
         self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
         self.initialize_traction()
 
     def initialize_steering(self, steering_flipped=False, skip_homing=False):
-        estop.toggle()
+        estop_nudge()
         self.check_steering_limits()
         self.enable_steering_control()
 
@@ -177,8 +203,7 @@ class CornerActuator:
         if not skip_homing:
             last_home_sensor_val = self.sample_home_sensor()
             rotation_sensor_val = self.sample_steering_pot()
-            print("Rotation sensor voltage: {}".format(rotation_sensor_val))
-            estop.toggle()
+            logger.info("Rotation sensor voltage: {}".format(rotation_sensor_val))
 
             _HOMING_DISPLACEMENT_DEGREES = 25.0
             # _HOMING_DISPLACEMENT_RADIANS = math.radians(_HOMING_DISPLACEMENT_DEGREES)
@@ -190,25 +215,22 @@ class CornerActuator:
             transitions = []
             attempts = 0
             while True:
-                estop.toggle()
-                time.sleep(_FAST_POLLING_SLEEP_S)
-                estop.toggle()
+                toggling_sleep(_FAST_POLLING_SLEEP_S)
                 home_sensor_val = self.sample_home_sensor()
-
                 rotation_sensor_val = self.sample_steering_pot()
-                print("{} Home: {}, Rotation: {}".format(
+                logger.info("{} Home: {}, Rotation: {}".format(
                     self.name, home_sensor_val, rotation_sensor_val))
                 if home_sensor_val:
                     self.home_position = self.odrv0.axis0.encoder.pos_estimate
                     break
                 if home_sensor_val != last_home_sensor_val:
                     transitions.append(self.odrv0.axis0.encoder.pos_estimate)
-                    print(transitions)
+                    logger.info(transitions)
                     attempts += 1
                 # rotation_sensor_val = self.sample_steering_pot()
-                # print("{} Home: {}, Rotation: {}".format(self.name, home_sensor_val, rotation_sensor_val))
+                # logger.info("{} Home: {}, Rotation: {}".format(self.name, home_sensor_val, rotation_sensor_val))
 
-                # print(home_sensor_val)
+                # logger.info(home_sensor_val)
 
                 if time.time() - last_tick_time > tick_time_s:
                     last_tick_time = time.time()
@@ -253,7 +275,7 @@ class CornerActuator:
         self.odrv0.axis0.motor.config.direction = 1
         self.odrv0.axis0.motor.config.motor_type = 4  # MOTOR_TYPE_BRUSHED_VOLTAGE
         self.odrv0.axis0.motor.config.current_lim = 20.0
-        estop.toggle()
+        estop_nudge()
         if self.name == 'rear_left':
             self.odrv0.axis0.controller.config.vel_gain = 0.020
             self.odrv0.axis0.controller.config.pos_gain = -40
@@ -275,17 +297,17 @@ class CornerActuator:
         self.odrv0.axis0.encoder.config.mode = ENCODER_MODE_INCREMENTAL
         self.odrv0.axis0.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
 
-        estop.toggle()
+        estop_nudge()
         self.odrv0.axis0.encoder.config.use_index = False
         err_count = 0
         while True:
             self.odrv0.axis0.requested_state = AXIS_STATE_IDLE
-            estop.toggling_sleep(_SLOW_POLLING_SLEEP_S)
+            toggling_sleep(_SLOW_POLLING_SLEEP_S)
             self.odrv0.axis0.controller.config.control_mode = CTRL_MODE_POSITION_CONTROL
             self.odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
             self.odrv0.axis0.controller.vel_ramp_enable = True
             # self.odrv0.axis0.controller.config.vel_limit_tolerance = 2.5
-            estop.toggling_sleep(_SLOW_POLLING_SLEEP_S)
+            toggling_sleep(_SLOW_POLLING_SLEEP_S)
             errors = self.odrv0.axis0.error
             if errors == 0:
                 break
@@ -293,51 +315,46 @@ class CornerActuator:
                 raise RuntimeError(
                     "Could not initialize steering. Encoder is not ready.")
 
-            # print("axis0.current_state: {}".format(self.odrv0.axis0.current_state))
+            # logger.info("axis0.current_state: {}".format(self.odrv0.axis0.current_state))
             # self.odrv0.axis0.controller.vel_integrator_current = 0
             # self.odrv0.axis1.controller.vel_integrator_current = 0
             # self.odrv0.axis0.controller.vel_setpoint = 0
             # self.odrv0.axis1.controller.vel_setpoint = 0
             err_count += 1
             error_message = self.dump_errors(True)
-            estop.toggle()
+            estop_nudge()
             if err_count > 3:
                 raise RuntimeError(
                     "Could not initialize steering. Error was: {}".format(error_message))
             # TODO: Is this sleep time reasonable? Should also make it a variable.
-            estop.toggling_sleep(5)
+            toggling_sleep(5)
 
     def check_errors(self):
-        estop.toggle()
-        if self.enable_traction and self.traction_axis.error:
-            estop.toggle()
+        if (self.enable_traction and self.traction_axis.error
+                or self.enable_steering and self.steering_axis.error):
+            estop_nudge()
             self.dump_errors()
             self.update_voltage()
             raise RuntimeError("Odrive traction motor error state detected.")
-        if self.enable_steering and self.steering_axis.error:
-            estop.toggle()
-            self.dump_errors()
-            self.update_voltage()
-            raise RuntimeError("Odrive steering motor error state detected.")
 
     def update_voltage(self):
-        estop.toggle()
+        estop_nudge()
         if self.simulated_hardware:
             self.odrv0.vbus_voltage = 45.5 + random.random() * 2.0
         self.voltage = self.odrv0.vbus_voltage
         self.ibus_0 = self.odrv0.axis0.motor.current_control.Ibus
-        estop.toggle()
+        estop_nudge()
         self.ibus_1 = self.odrv0.axis1.motor.current_control.Ibus
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
-        # print("Update {}".format(self.name))
+        # logger.info("Update {}".format(self.name))
         self.check_steering_limits()
-        estop.toggle()
+        estop_nudge()
         if self.steering_flipped:
             drive_velocity *= -1
         self.position = steering_pos_deg
         self.velocity = drive_velocity
-        # print(drive_velocity)
+        # logger.info(drive_velocity)
         self.update_voltage()
         # if self.steering_flipped:
         #     pos_counts = self.home_position + (180 + steering_pos_deg) * COUNTS_PER_REVOLUTION / 360.0
@@ -348,10 +365,10 @@ class CornerActuator:
         else:
             pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
         # if self.name=='rear_left':
-        #    print("pos_counts: {}, shadow_count: {}, count_in_cpr: {}".format(pos_counts, self.odrv0.axis0.encoder.shadow_count,self.odrv0.axis0.encoder.count_in_cpr))
+        #    logger.info("pos_counts: {}, shadow_count: {}, count_in_cpr: {}".format(pos_counts, self.odrv0.axis0.encoder.shadow_count,self.odrv0.axis0.encoder.count_in_cpr))
         # self.odrv0.axis0.controller.pos_setpoint = pos_counts
         self.odrv0.axis0.controller.move_to_pos(pos_counts)
-        estop.toggle()
+        estop_nudge()
         # TODO: Setting vel_integrator_current to zero every time we update
         # means we just don't get integrator control. But that would be nice.
 
@@ -367,7 +384,7 @@ class CornerActuator:
         self.check_errors()
 
     def slow_actuator(self, fraction):
-        estop.toggle()
+        estop_nudge()
         if not (self.steering_initialized and self.traction_initialized):
             return
         self.position = fraction * self.position
@@ -379,7 +396,7 @@ class CornerActuator:
         self.update_actuator(self.position, self.velocity)
 
     def stop_actuator(self):
-        estop.toggle()
+        estop_nudge()
         self.odrv0.axis0.controller.vel_setpoint = 0
         self.odrv0.axis1.controller.vel_setpoint = 0
 
@@ -387,7 +404,7 @@ class CornerActuator:
         if not self.has_thermistor:
             return
         try:
-            estop.toggle()
+            estop_nudge()
             value = self.odrv0.get_adc_voltage(adc_channel)
             resistance = 10000 / (3.3 / value)
             self.temperature_c = self.thermistor_steinhart_temperature_C(
@@ -403,15 +420,12 @@ class CornerActuator:
         return steinhart
 
     def dump_errors(self, clear=False):
-        """A copy of dump_errors from odrive utils.py but with estop toggle added."""
+        """A copy of dump_errors from odrive utils.py but with estop_nudge added."""
         axes = [(name, axis) for name,
                 axis in self.odrv0._remote_attributes.items() if 'axis' in name]
-        estop.toggle()
         axes.sort()
-        estop.toggle()
         for name, axis in axes:
-            estop.toggle()
-            print(name)
+            logger.info(name)
 
             # Flatten axis and submodules
             # (name, remote_obj, errorcode)
@@ -424,22 +438,17 @@ class CornerActuator:
 
             # Module error decode
             for name, remote_obj, errorcodes in module_decode_map:
-                estop.toggle()
                 prefix = ' ' * 2 + name + ": "
                 if (remote_obj.error != errorcodes.ERROR_NONE):
-                    estop.toggle()
-                    print(prefix + _VT100Colors['red'] +
-                          "Error(s):" + _VT100Colors['default'])
+                    logger.info(prefix + _VT100Colors['red'] +
+                                "Error(s):" + _VT100Colors['default'])
                     errorcodes_tup = [
                         (name, val) for name, val in errorcodes.__dict__.items() if 'ERROR_' in name]
                     for codename, codeval in errorcodes_tup:
-                        estop.toggle()
                         if remote_obj.error & codeval != 0:
-                            print("    " + codename)
+                            logger.info("    " + codename)
                     if clear:
-                        estop.toggle()
                         remote_obj.error = errorcodes.ERROR_NONE
                 else:
-                    estop.toggle()
-                    print(prefix + _VT100Colors['green'] +
-                          "no error" + _VT100Colors['default'])
+                    logger.info(prefix + _VT100Colors['green'] +
+                                "no error" + _VT100Colors['default'])
