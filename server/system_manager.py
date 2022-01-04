@@ -25,7 +25,7 @@ from datetime import datetime
 import pickle
 import redis
 import redis_utils
-from model import CONTROL_ONLINE
+from model import Control
 from zmq_server_pirate import REDIS_PORT
 from server import active_site
 
@@ -92,7 +92,7 @@ def main():
                         time.sleep(_LONG_PAUSE_SEC)
                         continue
                     if AUTONOMY_AT_STARTUP:
-                        if robot.control_state == CONTROL_ONLINE:
+                        if robot.control_state == Control.ONLINE:
                             print("Activating Autonomy")
                             result = redis_utils.set_vehicle_autonomy(redis_client=r, vehicle_name=robot.name,
                                                                       speed=float(AUTONOMY_SPEED), enable=True,
@@ -100,7 +100,7 @@ def main():
                             print(result)
                         else:
                             print("Could activate autonomy but state is \"{}\", not \"{}\".".format(
-                                robot.control_state, CONTROL_ONLINE))
+                                robot.control_state, Control.ONLINE))
                 else:
                     print("Acorn is active. Waiting {} seconds for it to settle.".format(
                         _ONLINE_SETTLING_TIME_SEC - time_since_activation))

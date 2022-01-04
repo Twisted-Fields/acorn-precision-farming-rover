@@ -23,63 +23,39 @@ limitations under the License.
 # Modified from example file
 # Lazy Pirate poll by  Daniel Lundin <dln(at)eintr(dot)org>
 
-import itertools
-import zmq
 import utils
-
+import socketio
 
 _POLL_TIMEOUT_SEC = 2.5
+REQUEST_TIMEOUT = 4500
+REQUEST_RETRIES = 30
+
+sio = socketio.Client()
 
 
-def AcornServerComms(stop_signal, acorn_pipe, server_endpoint, logging):
-    logger = logging.getLogger('main.comms')
-    utils.config_logging(logger, debug=False)
+class AcornServerComms:
+    def __init__(self, server_endpoint, logging, debug):
+        self.server_endpoint = server_endpoint
+        self.logger = logging.getLogger('main.comms')
+        utils.config_logging(self.logger, debug=debug)
+        self.logger.info("Connecting to server at {} …".format(server_endpoint))
+        sio.connect(server_endpoint)
 
-    REQUEST_TIMEOUT = 4500
-    REQUEST_RETRIES = 30
+    def send(self, data):
+        sio.emit('update-robot', data)
 
-    logger.info("Connecting to server at {} …".format(server_endpoint))
-    context = zmq.Context()
-    client = context.socket(zmq.REQ)
-    client.connect(server_endpoint)
+    @sio.on('robot-command')
+    def on_robot_command(data):
+        print(f'I received a message!: {data}')
 
-    for sequence in itertools.count():
-        if stop_signal.is_set():
-            break
-        if not acorn_pipe.poll(timeout=_POLL_TIMEOUT_SEC):
-            logger.error("No data from master.")
-            continue
+    @sio.event
+    def connect():
+        print("I'm connected!")
 
-        request = acorn_pipe.recv()
-        seq_string = str(sequence).encode()
-        logger.debug("Sending (%s)", seq_string)
-        request.insert(0, seq_string)
-        client.send_multipart(request)
+    @sio.event
+    def connect_error(data):
+        print("The connection failed!")
 
-        # time.sleep(0.5)
-
-        retries_left = REQUEST_RETRIES
-        while not stop_signal.is_set() and retries_left > 0:
-            if (client.poll(REQUEST_TIMEOUT) & zmq.POLLIN) != 0:
-                reply = client.recv_multipart()
-                # print(reply)
-
-                if int(reply[0]) == sequence:
-                    logger.debug("Server replied OK (%s...)", reply[:2])
-                    acorn_pipe.send(reply[1:])
-                    break
-                else:
-                    logger.error("Malformed reply from server: %s", reply)
-                    continue
-
-            retries_left -= 1
-            logger.warning("No response from server")
-            # Socket is confused. Close and remove it.
-            client.setsockopt(zmq.LINGER, 0)
-            client.close()
-            logger.info("Reconnecting to server…")
-            # Create new connection
-            client = context.socket(zmq.REQ)
-            client.connect(server_endpoint)
-            logger.info("Resending (%s)", seq_string)
-            client.send_multipart(request)
+    @sio.event
+    def disconnect():
+        print("I'm disconnected!")

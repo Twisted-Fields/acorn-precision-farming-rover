@@ -7,11 +7,9 @@ addopts = "-ra -q"
 log_cli_level = "DEBUG"
 testpaths = [
   "vehicle/tests",
-  "server/tests",
-]
+  "server/tests"]
 filterwarnings = [
-  "ignore::DeprecationWarning:evdev.*:",
-]
+  "ignore::DeprecationWarning:evdev.*:"]
 
 [tool.black]
 line-length = 120

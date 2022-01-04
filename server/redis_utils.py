@@ -22,6 +22,7 @@ limitations under the License.
 """
 
 import pickle
+import re
 from model import RobotCommand
 
 
@@ -33,12 +34,22 @@ def get_robot_command_key(robot_key):
     return bytes(str(robot_key)[2:-1].replace(":key", ":command:key"), encoding='ascii')
 
 
+def is_robot_key(key):
+    if ':robot:' in key:
+        if ':command:' not in key and ':energy_segment' not in key:
+            return True
+    return False
+
+
+def is_command_key(key):
+    return re.search(r"[^:]+:robot:[^:]+:command:key", key)
+
+
 def get_robot_keys(redis_client):
     robot_keys = []
     for key in redis_client.scan_iter():
-        if ':robot:' in str(key):
-            if ':command:' not in str(key) and ':energy_segment' not in str(key):
-                robot_keys.append(key)
+        if is_robot_key(str(key)):
+            robot_keys.append(key)
     # print(robot_keys)
     return robot_keys
 

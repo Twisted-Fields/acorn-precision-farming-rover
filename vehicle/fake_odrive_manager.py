@@ -19,9 +19,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
-"""
 
-"""
 This script was originally shared on the ODrive community discussion board by
 user marcelrobitaille.
 
@@ -29,12 +27,10 @@ https://discourse.odriverobotics.com/t/fw-0-4-1-why-does-odrive-instance-takes-3
 """
 
 
-
-
-import json
-import logging
-import threading
 import random
+import time
+
+
 class FakeOdriveManager:
     _CONFIG_KEY = 'config'
     _CRC_KEY = 'crc16'
@@ -87,7 +83,7 @@ class FakeOdrive:
                 self.dc_bus_undervoltage_trip_level = 8.0
                 self.dc_bus_overvoltage_trip_level = 59.92000198364258
         self.config = Config()
-        print(self.config.dc_bus_overvoltage_trip_level)
+        print(f"fake odrive: {self.config.dc_bus_overvoltage_trip_level}")
 
         class Axis:
             def __init__(self):
@@ -285,7 +281,7 @@ class FakeOdrive:
         self._remote_attributes = {}
 
     def get_adc_voltage(self, _):
-        return 3.3/2.0 + 0.5 * random.choice((-1.0, 1.0))
+        return 3.3 / 2.0 + 0.5 * random.choice((-1.0, 1.0))
 
         # self.test_function(delta: int)
         # self.get_oscilloscope_val(index: int)

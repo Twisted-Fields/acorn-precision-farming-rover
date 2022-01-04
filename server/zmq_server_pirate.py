@@ -30,8 +30,6 @@ import redis
 import zmq_server
 
 # keep the two imported to keep pickle working
-from model import Robot, RobotCommand
-
 REDIS_PORT = 6379
 
 

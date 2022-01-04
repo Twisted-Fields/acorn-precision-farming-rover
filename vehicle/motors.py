@@ -23,24 +23,20 @@ limitations under the License.
 
 import time
 import math
-import zmq
-import pickle
 import click
 import argparse
 from multiprocessing import Process
-import os
 import fibre
+import logging
+from functools import partial
+import weakref
 
-import corner_actuator
-from corner_actuator import OdriveConnection
-import model
-
-
-# This file gets imported by server but we should only import GPIO on raspi.
-if "arm" in os.uname().machine:
-    import RPi.GPIO as GPIO
-
-VOLT_OUT_PIN = 5
+from corner_actuator import OdriveConnection, CornerActuator, estop_nudge, toggling_sleep
+from model import MotorStatus, PubsubTopic
+from model import MOTORS_TO_REMOTE_CONTROL_IPC, REMOTE_CONTROL_MOTORS_TO_IPC
+import estop
+import ipc
+import utils
 
 _UP_KEYCODE = '\x1b[A'
 _LEFT_KEYCODE = '\x1b[D'
@@ -51,13 +47,8 @@ _SHUT_DOWN_MOTORS_COMMS_DELAY_S = 1.0
 _ERROR_RECOVERY_DELAY_S = 5
 _ACCELERATION_COUNTS_SEC = 0.5
 
-
-class simulated_GPIO():
-    def __init__(self):
-        self.estop_state = True
-
-    def output(self, *args):
-        pass
+logger = logging.getLogger("motors")
+utils.config_logging(logger, debug=False)
 
 
 class AcornMotorInterface():
@@ -75,27 +66,25 @@ class AcornMotorInterface():
                              path="/dev/ttySC3", enable_steering=True, enable_traction=True)
         ]
 
-        self.command_socket = self.create_socket()
+        publisher = ipc.ZMQPub(MOTORS_TO_REMOTE_CONTROL_IPC)
+        weakref.finalize(self, publisher.close)
+        self.to_remote_control = partial(publisher.pub, PubsubTopic.MOTORS_TO_REMOTE_CONTROL)
+        subscriber = ipc.LeakyZMQSub()
+        weakref.finalize(self, subscriber.close)
+        self.from_remote_control = subscriber.sub(REMOTE_CONTROL_MOTORS_TO_IPC, PubsubTopic.REMOTE_CONTROL_TO_MOTORS)
         self.odrives_connected = False
         self.motors_initialized = False
         self.steering_adjusted = False
         self.manual_control = manual_control
         self.simulated_hardware = simulated_hardware
+        self.motor_error = False
+        self.tick_time = time.time()
 
-        if self.simulated_hardware:
-            self.GPIO = simulated_GPIO()
-        else:
-            self.GPIO = GPIO
-            self.setup_GPIO(self.GPIO)
-
-    def create_socket(self, port=5590):
-        context = zmq.Context()
-        socket = context.socket(zmq.REP)
-        socket.bind("tcp://*:{}".format(port))
-        return socket
+        if not self.simulated_hardware:
+            estop.setup()
 
     def ask_if_adjust_steering(self):
-        self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
+        self.square_wave = Process(target=estop.e_stop_square_wave)
         self.square_wave.start()
         click.echo('Adjust Steering? [y/n] ', nl=False)
         c = click.getchar()
@@ -148,12 +137,11 @@ class AcornMotorInterface():
     def connect_to_motors(self, enable_steering=True, enable_traction=True):
         self.odrives = []
         for drive in self.odrive_connections:
-            corner = corner_actuator.CornerActuator(GPIO=self.GPIO,
-                                                    connection_definition=drive,
-                                                    enable_steering=drive.enable_steering,
-                                                    enable_traction=drive.enable_traction,
-                                                    simulated_hardware=self.simulated_hardware,
-                                                    disable_steering_limits=self.manual_control)
+            corner = CornerActuator(connection_definition=drive,
+                                    enable_steering=drive.enable_steering,
+                                    enable_traction=drive.enable_traction,
+                                    simulated_hardware=self.simulated_hardware,
+                                    disable_steering_limits=self.manual_control)
             self.odrives.append(corner)
         self.odrives_connected = True
 
@@ -183,221 +171,181 @@ class AcornMotorInterface():
             try:
                 drive.check_errors()
             except fibre.protocol.ChannelBrokenException as e:
-                print("Exception in {} odrive.".format(drive.name))
+                logger.error("Exception in {} odrive.".format(drive.name))
                 raise e
             except RuntimeError:
-                print("RuntimeError in {} odrive.".format(drive.name))
+                logger.error("RuntimeError in {} odrive.".format(drive.name))
                 return True
         return False
 
     def communicate_message(self, state, voltages=None, ibus=None, temperatures=None):
-        # print("TRYING TO SEND STATE: {}, Voltages {}".format(state, voltages))
         try:
-            corner_actuator.gpio_toggle(self.GPIO)
-            while self.command_socket.poll(timeout=20):
-                corner_actuator.gpio_toggle(self.GPIO)
-                recv = pickle.loads(self.command_socket.recv_pyobj())
-                self.command_socket.send_pyobj(pickle.dumps(
-                    (state, voltages, ibus, temperatures)), flags=zmq.DONTWAIT)
-                corner_actuator.gpio_toggle(self.GPIO)
-                return recv
-            # print("no incoming messages")
-        except zmq.error.ZMQError as e:
-            print("Error with motor command socket: {}".format(e))
+            self.to_remote_control((state, voltages, ibus, temperatures))
+            recv = self.from_remote_control()
+            return recv
+        except Exception as e:
+            logger.error("Error communicating with remote control process: {}".format(e))
             raise e
 
     def run_debug_control(self, enable_steering=True, enable_traction=True):
-        print("RUN_MAIN_MOTORS")
+        logger.info("RUN_MAIN_MOTORS")
         while True:
             try:
                 if not self.odrives_connected:
                     self.connect_to_motors(
                         enable_steering=enable_steering, enable_traction=enable_traction)
-                    print("CONNECTED TO MOTORS")
-                    print(self.odrives)
+                    logger.info("CONNECTED TO MOTORS")
+                    logger.info(self.odrives)
                 elif not self.motors_initialized:
                     try:
-                        print("BEGIN INTIALIZE MOTORS")
+                        logger.info("BEGIN INTIALIZE MOTORS")
                         self.initialize_motors()
-                        print("SUCCESS INTIALIZE MOTORS")
+                        logger.info("SUCCESS INTIALIZE MOTORS")
                     except ValueError as e:
-                        print("Unrecoverable error initializing steering.")
+                        logger.error(f"Unrecoverable error initializing steering: {e}")
                         raise e
-                    except RuntimeError:
-                        print("Motor problem while initializing steering.")
+                    except RuntimeError as e:
+                        logger.error(f"Motor problem while initializing steering: {e}")
                 elif not self.steering_adjusted:
                     try:
                         self.steering_adjusted = True
                         self.ask_if_adjust_steering()
-                        print("Initialized Steering")
-                    except RuntimeError:
-                        print("Motor problem while adjusting steering.")
+                        logger.info("Initialized Steering")
+                    except RuntimeError as e:
+                        logger.error(f"Motor problem while adjusting steering: {e}")
             except Exception as e:
-                print("Exception:")
-                print(e)
+                logger.error(f"Exception: {e}")
                 time.sleep(1)
 
     def run_main(self):
-        motor_error = False
-        tick_time = time.time()
-        print("RUN_MAIN_MOTORS")
+        logger.error("RUN_MAIN_MOTORS")
+        # estop activates if it doesn't see a level flip every 50ms. To leave enough room for Linux scheduling, we set the interval so that the level is flipped every 20ms.
+        interval = 1 / 50
         try:
             while True:
-                if not self.odrives_connected:
-                    self.communicate_message(model.MOTOR_DISCONNECTED)
-                    self.connect_to_motors()
-                elif not self.motors_initialized:
-                    try:
-                        self.initialize_motors()
-                    except ValueError as e:
-                        print("Unrecoverable error initializing steering.")
-                        raise e
-                    except RuntimeError:
-                        print("Motor problem while initializing steering.")
-                elif not self.steering_adjusted:
-                    try:
-                        self.steering_adjusted = True
-                        if self.manual_control:
-                            self.ask_if_adjust_steering()
-                        print("Initialized Steering")
-                    except RuntimeError:
-                        print("Motor problem while adjusting steering.")
-
-                voltages = []
-                bus_currents = []
-                temperatures = []
-                for vehicle_corner in self.odrives:
-                    corner_actuator.gpio_toggle(self.GPIO)
-                    try:
-                        vehicle_corner.update_voltage()
-                        vehicle_corner.update_thermistor_temperature_C()
-                    except Exception as e:
-                        print("Error in vehicle corner {}".format(
-                            vehicle_corner.name))
-                        raise e
-                    corner_actuator.gpio_toggle(self.GPIO)
-                    voltages.append(vehicle_corner.voltage)
-                    bus_currents.append(
-                        abs(vehicle_corner.ibus_0) + abs(vehicle_corner.ibus_1))
-                    temperatures.append(vehicle_corner.temperature_c)
-
-                # velocities = []
-                # for vehicle_corner in self.odrives:
-                #     velocities.append(vehicle_corner.odrv0.axis1.encoder.vel_estimate)
-                #     corner_actuator.gpio_toggle(self.GPIO)
-                #
-                # print(velocities)
-
-                if self.check_odrive_errors():
-                    if not motor_error:
-                        # Intentionally break the e-stop loop to stop all motors.
-                        time.sleep(1)
-                    motor_error = True
-                    time.sleep(0.5)
-                    corner_actuator.toggling_sleep(self.GPIO, 0.2)
-                    print("ERROR DETECTED IN ODRIVES.")
-                    for drive in self.odrives:
-                        print("Drive: {}:".format(drive.name))
-                        start = time.time()
-                        drive.print_errors(clear_errors=True)
-                        print("clear_errors_duration {}".format(
-                            start - time.time()))
-                    print("ERROR DETECTED IN ODRIVES.")
-                    corner_actuator.toggling_sleep(
-                        self.GPIO, _ERROR_RECOVERY_DELAY_S)
-                    # time.sleep(_ERROR_RECOVERY_DELAY_S)
-                    recv = self.communicate_message(
-                        model.MOTOR__DISABLED, voltages, bus_currents, temperatures)
-                    if recv:
-                        print("Got motor command but motors are in error state.")
-                        print("Motor command was {}".format(recv))
-                else:
-                    if motor_error:
-                        for odrive in self.odrives:
-                            odrive.recover_from_estop()
-                        if not self.check_odrive_errors():
-                            print("Recovered from e-stop.")
-                            motor_error = False
-
-                    calc = self.communicate_message(
-                        model.MOTOR_ENABLED, voltages, bus_currents, temperatures)
-                    corner_actuator.gpio_toggle(self.GPIO)
-                    if calc:
-                        if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
-                            print("Regained Motor Comms")
-                        tick_time = time.time()
-                        for drive in self.odrives:
-                            this_pos, this_vel_cmd = calc[drive.name]
-                            this_pos = math.degrees(this_pos)
-                            # if "front_right" in drive.name:
-                            #     # this_pos
-                            #     this_vel_cmd = 0
-                            # else:
-                            #     this_pos = 0
-                            #     this_vel_cmd = 0
-
-                        #    if "rear_left" in drive.name:
-                            # this_vel_cmd *= 0.63
-                            #    this_vel_cmd *= 0.70
-                            #     drive.odrv0.axis1.controller.config.vel_gain = 0 # 0.02
-                            #     drive.odrv0.axis1.controller.config.vel_integrator_gain = 0 # 0.1
-                            # else:
-                            #     this_vel_cmd = 0
-                            # this_pos = 0
-                            try:
-                                drive.update_actuator(
-                                    this_pos, this_vel_cmd * 1000)
-                            except RuntimeError as e:
-                                print("Error updating actuator.")
-                                print(e)
-                            except AttributeError as e:
-                                print("Attribute Error while updating actuator.")
-                                print(e)
-                                print("self.motors_initialized {}".format(
-                                    self.motors_initialized))
-                                print("self {}".format(self))
-                            # time.sleep(0.02)
-                            corner_actuator.toggling_sleep(self.GPIO, 0.02)
-
-                    if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
-                        print("COMMS LOST SLOWING ACTUATOR. ~~ {}".format(
-                            time.time()))
-                        for drive in self.odrives:
-                            try:
-                                drive.slow_actuator(0.95)
-                            except RuntimeError as e:
-                                print("Error updating actuator.")
-                                print(e)
-                        # time.sleep(0.05)
-                        corner_actuator.toggling_sleep(self.GPIO, 0.05)
-
+                start = time.time()
+                self.tick()
+                elapsed = time.time() - start
+                if (left := interval - elapsed) > 0:
+                    time.sleep(left)
+                estop_nudge()
         except KeyboardInterrupt:
             for drive in self.odrives:
                 drive.stop_actuator()
 
-    def setup_GPIO(self, GPIO):
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(corner_actuator.ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
-        GPIO.estop_state = GPIO.LOW
-        GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
-        GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
-        time.sleep(1)
+    def tick(self):
+        if not self.odrives_connected:
+            self.communicate_message(MotorStatus.DISCONNECTED)
+            self.connect_to_motors()
+        elif not self.motors_initialized:
+            try:
+                self.initialize_motors()
+            except ValueError as e:
+                logger.error(f"Unrecoverable error initializing steering: {e}")
+                raise e
+            except RuntimeError as e:
+                logger.error(f"Motor problem while initializing steering: {e}")
+        elif not self.steering_adjusted:
+            try:
+                self.steering_adjusted = True
+                if self.manual_control:
+                    self.ask_if_adjust_steering()
+                logger.error("Initialized Steering")
+            except RuntimeError as e:
+                logger.error(f"Motor problem while adjusting steering: {e}")
 
-        for _ in range(100):
-            time.sleep(0.001)
-            GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
-            time.sleep(0.001)
-            GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
+        voltages = []
+        bus_currents = []
+        temperatures = []
+        for vehicle_corner in self.odrives:
+            try:
+                vehicle_corner.update_voltage()
+                vehicle_corner.update_thermistor_temperature_C()
+            except Exception as e:
+                logger.error(f"Error in vehicle corner {vehicle_corner.name}: {e}")
+                raise e
+            voltages.append(vehicle_corner.voltage)
+            bus_currents.append(
+                abs(vehicle_corner.ibus_0) + abs(vehicle_corner.ibus_1))
+            temperatures.append(vehicle_corner.temperature_c)
 
+        # velocities = []
+        # for vehicle_corner in self.odrives:
+        #     velocities.append(vehicle_corner.odrv0.axis1.encoder.vel_estimate)
+        #     corner_actuator.estop_nudge()
+        #
+        # logger.error(velocities)
 
-def e_stop_square_wave(GPIO):
-    delay = 0.01
-    while True:
-        # ESTOP approx 1kHz square wave.
-        time.sleep(delay)
-        GPIO.output(corner_actuator.ESTOP_PIN, GPIO.LOW)
-        time.sleep(delay)
-        GPIO.output(corner_actuator.ESTOP_PIN, GPIO.HIGH)
+        if self.check_odrive_errors():
+            if not self.motor_error:
+                # Intentionally break the e-stop loop to stop all motors.
+                time.sleep(1)
+            self.motor_error = True
+            time.sleep(0.5)
+            toggling_sleep(0.2)
+            logger.warning("ERROR DETECTED IN ODRIVES.")
+            for drive in self.odrives:
+                logger.warning("Drive: {}:".format(drive.name))
+                start = time.time()
+                drive.print_errors(clear_errors=True)
+                logger.warning("clear_errors_duration {}".format(
+                    start - time.time()))
+            logger.warning("ERROR DETECTED IN ODRIVES.")
+            toggling_sleep(_ERROR_RECOVERY_DELAY_S)
+            recv = self.communicate_message(
+                MotorStatus.DISABLED, voltages, bus_currents, temperatures)
+            if recv:
+                logger.warning("Got motor command but motors are in error state.")
+                logger.warning("Motor command was {}".format(recv))
+        else:
+            if self.motor_error:
+                for odrive in self.odrives:
+                    odrive.recover_from_estop()
+                if not self.check_odrive_errors():
+                    logger.info("Recovered from e-stop.")
+                    self.motor_error = False
+
+            calc = self.communicate_message(
+                MotorStatus.ENABLED, voltages, bus_currents, temperatures)
+            if calc:
+                logger.info(f"calc: {calc}")
+                if time.time() - self.tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
+                    logger.info("Regained Motor Comms")
+                self.tick_time = time.time()
+                for drive in self.odrives:
+                    this_pos, this_vel_cmd = calc[drive.name]
+                    this_pos = math.degrees(this_pos)
+                    # if "front_right" in drive.name:
+                    #     # this_pos
+                    #     this_vel_cmd = 0
+                    # else:
+                    #     this_pos = 0
+                    #     this_vel_cmd = 0
+
+                #    if "rear_left" in drive.name:
+                    # this_vel_cmd *= 0.63
+                    #    this_vel_cmd *= 0.70
+                    #     drive.odrv0.axis1.controller.config.vel_gain = 0 # 0.02
+                    #     drive.odrv0.axis1.controller.config.vel_integrator_gain = 0 # 0.1
+                    # else:
+                    #     this_vel_cmd = 0
+                    # this_pos = 0
+                    try:
+                        drive.update_actuator(this_pos, this_vel_cmd * 1000)
+                    except RuntimeError as e:
+                        logger.error(f"Error updating actuator: {e}")
+                    except AttributeError as e:
+                        logger.error(f"Attribute Error while updating actuator: {e}")
+                        logger.error(f"self.motors_initialized {self.motors_initialized}")
+                        logger.error(f"self: {self}")
+
+            if time.time() - self.tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
+                logger.error(f"COMMS LOST SLOWING ACTUATOR. ~~ {time.time()}")
+                for drive in self.odrives:
+                    try:
+                        drive.slow_actuator(0.95)
+                    except RuntimeError as e:
+                        logger.error(f"Error updating actuator: {e}")
 
 
 if __name__ == '__main__':

@@ -3,11 +3,9 @@ version: "3.7"
 services:
   acorn_vehicle_test:
     extends:
-      file: docker-compose-simulation.yml
+      file: docker-compose-vehicle.yml
       service: acorn_vehicle
+    volumes:
+      - .:/home/pi/
+      - ./.bashrc:/home/pi/.bashrc
     command: sleep infinity
-  # acorn_server:
-  #   extends:
-  #     file: docker-compose-simulation.yml
-  #     service: acorn_server
-  #   command: sleep infinity

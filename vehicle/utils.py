@@ -1,7 +1,7 @@
 import coloredlogs
 
 _LOGGER_FORMAT_STRING = '%(asctime)s - %(name)-11s - %(levelname)-4s - %(message)s'
-_LOGGER_DATE_FORMAT = '%m/%d/%Y %I:%M:%S %p'
+_LOGGER_DATE_FORMAT = '%m/%d/%Y %I:%M:%S.%f %p'
 _LOGGER_LEVEL_INFO = 'INFO'
 _LOGGER_LEVEL_DEBUG = 'DEBUG'
 
