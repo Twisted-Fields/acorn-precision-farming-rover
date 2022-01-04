@@ -42,8 +42,8 @@ class NvidiaPowerProcess:
         self.simulated_hardware = simulated_hardware
         self.connection = master_conn
 
-    def process_loop(self):
-        if self.simulated_hardware == False:
+    def process_loop(self, stop_signal):
+        if not self.simulated_hardware:
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(NVIDIA_ENABLE_PIN, GPIO.OUT, initial=GPIO.HIGH)
             # Turn off computer
@@ -51,14 +51,14 @@ class NvidiaPowerProcess:
             time.sleep(5)
             # Turn on computer
             GPIO.output(NVIDIA_ENABLE_PIN, GPIO.LOW)
-        while True:
+        while not stop_signal.is_set():
             # TODO(tlalexander): Whatever we need to do on loop goes here.
             time.sleep(1)
 
 
-def nvidia_power_loop(master_conn, simulated_hardware=False):
+def nvidia_power_loop(stop_signal, master_conn, simulated_hardware=False):
     power_process = NvidiaPowerProcess(master_conn, simulated_hardware)
-    power_process.process_loop()
+    power_process.process_loop(stop_signal)
 
 
 if __name__ == "__main__":

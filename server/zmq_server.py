@@ -29,7 +29,7 @@ import pickle
 import redis
 import psutil
 import redis_utils
-from master_process import RobotCommand
+from model import RobotCommand
 from master_process import _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
 from master_process import _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
 
@@ -112,9 +112,7 @@ class ServerWorker(threading.Thread):
         connection_active = False
         worker = self.context.socket(zmq.DEALER)
         worker.connect('inproc://backend')
-        r = redis.Redis(
-            host='localhost',
-            port=6379)
+        r = redis.Redis(host='localhost', port=6379)
         tprint('Worker started')
         while True:
             if (connection_active and time.time() - self.last_active_time > _ALLOWED_ACTIVITY_LAPSE_SEC):

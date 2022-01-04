@@ -21,15 +21,8 @@ limitations under the License.
 *********************************************************************
 """
 
-import corner_actuator
-from corner_actuator import COUNTS_PER_REVOLUTION, OdriveConnection
-import serial
 import time
-import sys
 import math
-from odrive.utils import dump_errors
-from evdev import InputDevice, list_devices, categorize, ecodes, KeyEvent
-from steering import calculate_steering
 import zmq
 import pickle
 import click
@@ -37,7 +30,11 @@ import argparse
 from multiprocessing import Process
 import os
 import fibre
-import collections
+
+import corner_actuator
+from corner_actuator import OdriveConnection
+import model
+
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if "arm" in os.uname().machine:
@@ -49,11 +46,6 @@ _UP_KEYCODE = '\x1b[A'
 _LEFT_KEYCODE = '\x1b[D'
 _RIGHT_KEYCODE = '\x1b[C'
 _DOWN_KEYCODE = '\x1b[B'
-
-STATE_DISCONNECTED = "Not connected."
-_STATE_DISABLED = "Motor error."
-_STATE_ENABLED = "Motors enabled."
-
 
 _SHUT_DOWN_MOTORS_COMMS_DELAY_S = 1.0
 _ERROR_RECOVERY_DELAY_S = 5
@@ -252,7 +244,7 @@ class AcornMotorInterface():
         try:
             while True:
                 if not self.odrives_connected:
-                    self.communicate_message(STATE_DISCONNECTED)
+                    self.communicate_message(model.MOTOR_DISCONNECTED)
                     self.connect_to_motors()
                 elif not self.motors_initialized:
                     try:
@@ -315,7 +307,7 @@ class AcornMotorInterface():
                         self.GPIO, _ERROR_RECOVERY_DELAY_S)
                     # time.sleep(_ERROR_RECOVERY_DELAY_S)
                     recv = self.communicate_message(
-                        _STATE_DISABLED, voltages, bus_currents, temperatures)
+                        model.MOTOR__DISABLED, voltages, bus_currents, temperatures)
                     if recv:
                         print("Got motor command but motors are in error state.")
                         print("Motor command was {}".format(recv))
@@ -328,7 +320,7 @@ class AcornMotorInterface():
                             motor_error = False
 
                     calc = self.communicate_message(
-                        _STATE_ENABLED, voltages, bus_currents, temperatures)
+                        model.MOTOR_ENABLED, voltages, bus_currents, temperatures)
                     corner_actuator.gpio_toggle(self.GPIO)
                     if calc:
                         if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:

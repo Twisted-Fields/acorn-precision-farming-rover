@@ -22,7 +22,7 @@ limitations under the License.
 """
 
 import pickle
-from master_process import RobotCommand
+from model import RobotCommand
 
 
 def get_energy_segment_key(robot_key):
@@ -99,7 +99,7 @@ def get_dense_path(redis_client=None, robot_key=None):
     key = get_energy_segment_key(robot_key)
     list_length = redis_client.llen(key)
     path = []
-    for idx in range(list_length-1, 0, -1):
+    for idx in range(list_length - 1, 0, -1):
         segment = pickle.loads(redis_client.lindex(key, idx))
         # print(segment.subsampled_points)
         try:

@@ -1,0 +1,4 @@
+[flake8]
+ignore = E226,E302,E401,E501 # https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
+max-line-length = 120
+max-complexity = 10

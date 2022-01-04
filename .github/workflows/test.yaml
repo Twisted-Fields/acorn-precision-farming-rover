@@ -1,0 +1,25 @@
+name: test
+
+on: [pull_request, push, workflow_dispatch]
+
+concurrency:
+  group: test-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # To create and push new image: docker buildx build -t merlinran/acorn_docker --platform linux/amd64,linux/arm64 --push .
+    container: docker://merlinran/acorn_docker:latest
+    strategy:
+      fail-fast: true
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+
+      - name: Run tests
+        run: coverage run -m pytest
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v1

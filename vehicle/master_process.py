@@ -23,28 +23,25 @@ limitations under the License.
 
 from datetime import datetime
 import argparse
-import coloredlogs
 import logging
 import multiprocessing as mp
 import os
 import pickle
-import psutil
 import subprocess
 import time
-import wifi
 import yaml
+import wifi
 import zmq
 
-import gps_tools
-from motors import STATE_DISCONNECTED
 import nvidia_power_process
-from remote_control_process import run_control, CONTROL_STARTUP
+from remote_control_process import run_control
+import model
 import server_comms
 import voltage_monitor_process
-from utils import AppendFIFO
+from utils import AppendFIFO, config_logging
 
 
-_YAML_NAME_LOCAL = "vehicle/server_config.yaml"
+_YAML_NAME_SIMULATION = "vehicle/server_config_sim.yaml"
 _YAML_NAME_RASPBERRY = "/home/pi/vehicle/server_config.yaml"
 _YAML_NAME_DOCKER = "/acorn/vehicle/server_config.yaml"
 
@@ -58,10 +55,6 @@ _CMD_ACK = bytes('a', encoding='ascii')
 
 _MAX_GPS_DISTANCES = 1000
 
-_GPS_RECORDING_ACTIVATE = "Record"
-_GPS_RECORDING_PAUSE = "Pause"
-_GPS_RECORDING_CLEAR = "Clear"
-
 _SIMULATION_UPDATE_PERIOD = 0.1
 _SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS = 300
 
@@ -74,155 +67,58 @@ _SERVER_CONNECT_TIME_LIMIT_MINUTES = 10
 
 _SEC_IN_ONE_MINUTE = 60
 
-_WIFI_SETTLING_SLEEP_SEC = 5
 _SERVER_PING_DELAY_SEC = 2
 
-_SIMULATION_IGNORE_YAML_SERVER_IP = True
-_SIMULATION_SERVER_IP_ADDRESS = "127.0.0.1"
 
-_LOGGER_FORMAT_STRING = '%(asctime)s - %(name)-11s - %(levelname)-4s - %(message)s'
-_LOGGER_DATE_FORMAT = '%m/%d/%Y %I:%M:%S %p'
-_LOGGER_LEVEL_INFO = 'INFO'
-_LOGGER_LEVEL_DEBUG = 'DEBUG'
-
-def kill_main_procs():
-    for proc in psutil.process_iter():
-        # check whether the process name matches
-        # print(proc.cmdline())
-        for item in proc.cmdline():
-            if 'master_process.py' in item and proc.pid != os.getpid() and proc.pid != os.getppid():
-                print(proc.cmdline())
-                proc.kill()
+def load_yaml_config(yaml_path):
+    with open(yaml_path, 'r') as stream:
+        try:
+            return yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            raise RuntimeError("Problem Loading Yaml File") from exc
 
 
-class Robot:
-    def __init__(self, simulated_data=False, logger=None):
-        self.key = ""
-        self.location = gps_tools.GpsSample(0, 0, 0, ("", ""), (0, 0), 0, time.time(), 0)
-        self.voltage = 0.0
-        self.cell1 = 0.0
-        self.cell2 = 0.0
-        self.cell3 = 0.0
-        self.name = ""
-        self.server = ""
-        self.site = ""
-        self.turn_intent_degrees = 0
-        self.speed = 0
-        self.control_state = CONTROL_STARTUP
-        self.motor_state = STATE_DISCONNECTED
-        self.loaded_path_name = ""
-        self.loaded_path = []
-        self.live_path_data = []
-        self.gps_path_data = []
-        self.record_gps_command = _GPS_RECORDING_CLEAR
-        self.activate_autonomy = False
-        self.autonomy_velocity = 0
-        self.time_stamp = datetime.now()
-        self.debug_points = None
-        self.wifi_strength = None
-        self.wifi_ap_name = None
-        self.last_server_communication_stamp = 0
-        self.autonomy_hold = True
-        self.clear_autonomy_hold = False
-        self.gps_distances = []
-        self.gps_angles = []
-        self.gps_path_lateral_error_rates = []
-        self.gps_path_angular_error_rates = []
-        self.strafeP = []
-        self.steerP = []
-        self.strafeD = []
-        self.steerD = []
-        self.autonomy_steer_cmd = []
-        self.autonomy_strafe_cmd = []
-        self.cpu_temperature_c = 0.0
-        self.energy_segment_list = []
-        self.motor_temperatures = []
-        self.simulated_data = simulated_data
-        self.logger = logger
+# Have to keep the two aliases to be able to pickle old objects stored in Redis.
+Robot = model.Robot
+RobotCommand = model.RobotCommand
 
-    def __repr__(self):
-        return 'Robot'
-
-    def setup(self, yaml_path):
-        self.load_yaml_config(yaml_path)
-        self.key = bytes("{}:robot:{}:key".format(self.site, self.name),
-                         encoding='ascii')
-        self.voltage = 0.0
-
-    def load_yaml_config(self, yaml_path):
-        self.logger.info("Opening yaml file: {}".format(yaml_path))
-        with open(yaml_path, 'r') as stream:
-            try:
-                config = yaml.safe_load(stream)
-                self.name = str(config["vehicle_name"])
-                self.server = str(config["server"])
-                self.site = str(config["site"])
-                self.logger.info("Using server from yaml {}".format(self.server))
-            except yaml.YAMLError as exc:
-                self.logger.error(
-                    "Error! Problem Loading Yaml File. Does it exist?/n"
-                    "Actual error thrown was: {}".format(exc))
-
-
-class RobotCommand:
-    def __init__(self):
-        self.key = ""
-        self.load_path = ""
-        self.activate_autonomy = False
-        self.clear_autonomy_hold = False
-        self.autonomy_velocity = 0
-        self.record_gps_path = _GPS_RECORDING_CLEAR
 
 class MainProcess():
     def __init__(self, simulation, debug):
         self.simulation = simulation
         self.debug = debug
-        if self.simulation:
-            self.yaml_path = _YAML_NAME_LOCAL
-        else:
-            if os.path.isfile(_YAML_NAME_DOCKER):
-                self.yaml_path = _YAML_NAME_DOCKER
-            else:
-                self.yaml_path = _YAML_NAME_RASPBERRY
-
-    def run(self):
         self.logger = logging.getLogger('main')
-        if self.debug:
-            logger_level = _LOGGER_LEVEL_DEBUG
-        else:
-            logger_level = _LOGGER_LEVEL_INFO
-        coloredlogs.install(fmt=_LOGGER_FORMAT_STRING,
-                            datefmt=_LOGGER_DATE_FORMAT,
-                            level=logger_level,
-                            logger=self.logger)
+        config_logging(self.logger, self.debug)
 
-        logging_details = (_LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT,
-                           logger_level)
+    def setup(self, config):
+        # Initialize robot object.
+        name = str(config["vehicle_name"])
+        server = str(config["server"])
+        if ":" not in server:
+            server += ":5570"  # back compatibility to old server config files.
+        site = str(config["site"])
+        self.logger.info("Using server from yaml {}".format(server))
+        self.acorn = model.Robot(self.simulation, self.logger)
+        self.acorn.setup(name, server, site)
 
+    def run(self, stop_signal):
         # This module throws out debug messages so we change its logger level.
         i2c_logger = logging.getLogger('Adafruit_I2C')
         i2c_logger.setLevel(logging.CRITICAL)
 
         self.print_banner()
 
-        # Initialize robot object.
-        acorn = Robot(self.simulation, self.logger)
-        acorn.setup(self.yaml_path)
-
         # Setup and start wifi config and monitor process.
         wifi_parent_conn, wifi_child_conn = mp.Pipe()
         wifi_proc = mp.Process(target=wifi.wifi_process,
-                               args=(wifi_child_conn, logging, logging_details,))
+                               args=(stop_signal, wifi_child_conn, logging, self.debug,))
         wifi_proc.start()
 
         # Setup and start vision config and monitor process.
         vision_parent_conn, vision_child_conn = mp.Pipe()
         vision_proc = mp.Process(target=nvidia_power_process.nvidia_power_loop,
-                                 args=(vision_child_conn, self.simulation,))
+                                 args=(stop_signal, vision_child_conn, self.simulation,))
         vision_proc.start()
-
-        if self.simulation and _SIMULATION_IGNORE_YAML_SERVER_IP:
-            acorn.server = _SIMULATION_SERVER_IP_ADDRESS
 
         # Setup and start server communications process.
         self.server_comms_parent_conn, server_comms_child_conn = mp.Pipe()
@@ -230,15 +126,16 @@ class MainProcess():
             "Using custom logging level for server comms process.")
         server_comms_proc = mp.Process(
             target=server_comms.AcornServerComms,
+            name="server_comms_proc",
             args=(
+                stop_signal,
                 server_comms_child_conn,
-                'tcp://{}:5570'.format(acorn.server),
+                'tcp://{}'.format(self.acorn.server),
                 logging,
-                (_LOGGER_FORMAT_STRING, _LOGGER_DATE_FORMAT, "INFO"),
             ))
         server_comms_proc.start()
 
-        acorn.last_server_communication_stamp = time.time()
+        self.acorn.last_server_communication_stamp = time.time()
 
         remote_control_manager = mp.Manager()
         remote_to_main_lock = remote_control_manager.Lock()
@@ -247,33 +144,32 @@ class MainProcess():
         remote_to_main_string = remote_control_manager.dict()
         main_to_remote_string = remote_control_manager.dict()
 
-        main_to_remote_string["value"] = pickle.dumps(acorn)
+        main_to_remote_string["value"] = pickle.dumps(self.acorn)
 
         remote_control_proc = mp.Process(
             target=run_control,
-            args=(remote_to_main_lock, main_to_remote_lock,
+            args=(stop_signal,
+                  remote_to_main_lock, main_to_remote_lock,
                   remote_to_main_string, main_to_remote_string, logging,
-                  logging_details, self.simulation))
+                  self.debug, self.simulation))
         remote_control_proc.start()
-
-        # Let wifi settle before moving to ping test.
-        time.sleep(_WIFI_SETTLING_SLEEP_SEC)
-        self.ping_until_reachable(acorn.server)
 
         voltage_monitor_parent_conn, voltage_monitor_child_conn = mp.Pipe()
         voltage_proc = mp.Process(target=voltage_monitor_process.sampler_loop,
-                                  args=(voltage_monitor_child_conn, self.simulation,))
+                                  args=(stop_signal, voltage_monitor_child_conn, self.simulation,))
         voltage_proc.start()
+
+        self.ping_until_reachable(self.acorn.server.split(':')[0])
 
         self.message_tracker = []
 
         # reqs = 0
-        # robot_id = bytes(acorn.name, encoding='ascii')
+        # robot_id = bytes(self.acorn.name, encoding='ascii')
         updated_object = False
         gps_count = 0
         # send_robot_object = False
 
-        while True:
+        while not stop_signal.is_set():
 
             # print("3333")
 
@@ -281,24 +177,23 @@ class MainProcess():
             #     remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
             #     send_robot_object = False
             with main_to_remote_lock:
-                main_to_remote_string["value"] = pickle.dumps(acorn)
+                main_to_remote_string["value"] = pickle.dumps(self.acorn)
 
             # print("4444")
 
             if voltage_monitor_parent_conn.poll():
-                acorn.cell1, acorn.cell2, acorn.cell3, total = voltage_monitor_parent_conn.recv()
-                # acorn.voltage = total
+                self.acorn.cell1, self.acorn.cell2, self.acorn.cell3, total = voltage_monitor_parent_conn.recv()
+                # self.acorn.voltage = total
                 updated_object = True
 
             while wifi_parent_conn.poll():
-                acorn.wifi_strength, acorn.wifi_ap_name, acorn.cpu_temperature_c = wifi_parent_conn.recv()
+                self.acorn.wifi_strength, self.acorn.wifi_ap_name, self.acorn.cpu_temperature_c = wifi_parent_conn.recv()
 
             # print("5555")
 
-            updated_object |= self.update_from_remote_control(
-                acorn, gps_count, remote_to_main_lock, remote_to_main_string)
+            updated_object |= self.update_from_remote_control(gps_count, remote_to_main_lock, remote_to_main_string)
             # print("6666")
-            seconds_since_update = (datetime.now() - acorn.time_stamp).total_seconds()
+            seconds_since_update = (datetime.now() - self.acorn.time_stamp).total_seconds()
 
             if self.simulation:
                 period = _SIMULATION_UPDATE_PERIOD
@@ -306,23 +201,22 @@ class MainProcess():
                 period = _UPDATE_PERIOD
 
             if updated_object and seconds_since_update > period:
-                acorn.time_stamp = datetime.now()
-                # print(acorn.time_stamp)
+                self.acorn.time_stamp = datetime.now()
                 try:
-                    self.server_comms_parent_conn.send([_CMD_UPDATE_ROBOT, acorn.key, pickle.dumps(acorn)])
-                    acorn.energy_segment_list = []
+                    self.server_comms_parent_conn.send([_CMD_UPDATE_ROBOT, self.acorn.key, pickle.dumps(self.acorn)])
+                    self.acorn.energy_segment_list = []
                 except zmq.error.Again:
                     self.logger.error("Remote server unreachable.")
                 updated_object = False
 
             # print("$$$$$$")
-            updated_object |= self.update_from_server(acorn)
+            updated_object |= self.update_from_server()
             # print(time.time())
 
         #    print("((((()))))")
-        # if time.time() - acorn.last_server_communication_stamp > _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC:
+        # if time.time() - self.acorn.last_server_communication_stamp > _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC:
         #     print("RESET SERVER CONNECTION")
-        # acorn.last_server_communication_stamp = time.time()
+        # self.acorn.last_server_communication_stamp = time.time()
         #    print("((8888))")
 
     def print_banner(self):
@@ -399,25 +293,25 @@ class MainProcess():
                             self.logger.info(msg)
                 attempts += 1
 
-    def update_from_remote_control(self, acorn, gps_count, remote_to_main_lock, remote_to_main_string):
+    def update_from_remote_control(self, gps_count, remote_to_main_lock, remote_to_main_string):
         updated_object = False
         read_okay = False
         try:
             with remote_to_main_lock:
-                # (acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points,
-                # acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle,
+                # (acorn_location, self.acorn.live_path_data, self.acorn.turn_intent_degrees, self.acorn.debug_points,
+                # self.acorn.control_state, self.acorn.motor_state, self.acorn.autonomy_hold, gps_distance, gps_angle,
                 # gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
-                # autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, acorn.voltage, energy_segment,
-                # acorn.motor_temperatures) = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
-                (acorn_location, acorn.live_path_data, acorn.turn_intent_degrees, acorn.debug_points,
-                 acorn.control_state, acorn.motor_state, acorn.autonomy_hold, gps_distance, gps_angle,
+                # autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage, energy_segment,
+                # self.acorn.motor_temperatures) = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
+                (acorn_location, self.acorn.live_path_data, self.acorn.turn_intent_degrees, self.acorn.debug_points,
+                 self.acorn.control_state, self.acorn.motor_state, self.acorn.autonomy_hold, gps_distance, gps_angle,
                  gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
-                 autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, acorn.voltage,
-                 energy_segment, acorn.motor_temperatures) = pickle.loads(remote_to_main_string["value"])
+                 autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage,
+                 energy_segment, self.acorn.motor_temperatures) = pickle.loads(remote_to_main_string["value"])
             read_okay = True
             # send_robot_object = True
             if acorn_location is not None:
-                acorn.location = acorn_location
+                self.acorn.location = acorn_location
             # print("44444")
         except Exception:
             pass
@@ -426,88 +320,99 @@ class MainProcess():
         if read_okay:
             if gps_fix:
                 # print("GPS_FIX")
-                acorn.autonomy_steer_cmd = AppendFIFO(
-                    acorn.autonomy_steer_cmd, autonomy_steer_cmd,
+                self.acorn.autonomy_steer_cmd = AppendFIFO(
+                    self.acorn.autonomy_steer_cmd, autonomy_steer_cmd,
                     _MAX_GPS_DISTANCES)
-                acorn.autonomy_strafe_cmd = AppendFIFO(
-                    acorn.autonomy_strafe_cmd, autonomy_strafe_cmd,
+                self.acorn.autonomy_strafe_cmd = AppendFIFO(
+                    self.acorn.autonomy_strafe_cmd, autonomy_strafe_cmd,
                     _MAX_GPS_DISTANCES)
-                acorn.gps_distances = AppendFIFO(acorn.gps_distances,
-                                                 gps_distance,
-                                                 _MAX_GPS_DISTANCES)
-                acorn.gps_angles = AppendFIFO(acorn.gps_angles, gps_angle,
-                                              _MAX_GPS_DISTANCES)
-                acorn.gps_path_lateral_error_rates = AppendFIFO(
-                    acorn.gps_path_lateral_error_rates, gps_lateral_rate,
+                self.acorn.gps_distances = AppendFIFO(self.acorn.gps_distances,
+                                                      gps_distance,
+                                                      _MAX_GPS_DISTANCES)
+                self.acorn.gps_angles = AppendFIFO(self.acorn.gps_angles, gps_angle,
+                                                   _MAX_GPS_DISTANCES)
+                self.acorn.gps_path_lateral_error_rates = AppendFIFO(
+                    self.acorn.gps_path_lateral_error_rates, gps_lateral_rate,
                     _MAX_GPS_DISTANCES)
-                acorn.gps_path_angular_error_rates = AppendFIFO(
-                    acorn.gps_path_angular_error_rates, gps_angular_rate,
+                self.acorn.gps_path_angular_error_rates = AppendFIFO(
+                    self.acorn.gps_path_angular_error_rates, gps_angular_rate,
                     _MAX_GPS_DISTANCES)
-                acorn.strafeP = AppendFIFO(acorn.strafeP, strafeP, _MAX_GPS_DISTANCES)
-                acorn.steerP = AppendFIFO(acorn.steerP, steerP, _MAX_GPS_DISTANCES)
-                acorn.strafeD = AppendFIFO(acorn.strafeD, strafeD, _MAX_GPS_DISTANCES)
-                acorn.steerD = AppendFIFO(acorn.steerD, steerD, _MAX_GPS_DISTANCES)
+                self.acorn.strafeP = AppendFIFO(self.acorn.strafeP, strafeP, _MAX_GPS_DISTANCES)
+                self.acorn.steerP = AppendFIFO(self.acorn.steerP, steerP, _MAX_GPS_DISTANCES)
+                self.acorn.strafeD = AppendFIFO(self.acorn.strafeD, strafeD, _MAX_GPS_DISTANCES)
+                self.acorn.steerD = AppendFIFO(self.acorn.steerD, steerD, _MAX_GPS_DISTANCES)
 
             if energy_segment is not None:
-                acorn.energy_segment_list.append(energy_segment)
+                self.acorn.energy_segment_list.append(energy_segment)
 
             updated_object = True
             gps_count += 1
             if gps_count % 10 == 0:
-                if acorn.record_gps_command == _GPS_RECORDING_ACTIVATE:
-                    acorn.gps_path_data.append(acorn.location)
-                    self.logger.info("APPEND GPS. TEMP PATH LENGTH {}".format(len(acorn.gps_path_data)))
-            if acorn.record_gps_command == _GPS_RECORDING_PAUSE:
+                if self.acorn.record_gps_command == model.GPS_RECORDING_ACTIVATE:
+                    self.acorn.gps_path_data.append(self.acorn.location)
+                    self.logger.info("APPEND GPS. TEMP PATH LENGTH {}".format(len(self.acorn.gps_path_data)))
+            if self.acorn.record_gps_command == model.GPS_RECORDING_PAUSE:
                 pass
-            if acorn.record_gps_command == _GPS_RECORDING_CLEAR:
-                acorn.gps_path_data = []
+            if self.acorn.record_gps_command == model.GPS_RECORDING_CLEAR:
+                self.acorn.gps_path_data = []
 
         return updated_object
 
-    def update_from_server(self, acorn):
+    def update_from_server(self):
         updated_object = False
         while self.server_comms_parent_conn.poll():
             # print("Got new data from server.")
             command, msg = self.server_comms_parent_conn.recv()
             # print('Client received command {} with message {}'.format(command, msg))
-            acorn.last_server_communication_stamp = time.time()
+            self.acorn.last_server_communication_stamp = time.time()
             # send_robot_object = True
 
             # print("7777")
             if command == _CMD_ROBOT_COMMAND:
                 robot_command = pickle.loads(msg)
                 # print("GOT COMMAND: {}".format(robot_command))
-                if robot_command.load_path != acorn.loaded_path_name and len(robot_command.load_path) > 0:
+                if robot_command.load_path != self.acorn.loaded_path_name and len(robot_command.load_path) > 0:
                     self.logger.info("GETTING PATH DATA")
-                    path = self.get_path(robot_command.load_path, acorn)
+                    path = self.get_path(robot_command.load_path, self.acorn)
                     #    print("8888")
                     if path:
-                        acorn.loaded_path_name = robot_command.load_path
-                        acorn.loaded_path = path
-                        self.logger.info(acorn.loaded_path_name)
+                        self.acorn.loaded_path_name = robot_command.load_path
+                        self.acorn.loaded_path = path
+                        self.logger.info(self.acorn.loaded_path_name)
                         updated_object = True
                         # print(path)
 
                 if robot_command.record_gps_path:
-                    acorn.record_gps_command = robot_command.record_gps_path
-                acorn.activate_autonomy = robot_command.activate_autonomy
-                acorn.autonomy_velocity = robot_command.autonomy_velocity
-                acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
-                # if acorn.activate_autonomy == True:
-                #     acorn.request_autonomy_at_startup = False
+                    self.acorn.record_gps_command = robot_command.record_gps_path
+                self.acorn.activate_autonomy = robot_command.activate_autonomy
+                self.acorn.autonomy_velocity = robot_command.autonomy_velocity
+                self.acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
+                # if self.acorn.activate_autonomy == True:
+                #     self.acorn.request_autonomy_at_startup = False
                 self.logger.info(f"GPS Path: {robot_command.record_gps_path}, "
-                                 f"Autonomy Hold: {acorn.autonomy_hold}, "
+                                 f"Autonomy Hold: {self.acorn.autonomy_hold}, "
                                  f"Activate Autonomy: {robot_command.activate_autonomy}, "
                                  f"Autonomy Velocity: {robot_command.autonomy_velocity}, "
-                                 f"Clear Autonomy Hold: {acorn.clear_autonomy_hold}")
+                                 f"Clear Autonomy Hold: {self.acorn.clear_autonomy_hold}")
         return updated_object
 
 
 def run_main(simulation, debug):
-    kill_main_procs()
-    # sys.exit()
     main_process = MainProcess(simulation, debug)
-    main_process.run()
+    if simulation:
+        yaml_path = _YAML_NAME_SIMULATION
+    else:
+        if os.path.isfile(_YAML_NAME_DOCKER):
+            yaml_path = _YAML_NAME_DOCKER
+        else:
+            yaml_path = _YAML_NAME_RASPBERRY
+    config = load_yaml_config(yaml_path)
+    main_process.setup(config)
+    stop_signal = mp.Event()
+    try:
+        main_process.run(stop_signal)
+    except Exception:
+        stop_signal.set()  # allow sub-processes to terminate gracefully
 
 
 if __name__ == "__main__":
