@@ -18,7 +18,7 @@ simulation: docker-image
 .PHONY: attach-vehicle # Attach to the shell of the first vehicle container. It creates the container if it doesn't exist.
 attach-vehicle:
 	@first_container=`docker ps --filter "name=acorn_*" -q | head -1`; \
-	if [[ -z "$${first_container}" ]]; then \
+	if [ -z "$${first_container}" ]; then \
 		make docker-vehicle; \
 	fi; \
 	docker exec -it $${first_container} /bin/sh
@@ -31,7 +31,7 @@ attach-server:
 .PHONY: stop # Stop all the vehicle and server containers.
 stop:
 	@containers=`docker ps --filter "name=acorn_*" -q`; \
-	if [[ -n "$${containers}" ]]; then \
+	if [ -n "$${containers}" ]; then \
 		docker stop $${containers} && docker rm $${containers}; \
 	fi \
 

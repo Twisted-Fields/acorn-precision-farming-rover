@@ -1,10 +1,12 @@
+<div class="card" v-if="!current_robot_name">
+  <h1>Select an Acorn icon on the map to show the details.</h1>
+</div>
 <robot-cardview
   v-if="current_robot_name && robots[current_robot_name]"
   v-bind:robot="robots[current_robot_name]"
   v-bind:show-plots="showPlots"
   inline-template
 >
-  <div id="robot_detail" class="col-sm-5 col-lg-3">
       <div class="card">
         <h3 class="card-header">${robot.name}</h3>
         <ul class="list-group list-group-flush" id="detail-view">
@@ -90,5 +92,4 @@
           </li>
         </ul>
     </div>
-  </div>
 </robot-cardview>
