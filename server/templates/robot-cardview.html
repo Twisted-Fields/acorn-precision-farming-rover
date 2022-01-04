@@ -1,89 +1,94 @@
 <robot-cardview
-  v-for="robot in robots"
-  v-bind:key="robot.name"
-  v-bind:robot="robot"
+  v-if="current_robot_index !== null && robots[current_robot_index]"
+  v-bind:robot="robots[current_robot_index]"
+  v-bind:show-plots="showPlots"
   inline-template
 >
-  <div id="robot-view">
-    <div class="card-header">${robot.name}</div>
-    <ul class="list-group list-group-flush" id="detail-view">
-      <li class="list-group-item" id="detail-data-age">
-        Data Age: ${robot.data_age_sec.toFixed(1)} sec
-      </li>
-      <li class="list-group-item" id="detail-voltage">
-        Voltage: ${robot.voltage.toFixed(2)}
-      </li>
-      <li class="list-group-item" id="detail-speed">Speed: ${robot.speed}</li>
-      <li class="list-group-item" id="detail-control-state">
-        Control State: ${robot.control_state}
-      </li>
-      <li class="list-group-item" id="detail-motor-state">
-        Motor State: ${robot.motor_state}
-      </li>
-      <li class="list-group-item" id="detail-path-name">
-        Loaded Path Name: ${robot.loaded_path_name}
-      </li>
-      <li class="list-group-item" id="detail-autonomy-allowed">
-        Autonomy Allowed: ${!robot.autonomy_hold}
-      </li>
-      <li class="list-group-item" id="detail-autonomy-active">
-        Autonomy Active: ${robot.activate_autonomy}
-      </li>
-      <li class="list-group-item" id="detail-access-point">
-        Access Point: ${String(robot.access_point_name)}
-      </li>
-      <li class="list-group-item" id="detail-wifi-signal">
-        Wifi Signal: ${String(robot.wifi_signal)} dBm
-      </li>
-      <li class="list-group-item">
-        <button type="button" class="btn btn-primary mr-1" @click="loadPath">
-          Load Path
-        </button>
-      </li>
-      <li class="list-group-item">
-        <div class="btn-group" role="group" aria-label="Autonomy Velocity">
-          <button
-            type="button"
-            class="btn"
-            v-for="vel in velRange"
-            :class="{'btn-success': vel == velocity, 'btn-secondary': vel != velocity}"
-            @click="setVelocity"
-          >
-            ${vel}
+  <div id="robot_detail" class="col-sm-5 col-lg-3">
+      <div class="card">
+        <h3 class="card-header">${robot.name}</h3>
+        <ul class="list-group list-group-flush" id="detail-view">
+          <li class="list-group-item" id="detail-data-age">
+            Data Age: ${robot.data_age_sec.toFixed(1)} sec
+          </li>
+          <li class="list-group-item" id="detail-voltage">
+            Voltage: ${robot.voltage.toFixed(2)}
+          </li>
+          <li class="list-group-item" id="detail-speed">Speed: ${robot.speed}</li>
+          <li class="list-group-item" id="detail-control-state">
+            Control State: ${robot.control_state}
+          </li>
+          <li class="list-group-item" id="detail-motor-state">
+            Motor State: ${robot.motor_state}
+          </li>
+          <li class="list-group-item" id="detail-path-name">
+            Loaded Path Name: ${robot.loaded_path_name}
+          </li>
+          <li class="list-group-item" id="detail-autonomy-allowed">
+            Autonomy Allowed: ${!robot.autonomy_hold}
+          </li>
+          <li class="list-group-item" id="detail-autonomy-active">
+            Autonomy Active: ${robot.activate_autonomy}
+          </li>
+          <li class="list-group-item" id="detail-access-point">
+            Access Point: ${String(robot.access_point_name)}
+          </li>
+          <li class="list-group-item" id="detail-wifi-signal">
+            Wifi Signal: ${String(robot.wifi_signal)} dBm
+          </li>
+          <li class="list-group-item">
+            <button type="button" class="btn btn-primary mr-1" @click="loadPath">
+              Load Path
+            </button>
+          <button type="button" class="btn btn-info mr-1" @click="toggleShowPlots">
+            ${ showPlots ? "Hide" : "Show" } Plots
           </button>
-        </div>
-      </li>
-      <li class="list-group-item">
-        <button
-          type="button"
-          class="btn btn-lg btn-secondary mr-1"
-          :class="{disabled: this.robot.autonomy_hold, 'btn-secondary': this.robot.autonomy_hold, 'btn-danger': this.robot.activate_autonomy, 'btn-success': !this.robot.activate_autonomy}"
-          @click="toggleAutonomy"
-        >
-          ${robot.activate_autonomy ? "Deactivate" : "Activate"} Autonomy
-        </button>
-      </li>
-      <li class="list-group-item">
-        <button
-          type="button"
-          class="btn btn-primary mr-1"
-          @click="clearAutonomyHold"
-        >
-          Clear Autonomy Hold
-        </button>
-      </li>
-      <li class="list-group-item">
-        <div class="btn-group" role="group" aria-label="GPS Recording">
-          <button
-            type="button"
-            class="btn btn-secondary"
-            v-for="cmd in this.gpsCommands"
-            @click="gpsAction"
-          >
-            ${cmd}
-          </button>
-        </div>
-      </li>
-    </ul>
+          </li>
+          <li class="list-group-item">
+            <div class="btn-group" role="group" aria-label="Autonomy Velocity">
+              <button
+                type="button"
+                class="btn"
+                v-for="vel in velRange"
+                :class="{'btn-success': vel == velocity, 'btn-secondary': vel != velocity}"
+                @click="setVelocity"
+              >
+                ${vel}
+              </button>
+            </div>
+          </li>
+          <li class="list-group-item">
+            <button
+              type="button"
+              class="btn btn-lg btn-secondary mr-1"
+              :class="{disabled: this.robot.autonomy_hold, 'btn-secondary': this.robot.autonomy_hold, 'btn-danger': this.robot.activate_autonomy, 'btn-success': !this.robot.activate_autonomy}"
+              @click="toggleAutonomy"
+            >
+              ${robot.activate_autonomy ? "Deactivate" : "Activate"} Autonomy
+            </button>
+          </li>
+          <li class="list-group-item">
+            <button
+              type="button"
+              class="btn btn-primary mr-1"
+              @click="clearAutonomyHold"
+            >
+              Clear Autonomy Hold
+            </button>
+          </li>
+          <li class="list-group-item">
+            <div class="btn-group" role="group" aria-label="GPS Recording">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                v-for="cmd in this.gpsCommands"
+                @click="gpsAction"
+              >
+                ${cmd}
+              </button>
+            </div>
+          </li>
+        </ul>
+    </div>
   </div>
 </robot-cardview>

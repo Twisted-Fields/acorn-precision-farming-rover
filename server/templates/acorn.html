@@ -26,60 +26,27 @@
       <br />
       <div class="container-fluid">
         {% include "control-panel.html" %}
-        <plots
-          v-bind:show-plots="showPlots"
-          :class="{collapse: !showPlots}"
-          inline-template
-        >
-          <div>
-            <div class="col-lg">
-              <div
-                id="plot_div_distance"
-                style="width: 100%; height: 300px"
-              ></div>
-              <div
-                id="plot_div_angles"
-                style="width: 100%; height: 300px"
-              ></div>
-            </div>
-            <div class="col-lg">
-              <div
-                id="plot_div_distance_rates"
-                style="width: 100%; height: 500px"
-              ></div>
-              <div
-                id="plot_div_angle_rates"
-                style="width: 100%; height: 300px"
-              ></div>
-            </div>
-          </div>
-        </plots>
-
         <div class="row">
           <div class="col-lg">
-            <div id="map_canvas"></div>
+            {% include "map.html" %}
           </div>
-          <div id="robot_detail" class="col-lg-2">
-            <div id="robots-view">
-              <div class="card" style="width: 18rem">
-                {% include "robot-cardview.html" %}
-              </div>
-            </div>
-          </div>
+          {% include "robot-cardview.html" %}
+          {% include "plots.html" %}
         </div>
       </div>
     </div>
     <!--app-->
 
-    <script src="{{ url_for('static', filename='js/lib/plotly-latest.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lib/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lib/vue.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/leaflet.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/Leaflet.Editable.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/leaflet.rotatedMarker.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/lib/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/lib/vue.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lib/vue2-leaflet.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lib/vue-plotly.umd.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/store.js') }}"></script>
     <script src="{{ url_for('static', filename='js/actions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/view.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   </body>
 </html>

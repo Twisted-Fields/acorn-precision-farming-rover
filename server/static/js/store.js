@@ -8,17 +8,10 @@ var store = {
   debug: true,
   map: null,
   showPlots: false,
+  drawing_polygon: false,
   robots: [],
-  robotMarkerStore: {},
-  arrowMarkerStore: {},
-  savedPathMarkers: {},
-  livePathMarkers: [],
+  current_robot_index: 0, // select the first robot by default
   pathNames: [],
-  livePathName: "",
-  gpsPathMarkers: [],
-  gpsPathLength: 0,
-  debugPointMarkers: [],
-  debugPointsLength: 0,
   gps_path: [],
   displayed_path: [],
   displayed_path_name: "",
@@ -26,7 +19,6 @@ var store = {
   path_start: -1,
   path_end: -1,
   path_point_to_remove: -1,
-  have_cleared_autonomy: false,
-  simulation: false,
+  have_cleared_autonomy: {}, // {robot name => true / false}
   first_path_point: {},
 };

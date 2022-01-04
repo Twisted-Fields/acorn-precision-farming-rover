@@ -1,5 +1,4 @@
 <control-panel
-  v-bind:show-plots="showPlots"
   v-bind:path-names="pathNames"
   v-bind:map="map"
   inline-template
@@ -11,31 +10,26 @@
 
     <div class="col-md-5">
       <div class="input-group" id="dropdown-container">
-        <button
-          type="button"
-          class="btn btn-info mr-1"
-          @click="toggleCollapsePlots"
-        >
-          ${ showPlots ? "Collapse" : "Expand" } Plots
-        </button>
-        <button
-          type="button"
-          class="btn btn-primary mr-1"
-          @click="loadDensePath"
-        >
-          Load Dense Points
-        </button>
-        <button
-          type="button"
-          class="btn btn-primary mr-1"
-          @click="togglePolygon"
-          id="btn-start-polygon"
-        >
-          ${this.isDrawingPolygon ? "Stop" : "Start"} Polygon
-        </button>
-        <button type="button" class="btn btn-primary mr-1" @click="saveGPSPath">
-          Save GPS path
-        </button>
+        <div class="input-group" role="group">
+          <button
+            type="button"
+            class="btn btn-primary mr-1"
+            @click="loadDensePath"
+          >
+            Load Dense Points
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary mr-1"
+            @click="togglePolygon"
+            id="btn-start-polygon"
+          >
+            ${this.isDrawingPolygon ? "Stop" : "Start"} Polygon
+          </button>
+          <button type="button" class="btn btn-primary mr-1" @click="saveGPSPath">
+            Save GPS path
+          </button>
+        </div>
         <button
           class="btn btn-secondary dropdown-toggle mr-1"
           type="button"
