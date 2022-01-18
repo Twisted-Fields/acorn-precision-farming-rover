@@ -1,0 +1,2 @@
+KERNEL=="ttyACM*", KERNELS=="1-1.1:1.0", SYMLINK+="gps_0", MODE="0666", GROUP="dialout"
+KERNEL=="ttyACM*", KERNELS=="1-1.2:1.0", SYMLINK+="gps_1", MODE="0666", GROUP="dialout"
