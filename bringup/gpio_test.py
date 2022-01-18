@@ -8,7 +8,8 @@ import sys
 from adafruit_mcp230xx.mcp23017 import MCP23017
 
 ESTOP_PIN = 6
-VOLT_OUT_PIN = 5
+#VOLT_OUT_PIN = 5 # old board
+VOLT_OUT_PIN = 23
 NVIDIA_ENABLE_PIN = 16
 
 GPIO.setmode(GPIO.BCM)

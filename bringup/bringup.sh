@@ -1,4 +1,7 @@
 #!/bin/bash
+
+sudo true # non-op just to make sure we have root
+
 if [ $# -eq 0 ]; then
  echo "no arguments"
  exit 1

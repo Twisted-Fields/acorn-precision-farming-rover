@@ -30,7 +30,6 @@ while True:
             port.flushInput()
             port.flushOutput()
         except KeyboardInterrupt:
-            loop = False
             break
         except:
             print("SERIAL EXCEPTION")

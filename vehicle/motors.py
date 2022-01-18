@@ -40,7 +40,14 @@ import model
 if "arm" in os.uname().machine:
     import RPi.GPIO as GPIO
 
-VOLT_OUT_PIN = 5
+
+HARDWARE_REV = 2
+
+if HARDWARE_REV==1:
+    VOLT_OUT_PIN = 5
+elif HARDWARE_REV==2:
+    VOLT_OUT_PIN = 23
+
 
 _UP_KEYCODE = '\x1b[A'
 _LEFT_KEYCODE = '\x1b[D'
@@ -307,7 +314,7 @@ class AcornMotorInterface():
                         self.GPIO, _ERROR_RECOVERY_DELAY_S)
                     # time.sleep(_ERROR_RECOVERY_DELAY_S)
                     recv = self.communicate_message(
-                        model.MOTOR__DISABLED, voltages, bus_currents, temperatures)
+                        model.MOTOR_DISABLED, voltages, bus_currents, temperatures)
                     if recv:
                         print("Got motor command but motors are in error state.")
                         print("Motor command was {}".format(recv))
