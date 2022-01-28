@@ -9,7 +9,6 @@ services:
     volumes:
       - /dev:/dev
       - /home/pi/acorn:/home/pi/
-      - /home/pi/.bashrc:/home/pi/.bashrc
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /usr/local/bin:/usr/local/bin

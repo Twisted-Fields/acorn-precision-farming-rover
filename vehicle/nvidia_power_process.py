@@ -26,7 +26,7 @@ import sys
 import os
 
 # This file gets imported by server but we should only import GPIO on raspi.
-if "arm" in os.uname().machine:
+if os.uname().machine in ['armv7l','aarch64']:
     import RPi.GPIO as GPIO
     import board
     import busio

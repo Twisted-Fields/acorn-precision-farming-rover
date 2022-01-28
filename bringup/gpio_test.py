@@ -7,10 +7,19 @@ import sys
 
 from adafruit_mcp230xx.mcp23017 import MCP23017
 
+
+
+BOARD_VERSION = 2
+
+
+if BOARD_VERSION == 1:
+    VOLT_OUT_PIN = 5
+    NVIDIA_ENABLE_PIN = 16
+elif BOARD_VERSION == 2:
+    VOLT_OUT_PIN = 23
+    NVIDIA_ENABLE_PIN = 12
+
 ESTOP_PIN = 6
-#VOLT_OUT_PIN = 5 # old board
-VOLT_OUT_PIN = 23
-NVIDIA_ENABLE_PIN = 16
 
 GPIO.setmode(GPIO.BCM)
 
@@ -24,11 +33,14 @@ if len(sys.argv) > 1:
     GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
     sys.exit()
 else:
-    for _ in range(100):
-        GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
-        time.sleep(0.01)
+    if BOARD_VERSION == 1:
+        for _ in range(100):
+            GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
+            time.sleep(0.01)
+            GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
+            time.sleep(0.01)
+    elif BOARD_VERSION == 2:
         GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
-        time.sleep(0.01)
 
 delay = 0.005
 

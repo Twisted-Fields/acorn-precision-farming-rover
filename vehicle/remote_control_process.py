@@ -43,7 +43,7 @@ import model
 import utils
 
 # This file gets imported by server but we should only import GPIO on raspi.
-if "arm" in os.uname().machine:
+if os.uname().machine in ['armv7l','aarch64']:
     import board
     import busio
     from adafruit_mcp230xx.mcp23017 import MCP23017

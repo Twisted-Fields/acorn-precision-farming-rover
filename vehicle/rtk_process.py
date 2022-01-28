@@ -54,9 +54,17 @@ else:
     TCP_TIMEOUT = struct.pack(str("ii"), int(SOCKET_TIMEOUT_SECONDS), int(0))
 
 
-RTK_CMD1 = ['/usr/local/bin/rtkrcv', '-s', '-d',
+if os.uname().machine =='armv7l':
+    RTK_BIN_DIR = '/home/pi/bringup/rtk_docker/bin32/'
+elif os.uname().machine =='aarch64':
+    RTK_BIN_DIR = '/home/pi/bringup/rtk_docker/bin64/'
+else:
+    RTK_BIN_DIR = ''
+
+
+RTK_CMD1 = [RTK_BIN_DIR + 'rtkrcv', '-s', '-d',
             '/dev/null', '-o', '/home/pi/vehicle/twisted.conf']
-RTK_CMD2 = ['/usr/local/bin/rtkrcv', '-s', '-d',
+RTK_CMD2 = [RTK_BIN_DIR + 'rtkrcv', '-s', '-d',
             '/dev/null', '-o', '/home/pi/vehicle/twisted2.conf']
 
 # /usr/local/bin/rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted.conf
