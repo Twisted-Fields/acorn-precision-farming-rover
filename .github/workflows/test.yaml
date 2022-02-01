@@ -9,7 +9,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # To create and push new image: docker buildx build -t merlinran/acorn_docker --platform linux/amd64,linux/arm64 --push .
+    # To create and push new image: make push-image
     container: docker://merlinran/acorn_docker:latest
     strategy:
       fail-fast: true
