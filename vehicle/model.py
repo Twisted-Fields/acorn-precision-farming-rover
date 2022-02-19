@@ -5,7 +5,7 @@ import gps_tools
 
 
 CONTROL_STARTUP = "Initializing..."
-CONTROLGPS_STARTUP = "Waiting for GPS fix."
+CONTROL_GPS_STARTUP = "Waiting for GPS fix."
 CONTROL_ONLINE = "Online and awaiting commands."
 CONTROL_AUTONOMY = "Autonomy operating."
 CONTROL_AUTONOMY_PAUSE = "Autonomy paused with temporary error."
