@@ -433,26 +433,29 @@ class CornerActuator:
             ]
 
             # Module error decode
-            for name, remote_obj, errorcodes in module_decode_map:
-                gpio_toggle(self.GPIO)
-                prefix = ' '*2 + name + ": "
-                if (remote_obj.error != errorcodes.ERROR_NONE):
+            try:
+                for name, remote_obj, errorcodes in module_decode_map:
                     gpio_toggle(self.GPIO)
-                    print(prefix + _VT100Colors['red'] +
-                          "Error(s):" + _VT100Colors['default'])
-                    errorcodes_tup = [
-                        (name, val) for name, val in errorcodes.__dict__.items() if 'ERROR_' in name]
-                    for codename, codeval in errorcodes_tup:
+                    prefix = ' '*2 + name + ": "
+                    if (remote_obj.error != errorcodes.ERROR_NONE):
                         gpio_toggle(self.GPIO)
-                        if remote_obj.error & codeval != 0:
-                            print("    " + codename)
-                    if clear:
+                        print(prefix + _VT100Colors['red'] +
+                              "Error(s):" + _VT100Colors['default'])
+                        errorcodes_tup = [
+                            (name, val) for name, val in errorcodes.__dict__.items() if 'ERROR_' in name]
+                        for codename, codeval in errorcodes_tup:
+                            gpio_toggle(self.GPIO)
+                            if remote_obj.error & codeval != 0:
+                                print("    " + codename)
+                        if clear:
+                            gpio_toggle(self.GPIO)
+                            remote_obj.error = errorcodes.ERROR_NONE
+                    else:
                         gpio_toggle(self.GPIO)
-                        remote_obj.error = errorcodes.ERROR_NONE
-                else:
-                    gpio_toggle(self.GPIO)
-                    print(prefix + _VT100Colors['green'] +
-                          "no error" + _VT100Colors['default'])
+                        print(prefix + _VT100Colors['green'] +
+                              "no error" + _VT100Colors['default'])
+            except Exception as e:
+                print("Exception in {}: {}".format(self.name, e))
 
 
 def toggling_sleep(GPIO, duration):
