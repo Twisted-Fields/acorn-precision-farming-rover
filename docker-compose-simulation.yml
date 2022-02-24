@@ -8,7 +8,7 @@ services:
     volumes:
       - .:/home/pi/
       - ./.bashrc:/home/pi/.bashrc
-    command: sh -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
+    command: bash -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
     ipc: host
   acorn_server:
     extends:
