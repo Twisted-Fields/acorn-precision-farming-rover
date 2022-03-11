@@ -351,7 +351,7 @@ class AcornMotorInterface():
                             time.time()))
                         for drive in self.odrives:
                             try:
-                                drive.slow_actuator(0.95)
+                                drive.slow_actuator(0.50)
                             except RuntimeError as e:
                                 print("Error updating actuator.")
                                 print(e)

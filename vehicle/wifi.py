@@ -95,7 +95,7 @@ def wifi_process(stop_signal, master_conn, logging, debug):
             linkdata = subprocess.check_output("iw dev wlan1 link", shell=True)
             linkdata = linkdata.splitlines()
             tempdata = subprocess.check_output(
-                "/opt/vc/bin/vcgencmd measure_temp", shell=True)
+                "vcgencmd measure_temp", shell=True)
             try:
                 # Note: My deepest apologies for not using regex here. - TLA
                 signal = str(linkdata[5]).split(':')[1].split(' ')[1]

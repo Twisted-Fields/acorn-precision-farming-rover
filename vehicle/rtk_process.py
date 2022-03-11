@@ -62,7 +62,7 @@ if os.uname().machine =='armv7l':
 elif os.uname().machine =='aarch64':
     if "Alpine" in ret:
         RTK_BIN_DIR = '/home/pi/bringup/rtk_bin/bin64_alpine/'
-    elif "Debian" in ret:
+    elif "Debian" in ret or  "Ubuntu" in ret:
         RTK_BIN_DIR = '/home/pi/bringup/rtk_bin/bin64_debian/'
 else:
     RTK_BIN_DIR = ''
@@ -263,7 +263,6 @@ def connect_rtk_procs(logger, single=False):
             tcp_sock1.connect((TCP_IP, TCP_PORT1))
             fcntl.fcntl(tcp_sock1, fcntl.F_SETFL, os.O_NONBLOCK)
             if single == False:
-                logger.info("SINGLE IS FALSE")
                 tcp_sock2.connect((TCP_IP, TCP_PORT2))
                 fcntl.fcntl(tcp_sock2, fcntl.F_SETFL, os.O_NONBLOCK)
             logger.info('Connected to RTK subprocesses.')
@@ -346,10 +345,10 @@ def rtk_loop_once(tcp_sock1, tcp_sock2, buffers, print_gps=False,
     blocking_exception = None
     while True:
         try:
-            data0 = tcp_sock1.recv(TCP_BUFFER_SIZE).decode('utf-8')
+            data2 = tcp_sock1.recv(TCP_BUFFER_SIZE).decode('utf-8')
             data1 = tcp_sock2.recv(TCP_BUFFER_SIZE).decode('utf-8')
-            buffers[0] += data0
-            buffers[1] += data1
+            buffers[0] += data1
+            buffers[1] += data2
             buffers[0], data1 = digest_data(buffers[0], logger)
             buffers[1], data2 = digest_data(buffers[1], logger)
             # print("Read GPS duration {}".format(time.time() - start_time))

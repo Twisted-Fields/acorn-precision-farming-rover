@@ -380,13 +380,15 @@ class CornerActuator:
         gpio_toggle(self.GPIO)
         if not (self.steering_initialized and self.traction_initialized):
             return
-        self.position = fraction * self.position
-        self.velocity = fraction * self.velocity
+        position = fraction * self.position
+        velocity = fraction * self.velocity
+        if self.steering_flipped:
+            velocity *= -1
         if math.fabs(self.position) < COMMAND_VALUE_MINIMUM:
-            self.position = 0.0
+            position = 0.0
         if math.fabs(self.velocity) < COMMAND_VALUE_MINIMUM:
-            self.velocity = 0.0
-        self.update_actuator(self.position, self.velocity)
+            velocity = 0.0
+        self.update_actuator(position, velocity)
 
     def stop_actuator(self):
         gpio_toggle(self.GPIO)
