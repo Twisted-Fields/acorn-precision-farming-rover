@@ -6,7 +6,7 @@ import digitalio
 import sys
 
 from adafruit_mcp230xx.mcp23017 import MCP23017
-
+from adafruit_mcp230xx.mcp23016 import MCP23016
 
 
 BOARD_VERSION = 2
@@ -67,14 +67,19 @@ while True:
 
 
 i2c = busio.I2C(board.SCL, board.SDA)
+if BOARD_VERSION==1:
+    mcp = MCP23017(i2c)  # , address=0x20)  # MCP23017
+elif BOARD_VERSION==2:
+    mcp = MCP23016(i2c, address=0x20)
 
+#
+# alarm1 = mcp.get_pin(0)
+# alarm2 = mcp.get_pin(1)
+# alarm3 = mcp.get_pin(2)
 
-mcp = MCP23017(i2c)  # , address=0x20)  # MCP23017
-
-
-alarm1 = mcp.get_pin(0)
-alarm2 = mcp.get_pin(1)
-alarm3 = mcp.get_pin(2)
+alarm1 = mcp.get_pin(8)
+alarm2 = mcp.get_pin(9)
+alarm3 = mcp.get_pin(12)
 
 alarm1.switch_to_output(value=False)
 alarm2.switch_to_output(value=False)
@@ -86,7 +91,7 @@ while True:
     alarm1.value = False
     alarm2.value = False
     alarm3.value = False
-    time.sleep(2.0)
+    time.sleep(4.0)
     alarm1.value = True
     alarm2.value = False
     alarm3.value = False

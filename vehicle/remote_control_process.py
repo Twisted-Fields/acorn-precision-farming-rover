@@ -270,7 +270,7 @@ class RemoteControl():
         self.loop_count = -1
 
     def run_setup(self):
-        if True: #self.simulated_hardware: # TODO: hack until I2C fixed on new hardware
+        if self.simulated_hardware:
             class FakeAlarm():
                 def __init__(self):
                     self.value = 0
@@ -281,11 +281,14 @@ class RemoteControl():
             i2c = busio.I2C(board.SCL, board.SDA)
             if BOARD_VERSION==1:
                 mcp = MCP23017(i2c)  # , address=0x20)  # MCP23017
+                self.alarm1 = mcp.get_pin(0)
+                self.alarm2 = mcp.get_pin(1)
+                self.alarm3 = mcp.get_pin(2)
             elif BOARD_VERSION==2:
-                mcp = MCP23016(i2c, address=0x10)
-            self.alarm1 = mcp.get_pin(0)
-            self.alarm2 = mcp.get_pin(1)
-            self.alarm3 = mcp.get_pin(2)
+                mcp = MCP23016(i2c, address=0x20)
+                self.alarm1 = mcp.get_pin(8)
+                self.alarm2 = mcp.get_pin(9)
+                self.alarm3 = mcp.get_pin(12)
 
             self.alarm1.switch_to_output(value=False)
             self.alarm2.switch_to_output(value=False)
