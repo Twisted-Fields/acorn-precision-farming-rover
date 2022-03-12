@@ -44,42 +44,46 @@ def AcornServerComms(stop_signal, acorn_pipe, server_endpoint, logging):
     client.connect(server_endpoint)
 
     for sequence in itertools.count():
-        if stop_signal.is_set():
-            break
-        if not acorn_pipe.poll(timeout=_POLL_TIMEOUT_SEC):
-            logger.error("No data from master.")
-            continue
+        try:
+            if stop_signal.is_set():
+                break
+            if not acorn_pipe.poll(timeout=_POLL_TIMEOUT_SEC):
+                logger.error("No data from master.")
+                continue
 
-        request = acorn_pipe.recv()
-        seq_string = str(sequence).encode()
-        logger.debug("Sending (%s)", seq_string)
-        request.insert(0, seq_string)
-        client.send_multipart(request)
-
-        # time.sleep(0.5)
-
-        retries_left = REQUEST_RETRIES
-        while not stop_signal.is_set() and retries_left > 0:
-            if (client.poll(REQUEST_TIMEOUT) & zmq.POLLIN) != 0:
-                reply = client.recv_multipart()
-                # print(reply)
-
-                if int(reply[0]) == sequence:
-                    logger.debug("Server replied OK (%s...)", reply[:2])
-                    acorn_pipe.send(reply[1:])
-                    break
-                else:
-                    logger.error("Malformed reply from server: %s", reply)
-                    continue
-
-            retries_left -= 1
-            logger.warning("No response from server")
-            # Socket is confused. Close and remove it.
-            client.setsockopt(zmq.LINGER, 0)
-            client.close()
-            logger.info("Reconnecting to server…")
-            # Create new connection
-            client = context.socket(zmq.REQ)
-            client.connect(server_endpoint)
-            logger.info("Resending (%s)", seq_string)
+            request = acorn_pipe.recv()
+            seq_string = str(sequence).encode()
+            logger.debug("Sending (%s)", seq_string)
+            request.insert(0, seq_string)
             client.send_multipart(request)
+
+            # time.sleep(0.5)
+
+            retries_left = REQUEST_RETRIES
+            while not stop_signal.is_set() and retries_left > 0:
+                if (client.poll(REQUEST_TIMEOUT) & zmq.POLLIN) != 0:
+                    reply = client.recv_multipart()
+                    # print(reply)
+
+                    if int(reply[0]) == sequence:
+                        logger.debug("Server replied OK (%s...)", reply[:2])
+                        acorn_pipe.send(reply[1:])
+                        break
+                    else:
+                        logger.error("Malformed reply from server: %s", reply)
+                        continue
+
+                retries_left -= 1
+                logger.warning("No response from server")
+                # Socket is confused. Close and remove it.
+                client.setsockopt(zmq.LINGER, 0)
+                client.close()
+                logger.info("Reconnecting to server…")
+                # Create new connection
+                client = context.socket(zmq.REQ)
+                client.connect(server_endpoint)
+                logger.info("Resending (%s)", seq_string)
+                client.send_multipart(request)
+        except Exception as e:
+            logger.error("Server Comms threw error:")
+            logger.error(e)
