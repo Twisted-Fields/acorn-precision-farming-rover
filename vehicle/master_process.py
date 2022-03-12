@@ -160,7 +160,7 @@ class MainProcess():
         # reqs = 0
         # robot_id = bytes(self.acorn.name, encoding='ascii')
         updated_object = False
-        gps_count = 0
+        self.gps_count = 0
         # send_robot_object = False
 
         while not stop_signal.is_set():
@@ -185,7 +185,7 @@ class MainProcess():
 
             # print("5555")
 
-            updated_object |= self.update_from_remote_control(gps_count, remote_to_main_lock, remote_to_main_string)
+            updated_object |= self.update_from_remote_control(remote_to_main_lock, remote_to_main_string)
             # print("6666")
             seconds_since_update = (datetime.utcnow() - self.acorn.time_stamp).total_seconds()
 
@@ -218,7 +218,7 @@ class MainProcess():
             self.logger.info("")
 
         banner = r"""
-                                  _____           _
+                                          _____           _
              /\                          / ____|         | |
             /  \   ___ ___  _ __ _ __   | (___  _   _ ___| |_ ___ _ __ ___
            / /\ \ / __/ _ \| '__| '_ \   \___ \| | | / __| __/ _ \ '_ ` _ \
@@ -287,7 +287,7 @@ class MainProcess():
                             self.logger.info(msg)
                 attempts += 1
 
-    def update_from_remote_control(self, gps_count, remote_to_main_lock, remote_to_main_string):
+    def update_from_remote_control(self, remote_to_main_lock, remote_to_main_string):
         updated_object = False
         read_okay = False
         try:
@@ -340,8 +340,8 @@ class MainProcess():
                 self.acorn.energy_segment_list.append(energy_segment)
 
             updated_object = True
-            gps_count += 1
-            if gps_count % 10 == 0:
+            self.gps_count += 1
+            if self.gps_count % 10 == 0:
                 if self.acorn.record_gps_command == model.GPS_RECORDING_ACTIVATE:
                     self.acorn.gps_path_data.append(self.acorn.location)
                     self.logger.info("APPEND GPS. TEMP PATH LENGTH {}".format(len(self.acorn.gps_path_data)))

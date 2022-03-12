@@ -26,14 +26,21 @@ import sys
 import os
 
 # This file gets imported by server but we should only import GPIO on raspi.
-if "arm" in os.uname().machine:
+if os.uname().machine in ['armv7l','aarch64']:
     import RPi.GPIO as GPIO
     import board
     import busio
     import digitalio
     from adafruit_mcp230xx.mcp23017 import MCP23017
 
-NVIDIA_ENABLE_PIN = 16
+BOARD_VERSION = 2
+
+if BOARD_VERSION == 1:
+    VOLT_OUT_PIN = 5
+    NVIDIA_ENABLE_PIN = 16
+elif BOARD_VERSION == 2:
+    VOLT_OUT_PIN = 23
+    NVIDIA_ENABLE_PIN = 12
 
 
 class NvidiaPowerProcess:

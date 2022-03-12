@@ -18,7 +18,7 @@ class GPS:
             self.rtk_socket2 = None
         else:
             rtk_process.launch_rtk_sub_procs(self.logger)
-            self.rtk_socket1, rtk_socket2 = rtk_process.connect_rtk_procs(self.logger)
+            self.rtk_socket1, self.rtk_socket2 = rtk_process.connect_rtk_procs(self.logger)
 
     def last_sample(self):
         """returns the latest GPS sample, either from the GPS device or simulated"""

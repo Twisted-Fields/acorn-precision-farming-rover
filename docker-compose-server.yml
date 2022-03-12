@@ -1,4 +1,4 @@
-version: "3.7"
+version: "2.4"
 
 services:
   acorn_server:
@@ -18,4 +18,4 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     privileged: true
-    command: sh -c /acorn/server/autolaunch_server.sh
+    command: bash -c /acorn/server/autolaunch_server.sh

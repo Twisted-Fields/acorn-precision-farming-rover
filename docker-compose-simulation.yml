@@ -1,4 +1,4 @@
-version: "3.7"
+version: "2.4"
 
 services:
   acorn_vehicle_${NAME}:
@@ -11,6 +11,5 @@ services:
     volumes:
       - .:/home/pi/
       - ./.bashrc:/home/pi/.bashrc
-    command: sh -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
-    network_mode: "bridge"
+    command: bash -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
     ipc: host

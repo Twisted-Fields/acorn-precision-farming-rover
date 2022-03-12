@@ -380,13 +380,15 @@ class CornerActuator:
         gpio_toggle(self.GPIO)
         if not (self.steering_initialized and self.traction_initialized):
             return
-        self.position = fraction * self.position
-        self.velocity = fraction * self.velocity
+        position = fraction * self.position
+        velocity = fraction * self.velocity
+        if self.steering_flipped:
+            velocity *= -1
         if math.fabs(self.position) < COMMAND_VALUE_MINIMUM:
-            self.position = 0.0
+            position = 0.0
         if math.fabs(self.velocity) < COMMAND_VALUE_MINIMUM:
-            self.velocity = 0.0
-        self.update_actuator(self.position, self.velocity)
+            velocity = 0.0
+        self.update_actuator(position, velocity)
 
     def stop_actuator(self):
         gpio_toggle(self.GPIO)
@@ -433,26 +435,29 @@ class CornerActuator:
             ]
 
             # Module error decode
-            for name, remote_obj, errorcodes in module_decode_map:
-                gpio_toggle(self.GPIO)
-                prefix = ' '*2 + name + ": "
-                if (remote_obj.error != errorcodes.ERROR_NONE):
+            try:
+                for name, remote_obj, errorcodes in module_decode_map:
                     gpio_toggle(self.GPIO)
-                    print(prefix + _VT100Colors['red'] +
-                          "Error(s):" + _VT100Colors['default'])
-                    errorcodes_tup = [
-                        (name, val) for name, val in errorcodes.__dict__.items() if 'ERROR_' in name]
-                    for codename, codeval in errorcodes_tup:
+                    prefix = ' '*2 + name + ": "
+                    if (remote_obj.error != errorcodes.ERROR_NONE):
                         gpio_toggle(self.GPIO)
-                        if remote_obj.error & codeval != 0:
-                            print("    " + codename)
-                    if clear:
+                        print(prefix + _VT100Colors['red'] +
+                              "Error(s):" + _VT100Colors['default'])
+                        errorcodes_tup = [
+                            (name, val) for name, val in errorcodes.__dict__.items() if 'ERROR_' in name]
+                        for codename, codeval in errorcodes_tup:
+                            gpio_toggle(self.GPIO)
+                            if remote_obj.error & codeval != 0:
+                                print("    " + codename)
+                        if clear:
+                            gpio_toggle(self.GPIO)
+                            remote_obj.error = errorcodes.ERROR_NONE
+                    else:
                         gpio_toggle(self.GPIO)
-                        remote_obj.error = errorcodes.ERROR_NONE
-                else:
-                    gpio_toggle(self.GPIO)
-                    print(prefix + _VT100Colors['green'] +
-                          "no error" + _VT100Colors['default'])
+                        print(prefix + _VT100Colors['green'] +
+                              "no error" + _VT100Colors['default'])
+            except Exception as e:
+                print("Exception in {}: {}".format(self.name, e))
 
 
 def toggling_sleep(GPIO, duration):

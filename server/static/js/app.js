@@ -9,7 +9,7 @@ const app = new Vue({
   delimiters: ["${", "}"], // the default, "{{-}}", conflicts with Jinjia2
   created: function () {
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), 500);
+    setTimeout(() => controller.abort(), 2500);
     fetch("http://192.168.1.170:8090/api/token-auth/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

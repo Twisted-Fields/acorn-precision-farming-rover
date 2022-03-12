@@ -37,10 +37,17 @@ import model
 
 
 # This file gets imported by server but we should only import GPIO on raspi.
-if "arm" in os.uname().machine:
+if os.uname().machine in ['armv7l','aarch64']:
     import RPi.GPIO as GPIO
 
-VOLT_OUT_PIN = 5
+
+BOARD_VERSION = 2
+
+if BOARD_VERSION==1:
+    VOLT_OUT_PIN = 5
+elif BOARD_VERSION==2:
+    VOLT_OUT_PIN = 23
+
 
 _UP_KEYCODE = '\x1b[A'
 _LEFT_KEYCODE = '\x1b[D'
@@ -66,9 +73,9 @@ class AcornMotorInterface():
 
         self.odrive_connections = [
             OdriveConnection(name='front_right', serial="335E31483536",
-                             path="/dev/ttySC1", enable_steering=True, enable_traction=True),
-            OdriveConnection(name='front_left', serial="335B314C3536",
                              path="/dev/ttySC0", enable_steering=True, enable_traction=True),
+            OdriveConnection(name='front_left', serial="335B314C3536",
+                             path="/dev/ttySC1", enable_steering=True, enable_traction=True),
             OdriveConnection(name='rear_right', serial="3352316E3536",
                              path="/dev/ttySC2", enable_steering=True, enable_traction=True),
             OdriveConnection(name='rear_left', serial="205F3882304E",
@@ -281,12 +288,6 @@ class AcornMotorInterface():
                         abs(vehicle_corner.ibus_0) + abs(vehicle_corner.ibus_1))
                     temperatures.append(vehicle_corner.temperature_c)
 
-                # velocities = []
-                # for vehicle_corner in self.odrives:
-                #     velocities.append(vehicle_corner.odrv0.axis1.encoder.vel_estimate)
-                #     corner_actuator.gpio_toggle(self.GPIO)
-                #
-                # print(velocities)
 
                 if self.check_odrive_errors():
                     if not motor_error:
@@ -307,7 +308,7 @@ class AcornMotorInterface():
                         self.GPIO, _ERROR_RECOVERY_DELAY_S)
                     # time.sleep(_ERROR_RECOVERY_DELAY_S)
                     recv = self.communicate_message(
-                        model.MOTOR__DISABLED, voltages, bus_currents, temperatures)
+                        model.MOTOR_DISABLED, voltages, bus_currents, temperatures)
                     if recv:
                         print("Got motor command but motors are in error state.")
                         print("Motor command was {}".format(recv))
@@ -329,21 +330,7 @@ class AcornMotorInterface():
                         for drive in self.odrives:
                             this_pos, this_vel_cmd = calc[drive.name]
                             this_pos = math.degrees(this_pos)
-                            # if "front_right" in drive.name:
-                            #     # this_pos
-                            #     this_vel_cmd = 0
-                            # else:
-                            #     this_pos = 0
-                            #     this_vel_cmd = 0
 
-                        #    if "rear_left" in drive.name:
-                            # this_vel_cmd *= 0.63
-                            #    this_vel_cmd *= 0.70
-                            #     drive.odrv0.axis1.controller.config.vel_gain = 0 # 0.02
-                            #     drive.odrv0.axis1.controller.config.vel_integrator_gain = 0 # 0.1
-                            # else:
-                            #     this_vel_cmd = 0
-                            # this_pos = 0
                             try:
                                 drive.update_actuator(
                                     this_pos, this_vel_cmd * 1000)
@@ -364,7 +351,7 @@ class AcornMotorInterface():
                             time.time()))
                         for drive in self.odrives:
                             try:
-                                drive.slow_actuator(0.95)
+                                drive.slow_actuator(0.50)
                             except RuntimeError as e:
                                 print("Error updating actuator.")
                                 print(e)
@@ -383,10 +370,13 @@ class AcornMotorInterface():
         GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
         time.sleep(1)
 
-        for _ in range(100):
-            time.sleep(0.001)
-            GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
-            time.sleep(0.001)
+        if BOARD_VERSION == 1:
+            for _ in range(100):
+                GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
+                time.sleep(0.01)
+                GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
+                time.sleep(0.01)
+        elif BOARD_VERSION == 2:
             GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
 
 

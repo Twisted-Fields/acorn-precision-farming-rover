@@ -64,7 +64,7 @@ class VoltageSampler():
                     self.master_conn.send((cell1, cell2, cell3, total),)
                 time.sleep(1)
         else:
-            self.adc = Adafruit_ADS1x15.ADS1115(address=0x48)
+            self.adc = Adafruit_ADS1x15.ADS1115(address=0x48, busnum=1)
             while not stop_signal.is_set():
                 # Read all the ADC channel values in a list.
                 values = [0] * 4

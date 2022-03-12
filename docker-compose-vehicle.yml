@@ -1,4 +1,4 @@
-version: "3.7"
+version: "2.4"
 
 services:
   acorn_vehicle:
@@ -9,11 +9,10 @@ services:
     volumes:
       - /dev:/dev
       - /home/pi/acorn:/home/pi/
-      - /home/pi/.bashrc:/home/pi/.bashrc
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /usr/local/bin:/usr/local/bin
     privileged: true
-    command: sh -c /home/pi/vehicle/autolaunch_vehicle.sh
+    command: bash -c /home/pi/vehicle/autolaunch_vehicle.sh
     restart: unless-stopped
     network_mode: "host"

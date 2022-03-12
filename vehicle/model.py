@@ -5,10 +5,10 @@ import gps_tools
 
 
 CONTROL_STARTUP = "Initializing..."
-CONTROLGPS_STARTUP = "Waiting for GPS fix."
+CONTROL_GPS_STARTUP = "Waiting for GPS fix."
 CONTROL_ONLINE = "Online and awaiting commands."
 CONTROL_AUTONOMY = "Autonomy operating."
-CONTROL_AUTONOMY_PAUSE = "Autonomy paused with temporary error."
+CONTROL_AUTONOMY_PAUSE = "Temporary autonomy pause."
 CONTROL_LOW_VOLTAGE = "Low voltage Pause."
 CONTROL_AUTONOMY_ERROR_DISTANCE = "Autonomy failed - too far from path."
 CONTROL_AUTONOMY_ERROR_ANGLE = "Autonomy failed - path angle too great."

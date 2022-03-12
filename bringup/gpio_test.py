@@ -6,12 +6,23 @@ import digitalio
 import sys
 
 from adafruit_mcp230xx.mcp23017 import MCP23017
+from adafruit_mcp230xx.mcp23016 import MCP23016
+
+
+BOARD_VERSION = 2
+
+if BOARD_VERSION == 1:
+    VOLT_OUT_PIN = 5
+    NVIDIA_ENABLE_PIN = 16
+elif BOARD_VERSION == 2:
+    VOLT_OUT_PIN = 23
+    NVIDIA_ENABLE_PIN = 12
 
 ESTOP_PIN = 6
-VOLT_OUT_PIN = 5
-NVIDIA_ENABLE_PIN = 16
 
+# import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BCM)
+GPIO.setup(16, GPIO.OUT, initial=GPIO.HIGH)
 
 GPIO.setup(ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
@@ -23,11 +34,14 @@ if len(sys.argv) > 1:
     GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
     sys.exit()
 else:
-    for _ in range(100):
-        GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
-        time.sleep(0.01)
+    if BOARD_VERSION == 1:
+        for _ in range(100):
+            GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
+            time.sleep(0.01)
+            GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
+            time.sleep(0.01)
+    elif BOARD_VERSION == 2:
         GPIO.output(VOLT_OUT_PIN, GPIO.HIGH)
-        time.sleep(0.01)
 
 delay = 0.005
 
@@ -53,14 +67,19 @@ while True:
 
 
 i2c = busio.I2C(board.SCL, board.SDA)
+if BOARD_VERSION==1:
+    mcp = MCP23017(i2c)  # , address=0x20)  # MCP23017
+elif BOARD_VERSION==2:
+    mcp = MCP23016(i2c, address=0x20)
 
+#
+# alarm1 = mcp.get_pin(0)
+# alarm2 = mcp.get_pin(1)
+# alarm3 = mcp.get_pin(2)
 
-mcp = MCP23017(i2c)  # , address=0x20)  # MCP23017
-
-
-alarm1 = mcp.get_pin(0)
-alarm2 = mcp.get_pin(1)
-alarm3 = mcp.get_pin(2)
+alarm1 = mcp.get_pin(8)
+alarm2 = mcp.get_pin(9)
+alarm3 = mcp.get_pin(12)
 
 alarm1.switch_to_output(value=False)
 alarm2.switch_to_output(value=False)
@@ -72,7 +91,7 @@ while True:
     alarm1.value = False
     alarm2.value = False
     alarm3.value = False
-    time.sleep(2.0)
+    time.sleep(4.0)
     alarm1.value = True
     alarm2.value = False
     alarm3.value = False

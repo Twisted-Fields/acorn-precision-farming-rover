@@ -92,7 +92,7 @@ Vue.component("robot-cardview", {
     return {
       velRange: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
       velocity: 0.2,
-      gpsCommands: ["Record", "Pause", "Cancel"],
+      gpsCommands: ["Record", "Pause", "Clear"],
       currentGPSCommand: "Cancel",
     };
   },
@@ -447,7 +447,7 @@ Vue.component("gps-point", {
     return {
       options: {
         color: "#00FF00",
-        opacity: 0.0,
+        opacity: 1.0,
         weight: 2,
         fillColor: "#FFA500",
         fillOpacity: 1.0,

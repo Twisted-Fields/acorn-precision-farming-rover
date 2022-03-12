@@ -5,12 +5,4 @@ adafruit-circuitpython-mcp230xx
 click
 coloredlogs
 csaps
-evdev
-geopy==1.22.0
-netifaces
-odrive==0.4.12
-psutil
-pyyaml
-scipy
-svgpathtools
-zmq
+rpi_ws281x

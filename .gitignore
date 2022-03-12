@@ -3,3 +3,4 @@
 **/*.pyc
 .coverage
 error_log.txt
+bringup/raspberry/wpa_supplicant.conf
