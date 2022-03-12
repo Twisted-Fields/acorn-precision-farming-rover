@@ -1,5 +1,5 @@
 LOCAL_IMAGE = acorn_docker:1.0
-REMOTE_IMAGE = merlinran/acorn_docker
+REMOTE_IMAGE = ghcr.io/twisted-fields/acorn_docker:latest
 ACORN_NAMES ?= simulation-1
 
 .PHONY: list
@@ -40,8 +40,12 @@ docker-test: docker-image
 	@docker-compose -f docker-compose-test.yml up --remove-orphans -d && \
 	docker exec -it acorn_vehicle make test
 
-.PHONY: push-image # Build and push image to Docker Hub to be used by CI.
-push-image: docker-image
+.PHONY: push-image # Build and push image to GitHub Container Registry to be used by CI.
+push-image:
+	echo $(GITHUB_TOKEN) | docker login ghcr.io -u twisted-fields --password-stdin && make do-push-image
+
+.PHONY: do-push-image
+do-push-image: docker-image
 ifeq ($(shell uname -m),arm64)
 	docker buildx build -t $(REMOTE_IMAGE) --platform linux/amd64,linux/arm64 --push .
 else
@@ -50,7 +54,7 @@ endif
 
 .PHONY: test  # Run tests on Linux (if the Python dependencies are installed) or inside Docker. Otherwise, you probably want to try `make docker-test` instead.
 test:
-	coverage run -m pytest --log-cli-level DEBUG && coverage report --skip-covered --skip-empty
+	python3 -m coverage run -m pytest --log-cli-level DEBUG && python3 -m coverage report --skip-covered --skip-empty
 
 .PHONY: docker-vehicle
 docker-vehicle: docker-image

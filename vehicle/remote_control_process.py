@@ -44,13 +44,6 @@ import utils
 
 BOARD_VERSION = 2
 
-# This file gets imported by server but we should only import GPIO on raspi.
-if os.uname().machine in ['armv7l','aarch64']:
-    import board
-    import busio
-    from adafruit_mcp230xx.mcp23017 import MCP23017
-    from adafruit_mcp230xx.mcp23016 import MCP23016
-
 COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
 
 ACCELERATION_COUNTS_SEC = 0.5
@@ -62,10 +55,10 @@ _SEC_IN_ONE_MINUTE = 60
 
 _DEFAULT_TRAVEL_SPEED = 0.2
 _DEFAULT_PATH_END_DISTANCE_METERS = 1
-_DEFAULT_ANGULAR_P=0.9
-_DEFAULT_LATERAL_P=-0.25
-_DEFAULT_ANGULAR_D=0.3
-_DEFAULT_LATERAL_D=-0.05
+_DEFAULT_ANGULAR_P = 0.9
+_DEFAULT_LATERAL_P = -0.25
+_DEFAULT_ANGULAR_D = 0.3
+_DEFAULT_LATERAL_D = -0.05
 _DEFAULT_MAXIMUM_VELOCITY = 0.4
 
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 3.5
@@ -225,7 +218,6 @@ class RemoteControl():
                                                            angular_d=_DEFAULT_ANGULAR_D,
                                                            lateral_d=_DEFAULT_LATERAL_D)
 
-
         self.nav_path = PathSection(points=[],
                                     control_values=self.default_path_control_vals,
                                     navigation_parameters=self.default_navigation_parameters,
@@ -278,13 +270,17 @@ class RemoteControl():
             self.alarm2 = FakeAlarm()
             self.alarm3 = FakeAlarm()
         else:
+            import busio
+            import board
+            from adafruit_mcp230xx.mcp23017 import MCP23017
+            from adafruit_mcp230xx.mcp23016 import MCP23016
             i2c = busio.I2C(board.SCL, board.SDA)
-            if BOARD_VERSION==1:
+            if BOARD_VERSION == 1:
                 mcp = MCP23017(i2c)  # , address=0x20)  # MCP23017
                 self.alarm1 = mcp.get_pin(0)
                 self.alarm2 = mcp.get_pin(1)
                 self.alarm3 = mcp.get_pin(2)
-            elif BOARD_VERSION==2:
+            elif BOARD_VERSION == 2:
                 mcp = MCP23016(i2c, address=0x20)
                 self.alarm1 = mcp.get_pin(8)
                 self.alarm2 = mcp.get_pin(9)
@@ -493,7 +489,6 @@ class RemoteControl():
          autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd
          ) = self.calc_commands_for_autonomy(calculated_rotation, calculated_strafe, drive_reverse)
 
-
         time7 = time.time() - debug_time
 
         error_messages, fatal_error, zero_output = self.safety_checks(absolute_path_distance, gps_path_angle_error)
@@ -616,7 +611,6 @@ class RemoteControl():
         # Send calculated values to shared memory, copying in values
         # rather than replacing the object.
         self.steering_debug[:] = steering_to_numpy(calc)[:]
-
 
         # If the robot is simulated, estimate movement odometry.
         if self.simulated_hardware:

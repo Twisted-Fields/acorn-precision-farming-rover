@@ -6,3 +6,8 @@ click
 coloredlogs
 csaps
 rpi_ws281x
+geopy
+psutil
+odrive
+evdev
+fibre

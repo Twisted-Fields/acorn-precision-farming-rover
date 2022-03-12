@@ -44,6 +44,7 @@ RUN apt update && apt install -y libffi-dev \
                   libxslt1-dev \
                   gfortran-arm-linux-gnueabi \
                   libjpeg8-dev \
+                  libusb-1.0-0-dev \
                   python3-pip \
                   python3-scipy \
                   python3-numpy-dev \
@@ -54,7 +55,7 @@ RUN apt update && apt install -y libffi-dev \
                   bash \
                   iputils-ping
 RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install wheel certifi==2020.06.20 pytest coverage[toml]
+RUN python3 -m pip install wheel certifi==2020.06.20 pytest~=7.0.1 coverage[toml]~=6.3.2
 COPY server/requirements.txt /install/server/
 RUN python3 -m pip install -r /install/server/requirements.txt
 COPY vehicle/requirements.txt /install/vehicle/

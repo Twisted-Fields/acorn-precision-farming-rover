@@ -1,16 +1,25 @@
 name: test
 
-on: [pull_request, push, workflow_dispatch]
+on: [pull_request, workflow_dispatch]
 
 concurrency:
   group: test-${{github.ref}}
   cancel-in-progress: true
 
 jobs:
+  # image:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout source
+  #       uses: actions/checkout@v2
+  #
+  #     - name: push image
+  #       run: GITHUB_TOKEN=${{secrets.GITHUB_TOKEN}} make push-image
+  #
   test:
     runs-on: ubuntu-latest
     # To create and push new image: make push-image
-    container: docker://merlinran/acorn_docker:latest
+    container: ghcr.io/twisted-fields/acorn_docker:latest
     strategy:
       fail-fast: true
 
@@ -19,7 +28,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run tests
-        run: coverage run -m pytest
+        run: make test
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v1
