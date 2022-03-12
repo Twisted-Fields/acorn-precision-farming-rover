@@ -10,7 +10,7 @@ sudo apt install device-tree-compiler
 
 Serial Overlay:
 sudo dtc -I dts -O dtb -o triple-sc16is752-spi1.dtbo sc16is752-spi1-overlay_triple.dts
-sudo cp triple-sc16is752-spi1.dtbo /boot/overlay
+sudo cp triple-sc16is752-spi1.dtbo /boot/overlays
 
 GPIO Overlay:
 sudo dtc -I dts -O dtb -o /boot/dt-blob.bin dt-blob-dualcam.dts

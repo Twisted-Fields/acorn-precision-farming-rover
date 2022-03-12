@@ -13,7 +13,7 @@
 			};
 
 			spi1_cs_pins: spi1_cs_pins {
-				brcm,pins = <18 17 16>;
+				brcm,pins = <18 17>;
 				brcm,function = <1>; /* output */
 			};
 		};
@@ -26,22 +26,12 @@
 			#size-cells = <0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi1_pins &spi1_cs_pins>;
-			cs-gpios = <&gpio 18 1>, <&gpio 17 1>, <&gpio 16 1>;
+			cs-gpios = <&gpio 18 1>, <&gpio 17 1>;
 			status = "okay";
 
 
-			/* NOTE: Order is 3,2,1 because they load in reverse order apparently. */
+			/* NOTE: Order is 2,1 because they load in reverse order apparently. */
 
-			sc16is752_3: sc16is752@2 {
-				compatible = "nxp,sc16is752";
-				reg = <2>; /* CE2 */
-				clocks = <&sc16is752_clk>;
-				interrupt-parent = <&gpio>;
-				interrupts = <7 2>; /* IRQ_TYPE_EDGE_FALLING */
-				gpio-controller;
-				#gpio-cells = <2>;
-				spi-max-frequency = <400000>;
-			};
 
 			sc16is752_2: sc16is752@1 {
 				compatible = "nxp,sc16is752";
@@ -51,7 +41,7 @@
 				interrupts = <27 2>; /* IRQ_TYPE_EDGE_FALLING */
 				gpio-controller;
 				#gpio-cells = <2>;
-				spi-max-frequency = <400000>;
+				spi-max-frequency = <15000000>;
 			};
 
 			sc16is752_1: sc16is752@0 {
@@ -62,7 +52,7 @@
 				interrupts = <26 2>; /* IRQ_TYPE_EDGE_FALLING */
 				gpio-controller;
 				#gpio-cells = <2>;
-				spi-max-frequency = <400000>;
+				spi-max-frequency = <15000000>;
 			};
 		};
 	};

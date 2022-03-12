@@ -11,7 +11,6 @@ from adafruit_mcp230xx.mcp23017 import MCP23017
 
 BOARD_VERSION = 2
 
-
 if BOARD_VERSION == 1:
     VOLT_OUT_PIN = 5
     NVIDIA_ENABLE_PIN = 16
@@ -21,7 +20,9 @@ elif BOARD_VERSION == 2:
 
 ESTOP_PIN = 6
 
+# import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BCM)
+GPIO.setup(16, GPIO.OUT, initial=GPIO.HIGH)
 
 GPIO.setup(ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)

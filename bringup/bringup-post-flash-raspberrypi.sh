@@ -1,6 +1,6 @@
 
-
-sudo apt-get update && sudo apt-get upgrade
+sudo timedatectl set-timezone US/Pacific
+sudo apt-get update && sudo apt-get -y upgrade
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 sudo usermod -aG docker pi

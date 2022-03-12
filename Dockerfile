@@ -59,5 +59,5 @@ COPY server/requirements.txt /install/server/
 RUN python3 -m pip install -r /install/server/requirements.txt
 COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/vehicle/requirements.txt
-RUN python3 -m pip install adafruit-circuitpython-mcp230xx coloredlogs
+RUN python3 -m pip install adafruit-circuitpython-mcp230xx coloredlogs pyserial_asyncio
 RUN apt install -y libraspberrypi-bin; exit 0 # Only succeeds on raspberry pi but not needed otherwise.
