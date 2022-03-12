@@ -27,6 +27,8 @@ function getRobotData() {
         // }
         //console.log(robot.autonomy_hold)
         //console.log(robot.strafeD)
+        // console.log(robot.debug_points)
+        // console.log(robot.gps_path_data)
 
         if (robot.gps_path_data.length != store.gpsPathLength) {
           store.gps_path = robot.gps_path_data;

@@ -27,10 +27,12 @@
       <div class="container-fluid">
         {% include "control-panel.html" %}
         <div class="row">
-          <div class="col-lg">
+          <div class="col-10">
             {% include "map.html" %}
           </div>
-          {% include "robot-cardview.html" %}
+            <div class="col-2">
+              {% include "robot-cardview.html" %}
+            </div>
           {% include "plots.html" %}
         </div>
       </div>

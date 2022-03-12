@@ -20,5 +20,5 @@ var store = {
   path_end: -1,
   path_point_to_remove: -1,
   have_cleared_autonomy: {}, // {robot name => true / false}
-  first_path_point: {},
+  first_path_point: {}
 };
