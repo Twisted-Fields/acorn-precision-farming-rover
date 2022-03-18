@@ -1,3 +1,5 @@
+#!/bin/sh
+
 echo $PWD
 echo Sleep 5...
 sleep 5

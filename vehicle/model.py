@@ -50,7 +50,7 @@ class Robot:
         self.record_gps_command = GPS_RECORDING_CLEAR
         self.activate_autonomy = False
         self.autonomy_velocity = 0
-        self.time_stamp = datetime.now()
+        self.time_stamp = datetime.utcnow()
         self.debug_points = None
         self.wifi_strength = None
         self.wifi_ap_name = None

@@ -2,9 +2,9 @@
 
 ## Running the code in simulation
 
-It is now possible to run a simulated robot in Docker on
-your computer. Our launch scripts are designed to run in linux, but if
-you examine run_docker_simulation.sh you will see the commands needed.
+It is now possible to run a simulated robot in Docker on your computer. Our
+launch scripts are only tested on Linux and macOS, but if you examine Makefile
+you will see the commands needed.
 
 This is early stages alpha quality and at this time only rough notes follow.
 
@@ -25,7 +25,7 @@ Clone this git repo and change in to the directory.
 ```
 git clone https://github.com/Twisted-Fields/acorn-precision-farming-rover.git
 cd acorn-precision-farming-rover
-./run_docker_simulation.sh
+make simulation
 ```
 
 The docker container will now (hopefully) build and launch. This will take
@@ -41,7 +41,7 @@ development.
 
 Connect to the vehicle container:
 ```
-./attach_docker_vehicle.sh
+make attach-vehicle
 ```
 Multiple processes are running in separate tmux windows. The vehicle has a main
 process and a separate motor process.
@@ -72,7 +72,7 @@ Ctrl+D to exit the docker container without stopping it.
 The server is configured the same way, but with more tmux windows operating.
 Attach to the server docker container with:
 ```
-./attach_docker_server.sh
+make attach-server
 ```
 
 And explore the tmux windows there.
@@ -86,7 +86,7 @@ robot status.
 If you are done, exit any tmux windows and docker containers and then stop
 simulation with:
 ```
-./stop_docker_simulation.sh
+make stop
 ```
 
 Want to play around a little more before stopping the simulation? One thing to
@@ -97,11 +97,11 @@ docker container.
 
 Now run:
 ```
-python3 vehicle/master_process.py --sim
+vehicle/start_main.sh --sim
 ```
 or:
 ```
-python3 vehicle/master_process.py --sim --debug
+vehicle/start_main.sh --sim --debug
 ```
 When you are making changes to the vehicle code, often this is how you will want
 to run things. Instead of restarting the entire simulation environment, you can

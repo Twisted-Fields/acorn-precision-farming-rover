@@ -24,14 +24,7 @@ limitations under the License.
 import time
 import sys
 import os
-
-# This file gets imported by server but we should only import GPIO on raspi.
-if os.uname().machine in ['armv7l','aarch64']:
-    import RPi.GPIO as GPIO
-    import board
-    import busio
-    import digitalio
-    from adafruit_mcp230xx.mcp23017 import MCP23017
+from hal import GPIO
 
 BOARD_VERSION = 2
 

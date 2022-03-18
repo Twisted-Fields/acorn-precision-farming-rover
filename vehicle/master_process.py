@@ -55,11 +55,10 @@ _CMD_ACK = bytes('a', encoding='ascii')
 
 _MAX_GPS_DISTANCES = 1000
 
-_SIMULATION_UPDATE_PERIOD = 0.1
-_SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS = 300
-
+_SIMULATION_UPDATE_PERIOD = 0.5
+_SIMULATION_SERVER_REPLY_TIMEOUT_SECONDS = 0.3
 _UPDATE_PERIOD = 2.0
-_SERVER_REPLY_TIMEOUT_MILLISECONDS = 3000
+_SERVER_REPLY_TIMEOUT_SECONDS = 3
 
 _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC = 60
 
@@ -90,14 +89,9 @@ class MainProcess():
         self.logger = logging.getLogger('main')
         config_logging(self.logger, self.debug)
 
-    def setup(self, config):
+    def setup(self, name, server, site):
         # Initialize robot object.
-        name = str(config["vehicle_name"])
-        server = str(config["server"])
-        if ":" not in server:
-            server += ":5570"  # back compatibility to old server config files.
-        site = str(config["site"])
-        self.logger.info("Using server from yaml {}".format(server))
+        self.logger.info("Using server {}".format(server))
         self.acorn = model.Robot(self.simulation, self.logger)
         self.acorn.setup(name, server, site)
 
@@ -193,7 +187,7 @@ class MainProcess():
 
             updated_object |= self.update_from_remote_control(remote_to_main_lock, remote_to_main_string)
             # print("6666")
-            seconds_since_update = (datetime.now() - self.acorn.time_stamp).total_seconds()
+            seconds_since_update = (datetime.utcnow() - self.acorn.time_stamp).total_seconds()
 
             if self.simulation:
                 period = _SIMULATION_UPDATE_PERIOD
@@ -201,7 +195,7 @@ class MainProcess():
                 period = _UPDATE_PERIOD
 
             if updated_object and seconds_since_update > period:
-                self.acorn.time_stamp = datetime.now()
+                self.acorn.time_stamp = datetime.utcnow()
                 try:
                     self.server_comms_parent_conn.send([_CMD_UPDATE_ROBOT, self.acorn.key, pickle.dumps(self.acorn)])
                     self.acorn.energy_segment_list = []
@@ -275,10 +269,10 @@ class MainProcess():
             time.sleep(0.5)
             while attempts < 5:
                 if self.simulation:
-                    timeout = _SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS
+                    timeout = _SIMULATION_SERVER_REPLY_TIMEOUT_SECONDS
                 else:
-                    timeout = _SERVER_REPLY_TIMEOUT_MILLISECONDS
-                if self.server_comms_parent_conn.poll(timeout=timeout / 1000.0):
+                    timeout = _SERVER_REPLY_TIMEOUT_SECONDS
+                if self.server_comms_parent_conn.poll(timeout=timeout):
                     self.logger.info("READING PATH DATA")
                     command, msg = self.server_comms_parent_conn.recv()
                     if command == _CMD_READ_KEY_REPLY:
@@ -407,12 +401,16 @@ def run_main(simulation, debug):
         else:
             yaml_path = _YAML_NAME_RASPBERRY
     config = load_yaml_config(yaml_path)
-    main_process.setup(config)
+    name = os.getenv('VEHICLE_NAME', config.get('vehicle_name', 'noname'))
+    server = os.getenv('SERVER_IP', config.get('server', '127.0.0.1'))
+
+    main_process.setup(name, "{}:5570".format(server), config.get('site', 'nosite'))
     stop_signal = mp.Event()
     try:
         main_process.run(stop_signal)
     except Exception:
         stop_signal.set()  # allow sub-processes to terminate gracefully
+        raise
 
 
 if __name__ == "__main__":

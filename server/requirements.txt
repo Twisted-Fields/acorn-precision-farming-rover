@@ -1,4 +1,6 @@
-redis
-flask-redis
-zmq
 csaps
+eventlet
+flask-redis
+flask-socketio
+redis
+zmq

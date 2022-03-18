@@ -34,18 +34,13 @@ import fibre
 import corner_actuator
 from corner_actuator import OdriveConnection
 import model
-
-
-# This file gets imported by server but we should only import GPIO on raspi.
-if os.uname().machine in ['armv7l','aarch64']:
-    import RPi.GPIO as GPIO
-
+from hal import GPIO
 
 BOARD_VERSION = 2
 
-if BOARD_VERSION==1:
+if BOARD_VERSION == 1:
     VOLT_OUT_PIN = 5
-elif BOARD_VERSION==2:
+elif BOARD_VERSION == 2:
     VOLT_OUT_PIN = 23
 
 
@@ -57,14 +52,6 @@ _DOWN_KEYCODE = '\x1b[B'
 _SHUT_DOWN_MOTORS_COMMS_DELAY_S = 1.0
 _ERROR_RECOVERY_DELAY_S = 5
 _ACCELERATION_COUNTS_SEC = 0.5
-
-
-class simulated_GPIO():
-    def __init__(self):
-        self.estop_state = True
-
-    def output(self, *args):
-        pass
 
 
 class AcornMotorInterface():
@@ -88,12 +75,8 @@ class AcornMotorInterface():
         self.steering_adjusted = False
         self.manual_control = manual_control
         self.simulated_hardware = simulated_hardware
-
-        if self.simulated_hardware:
-            self.GPIO = simulated_GPIO()
-        else:
-            self.GPIO = GPIO
-            self.setup_GPIO(self.GPIO)
+        self.GPIO = GPIO
+        self.setup_GPIO(self.GPIO)
 
     def create_socket(self, port=5590):
         context = zmq.Context()
@@ -287,7 +270,6 @@ class AcornMotorInterface():
                     bus_currents.append(
                         abs(vehicle_corner.ibus_0) + abs(vehicle_corner.ibus_1))
                     temperatures.append(vehicle_corner.temperature_c)
-
 
                 if self.check_odrive_errors():
                     if not motor_error:
