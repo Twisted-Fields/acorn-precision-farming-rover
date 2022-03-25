@@ -36,7 +36,7 @@ from multiprocessing import shared_memory, resource_tracker
 import random
 
 from joystick import Joystick, JoystickSBUS
-from steering import calculate_steering, compare_steering_values, steering_to_numpy
+from steering import calculate_steering, compare_steering_values, steering_to_numpy, recalculate_steering_values
 from utils import AppendFIFO, clamp
 import corner_actuator
 import model
