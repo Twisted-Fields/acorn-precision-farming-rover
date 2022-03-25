@@ -1,20 +1,75 @@
+"""
+*********************************************************************
+                     This file is part of:
+                       The Acorn Project
+             https://wwww.twistedfields.com/research
+*********************************************************************
+Copyright (c) 2019-2021 Taylor Alexander, Twisted Fields LLC
+Copyright (c) 2021 The Acorn Project contributors (cf. AUTHORS.md).
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*********************************************************************
+"""
+
+
+import sys
+sys.path.append('../vehicle')
 import numpy as np
 from collections import namedtuple
 import pygame as py
-from steering import calculate_steering
 import serial
 import time
-import sys
 import math
 from odrive.utils import dump_errors
 from evdev import InputDevice, list_devices, categorize, ecodes, KeyEvent
-sys.path.append('../vehicle')
+from steering import calculate_steering, recalculate_steering_values
+import redis
+import pickle
+import gps_tools
 
 COUNTS_PER_REVOLUTION = 9797.0
 
 ACCELERATION_COUNTS_SEC = 0.5
 
+
+_JOYSTICK = 0
+_DATABASE = 1
+
+_DATA_SOURCE = _DATABASE
+
+
+
+if _DATA_SOURCE == _DATABASE:
+    r = redis.Redis(
+        host='localhost',
+        port=6379)
+
+    robot_key = ""
+
+    for key in r.scan_iter():
+        if 'twistedfields:robot:acorn1:key' in str(key):
+            robot_key = key
+    robot = pickle.loads(r.get(robot_key))
+    print(robot.steering_debug[0])
+
+
+def rotate_origin_clockwise(xy, radians):
+    """Only rotate a point around the origin (0, 0)."""
+    x, y = xy
+    xx = x * math.cos(radians) + y * math.sin(radians)
+    yy = -x * math.sin(radians) + y * math.cos(radians)
+
+    return xx, yy
 
 def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
     if math.fabs(unfiltered_vel-last_vel) < ACCELERATION_COUNTS_SEC * period_s:
@@ -46,7 +101,7 @@ def get_joystick(joy, st_old, th_old, stf_old):
 
             if ecodes.bytype[absevent.event.type][absevent.event.code] == 'ABS_X':
                 strafe = -absevent.event.value / 32768.0
-                print(strafe)
+                #print(strafe)
         count += 1
         if steer and throttle and strafe:
             break
@@ -81,11 +136,11 @@ class RemoteControl():
                 return
 
 
-# if __name__=="__main__":
-remote_control = RemoteControl()
-remote_control.run_setup()
+if _DATA_SOURCE == _JOYSTICK:
+    remote_control = RemoteControl()
+    remote_control.run_setup()
 
-WINDOW_SCALING = 0.75
+WINDOW_SCALING = 1.5
 
 # define constants
 WIDTH = int(1000 * WINDOW_SCALING)
@@ -95,6 +150,7 @@ FPS = 30
 # define colors
 BLACK = (0, 0, 0)
 GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
 RED = (255, 0, 0)
 
 _RW = int(150 * WINDOW_SCALING)
@@ -120,39 +176,31 @@ py.draw.circle(image_orig, RED, (25, 20), 15, 0)
 # creating a copy of orignal image for smooth rotation
 
 
-image_red_orig = py.Surface((50, 200))
+image_forward_orig = py.Surface((50, 200))
 # for making transparent background while rotating an image
-image_red_orig.set_colorkey(BLACK)
+image_forward_orig.set_colorkey(BLACK)
 # fill the rectangle / surface with green color
-image_red_orig.fill(RED)
+image_forward_orig.fill(RED)
 
-py.draw.circle(image_red_orig, GREEN, (25, 20), 15, 0)
+py.draw.circle(image_forward_orig, GREEN, (25, 20), 15, 0)
+
+image_reverse_orig = image_forward_orig.copy()
+
+py.draw.circle(image_forward_orig, BLUE, (25, 60), 10, 0)
+
+py.draw.circle(image_reverse_orig, BLUE, (25, 200 - 60), 10, 0)
 
 keys = ('front_left', 'front_right', 'rear_left', 'rear_right')
 
 pos = ((-1, -1), (+1, -1), (-1, +1), (+1, +1))
 
-rects = []
+
+centers = []
 
 for i in range(4):
-    image = image_orig.copy()
-    image.set_colorkey(BLACK)
-    # define rect for placing the rectangle at the desired position
-    rect = image.get_rect()
-    rect.center = (WIDTH // 2 + pos[i][0] * _RW, HEIGHT // 2 + pos[i][1] * _RH)
-    rects.append(rect)
+    center = (WIDTH // 2 + pos[i][0] * _RW, HEIGHT // 2 + pos[i][1] * _RH)
+    centers.append(center)
 
-
-red_rects = []
-
-for i in range(4):
-    image = image_red_orig.copy()
-    image.set_colorkey(BLACK)
-    # define rect for placing the rectangle at the desired position
-    rect = image.get_rect()
-    rect.center = (WIDTH // 2 + pos[i][0] * _RW, HEIGHT // 2 + pos[i][1] * _RH)
-    red_rects.append(rect)
-# keep rotating the rectangle until running is set to False
 
 joy_steer = 0
 joy_throttle = 0
@@ -161,6 +209,7 @@ vel_cmd = 0
 steer_cmd = 0
 last_vel_cmd = 0
 tick_time = time.time()
+last_calc = calculate_steering(0, 0, 0, 120)
 
 strafe = 0
 
@@ -177,63 +226,89 @@ while running:
         if event.type == py.QUIT:
             running = False
 
-    # Get joystick value
-    joy_steer, joy_throttle, joy_strafe = get_joystick(
-        remote_control.joy, joy_steer, joy_throttle, joy_strafe)
-
-    vel_cmd = joy_throttle
-    steer_cmd = joy_steer
-    # print(self.activate_autonomy)
     period = time.time() - tick_time
-    # Perform acceleration on vel_cmd value
-    #vel_cmd = get_profiled_velocity(last_vel_cmd, vel_cmd, period)
-    last_vel_cmd = vel_cmd
-    tick_time = time.time()
+
+    if _DATA_SOURCE == _JOYSTICK:
+        # Get joystick value
+        joy_steer, joy_throttle, joy_strafe = get_joystick(
+            remote_control.joy, joy_steer, joy_throttle, joy_strafe)
+
+        vel_cmd = joy_throttle
+        steer_cmd = joy_steer
+
+        # Perform acceleration on vel_cmd value
+        #vel_cmd = get_profiled_velocity(last_vel_cmd, vel_cmd, period)
+        last_vel_cmd = vel_cmd
+        tick_time = time.time()
+
+        if math.fabs(joy_strafe) < 0.1:
+            strafe_cmd = 0
+        else:
+            strafe_cmd = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
+
+        strafe_cmd *= -1
+
+
+    if _DATA_SOURCE == _DATABASE:
+        robot = pickle.loads(r.get(robot_key))
+        try:
+            calc, steer_cmd, vel_cmd, strafe_cmd = robot.steering_debug
+
+            vehicle_front, vehicle_rear, projected_path_tangent_point, closest_path_point = robot.debug_points
+
+            heading = gps_tools.get_heading(vehicle_rear, vehicle_front)
+            center = (vehicle_front.lat + vehicle_rear.lat)/2, (vehicle_front.lon + vehicle_rear.lon)/2
+            projected_path_tangent_point = (center[0] - projected_path_tangent_point.lat) * 100000, (center[1] - projected_path_tangent_point.lon) * 100000
+            closest_path_point = (center[0] - closest_path_point.lat) * 100000, (center[1] - closest_path_point.lon) * 100000
+            projected_path_tangent_point = rotate_origin_clockwise(projected_path_tangent_point, math.radians(90  + heading))
+            closest_path_point = rotate_origin_clockwise(closest_path_point, math.radians(90 + heading))
+
+            factor = 250 * WINDOW_SCALING
+
+            projected_path_tangent_point = int(WIDTH // 2 - projected_path_tangent_point[0] * factor), int(HEIGHT // 2 - projected_path_tangent_point[1] * factor)
+            closest_path_point = int(WIDTH // 2 - closest_path_point[0] * factor), int(HEIGHT // 2 - closest_path_point[1] * factor)
+            py.draw.circle(screen, GREEN, projected_path_tangent_point, 20, 0)
+            py.draw.circle(screen, GREEN, closest_path_point, 20, 0)
+            py.draw.circle(screen, GREEN, (WIDTH // 2, HEIGHT // 2), 5, 0)
+        except Exception as e:
+            print(e)
+            continue
+
+
+
+
+    rect_dim = 150 * WINDOW_SCALING
+
+    if steer_cmd < 0:
+        start_angle = -math.pi/2.0
+        stop_angle = -1 * steer_cmd * math.pi - math.pi/2.0
+    else:
+        stop_angle = -math.pi/2.0
+        start_angle = -1 * steer_cmd * math.pi - math.pi/2.0
+
+    left = WIDTH // 2 - rect_dim/2
+    top = HEIGHT // 2 - rect_dim/2
+
+    rect = py.Rect(left, top, rect_dim, rect_dim)
+    steer_arc = py.draw.arc(screen, RED, rect, start_angle, stop_angle, 4)
+
+    # print(steer_cmd)
+    # strafe_cmd = strafe
+
+    py.draw.line(screen, RED, (WIDTH // 2, HEIGHT // 2), (WIDTH // 2 + 1500 * strafe_cmd, HEIGHT // 2 - 1500 * vel_cmd), 5)
+
+    #print("steer_cmd {}, vel_cmd {}, strafe_cmd {}".format(steer_cmd, vel_cmd, strafe_cmd))
+
+    if _DATA_SOURCE == _JOYSTICK:
+        calc = calculate_steering(steer_cmd, vel_cmd, strafe_cmd)
+        calc = recalculate_steering_values(calc, last_calc)
 
     idx = 0
-
-    if math.fabs(joy_strafe) < 0.1:
-        strafe = 0
-    else:
-        strafe = math.copysign(math.fabs(joy_strafe) - 0.1, joy_strafe)
-
-    horiz = WIDTH//2
-    coord1 = (horiz + 200, 50)
-    coord2 = (horiz - 300, HEIGHT-50)
-    py.draw.circle(screen, RED, coord1, 15, 0)
-    py.draw.circle(screen, RED, coord2, 15, 0)
-
-    py.draw.line(screen, RED, coord1, coord2, 1)
-
-    coord3 = (horiz, 350)
-    coord4 = (horiz, HEIGHT-350)
-    py.draw.circle(screen, GREEN, coord3, 15, 0)
-    py.draw.circle(screen, GREEN, coord4, 15, 0)
-
-    p1 = np.asarray(coord1)
-    p2 = np.asarray(coord2)
-    p3 = np.asarray(coord3)
-    p4 = np.asarray(coord4)
-
-    # https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points#
-    d1 = np.cross(p2-p1, p1-p3) / np.linalg.norm(p2-p1) * -1
-    d2 = np.cross(p2-p1, p1-p4) / np.linalg.norm(p2-p1) * -1
-    #d1 = np.linalg.norm(np.cross(p2-p1, p1-p3))/np.linalg.norm(p2-p1)
-    #d2 = np.linalg.norm(np.cross(p2-p1, p1-p4))/np.linalg.norm(p2-p1)
-
-    coord3_p2 = (coord3[0] + d1, coord3[1])
-    py.draw.line(screen, RED, coord3, coord3_p2, 5)
-
-    coord4_p2 = (coord4[0] + d2, coord4[1])
-    py.draw.line(screen, RED, coord4, coord4_p2, 5)
-
-    strafe *= abs(vel_cmd)
-    strafe *= -1
-    calc2 = calculate_steering(steer_cmd, vel_cmd, strafe, 180)
-    for rect in red_rects:
+    last_calc = calc
+    for center in centers:
         # making a copy of the old center of the rectangle
 
-        throttle = math.degrees(calc2[keys[idx]][1])
+        throttle = math.degrees(calc[keys[idx]][1])
         diceDisplay = myFont.render("{:0.0f}".format(throttle), 1, RED)
 
         width = WIDTH // 2 + pos[idx][0] * _RW*1.5
@@ -241,15 +316,16 @@ while running:
 
         screen.blit(diceDisplay, (width, height-30))
 
-        old_center = rect.center
-
-        rot = math.degrees(calc2[keys[idx]][0]) * -1
+        rot = math.degrees(calc[keys[idx]][0]) * -1
         idx += 1
-        # rotating the orignal image
-        new_image = py.transform.rotate(image_red_orig, rot)
+        # rotating the original image
+        if throttle > 0:
+            new_image = py.transform.rotate(image_forward_orig, rot)
+        else:
+            new_image = py.transform.rotate(image_reverse_orig, rot)
         rect = new_image.get_rect()
         # set the rotated rectangle to the old center
-        rect.center = old_center
+        rect.center = center
         # drawing the rotated rectangle to the screen
         screen.blit(new_image, rect)
     # flipping the display after drawing everything
