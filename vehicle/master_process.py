@@ -307,7 +307,7 @@ class MainProcess():
                  self.acorn.control_state, self.acorn.motor_state, self.acorn.autonomy_hold, gps_distance, gps_angle,
                  gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
                  autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage,
-                 energy_segment, self.acorn.motor_temperatures) = pickle.loads(remote_to_main_string["value"])
+                 energy_segment, self.acorn.motor_temperatures, self.acorn.steering_debug) = pickle.loads(remote_to_main_string["value"])
             read_okay = True
             # send_robot_object = True
             if acorn_location is not None:

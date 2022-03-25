@@ -37,6 +37,7 @@ class JoystickSBUS():
         self.max_no_change_counter = 0
         self.autonomy_allowed = True
         self.autonomy_requested = False
+        self.strafe_allowed = False
         self.initial_values = []
         self.initial_value_has_changed = False
 
@@ -64,7 +65,8 @@ class JoystickSBUS():
 
         steer = (ch[_SBUS_STEER_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
         throttle = (ch[_SBUS_THROTTLE_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
-        if ch[_SBUS_SWITCH_R_CH] > _SBUS_MID_VAL:
+        self.strafe_allowed = ch[_SBUS_SWITCH_R_CH] > _SBUS_MID_VAL
+        if self.strafe_allowed:
             strafe = (ch[_SBUS_STRAFE_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
         else:
             strafe = 0.0
@@ -111,6 +113,9 @@ class Joystick():
         self.steer, self.throttle, self.strafe = 0.0, 0.0, 0.0
         self.autonomy_allowed = True
         self.autonomy_requested = False
+        self.strafe_allowed = False
+        self.initial_values = []
+        self.initial_value_has_changed = False
 
     def __expr__(self):
         s = "Joystick"

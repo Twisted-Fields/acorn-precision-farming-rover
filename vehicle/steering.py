@@ -27,6 +27,7 @@ steering_track = 1.5
 wheel_base_ = 1.830
 wheel_radius_ = 0.4
 M_PI_2 = math.pi/2.0
+_ABSOLUTE_STEERING_LIMIT = math.pi * 2.0
 
 
 def normalize_values(angle, throttle, angle_limit_deg):
@@ -48,7 +49,7 @@ def steering_to_numpy(calculated_values):
     return np.array(values)
 
 
-def calculate_steering(steer, throttle, strafe, angle_limit_deg):
+def calculate_steering(steer, throttle, strafe, angle_limit_deg=360):
     """
     Returns the steering and velocity of all 4 wheels given the required motion of the vehicle.
 
@@ -58,6 +59,8 @@ def calculate_steering(steer, throttle, strafe, angle_limit_deg):
     https://www.chiefdelphi.com/uploads/default/original/3X/8/c/8c0451987d09519712780ce18ce6755c21a0acc0.pdf
     and
     https://www.chiefdelphi.com/uploads/default/original/3X/e/f/ef10db45f7d65f6d4da874cd26db294c7ad469bb.pdf
+
+    Copies of these documents are in this git repo in the /docs/steering folder.
     """
     L = wheel_base_
     W = steering_track
@@ -106,7 +109,27 @@ def calculate_steering(steer, throttle, strafe, angle_limit_deg):
             "rear_right": (rear_right_steering, vel_right_rear)}
 
 
-def compare_steering_values(old_val, new_val, steering_limit=1.0, velocity_limit=0.5):
+def recalculate_steering_values(calc, last_calc):
+    for key in calc.keys():
+        vals = [calc[key][0], calc[key][1]]
+        while True:
+            angle_diff = vals[0] - last_calc[key][0]
+            if angle_diff > math.pi/2.0:
+                vals[0] -= math.pi
+                vals[1] *= -1
+            elif angle_diff < -math.pi/2.0:
+                vals[0] += math.pi
+                vals[1] *= -1
+            else:
+                # TODO: handle this without crashing.
+                if abs(vals[0]) > _ABSOLUTE_STEERING_LIMIT:
+                    raise ValueError("Steering value exceeds limit of {}".format(_ABSOLUTE_STEERING_LIMIT))
+                calc[key] = vals
+                break
+    return calc
+
+
+def compare_steering_values(old_val, new_val, steering_limit=0.5, velocity_limit=0.2):
     corners = ["front_left", "front_right", "rear_left", "rear_right"]
     error_string = ""
     for corner in corners:

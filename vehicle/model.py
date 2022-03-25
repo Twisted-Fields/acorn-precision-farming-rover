@@ -72,6 +72,7 @@ class Robot:
         self.motor_temperatures = []
         self.simulated_data = simulated_data
         self.logger = logger
+        self.steering_debug = ()
 
     def __repr__(self):
         return 'Robot'

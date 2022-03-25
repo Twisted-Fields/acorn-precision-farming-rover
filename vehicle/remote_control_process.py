@@ -62,11 +62,14 @@ _SEC_IN_ONE_MINUTE = 60
 
 _DEFAULT_TRAVEL_SPEED = 0.2
 _DEFAULT_PATH_END_DISTANCE_METERS = 1
-_DEFAULT_ANGULAR_P=0.9
-_DEFAULT_LATERAL_P=-0.25
+_DEFAULT_PATH_END_ANGLE_DEGREES=45
+_DEFAULT_ANGULAR_P=1.5
+_DEFAULT_LATERAL_P=0.25
 _DEFAULT_ANGULAR_D=0.3
-_DEFAULT_LATERAL_D=-0.05
+_DEFAULT_LATERAL_D=0.05
 _DEFAULT_MAXIMUM_VELOCITY = 0.4
+
+_CLOSED_LOOP_ENDS_DISTANCE_METERS = 2.0
 
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 3.5
 _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 120  # 20
@@ -78,8 +81,6 @@ _GPS_ERROR_RETRIES = 3
 GPS_PRINT_INTERVAL = 10
 
 _NUM_GPS_SUBSAMPLES = 10
-
-_LOOP_RATE = 10
 
 _ERROR_RATE_AVERAGING_COUNT = 3
 
@@ -107,11 +108,11 @@ _ERROR_SKIP_RATE = 40
 _DISENGAGEMENT_RETRY_DELAY_MINUTES = 1
 _DISENGAGEMENT_RETRY_DELAY_SEC = _DISENGAGEMENT_RETRY_DELAY_MINUTES * _SEC_IN_ONE_MINUTE
 
-_STEERING_ANGLE_LIMIT_AUTONOMY_DEGREES = 180
-_STEERING_ANGLE_LIMIT_DEGREES = 120
-
 _USE_SBUS_JOYSTICK = True
 
+_DEBUG_STEERING = False
+
+_PROJECTED_POINT_DISTANCE_METERS = 1.0
 
 def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
     if math.fabs(unfiltered_vel - last_vel) < ACCELERATION_COUNTS_SEC * period_s:
@@ -138,11 +139,11 @@ class PathControlValues():
 
 class NavigationParameters():
     def __init__(self, travel_speed, path_following_direction,
-                 vehicle_travel_direction, loop_path):
+                 vehicle_travel_direction, repeat_path):
         self.travel_speed = travel_speed
         self.path_following_direction = path_following_direction
         self.vehicle_travel_direction = vehicle_travel_direction
-        self.loop_path = loop_path
+        self.repeat_path = repeat_path
 
 
 class PathSection():
@@ -162,6 +163,7 @@ class PathSection():
         self.end_distance_m = end_dist
         self.end_angle_degrees = end_angle
         self.navigation_parameters: NavigationParameters = navigation_parameters
+        self.closed_loop = False
 
 
 class EnergySegment():
@@ -219,7 +221,7 @@ class RemoteControl():
         self.default_navigation_parameters = NavigationParameters(travel_speed=_DEFAULT_TRAVEL_SPEED,
                                                                   path_following_direction=Direction.EITHER,
                                                                   vehicle_travel_direction=Direction.EITHER,
-                                                                  loop_path=True)
+                                                                  repeat_path=True)
         self.default_path_control_vals = PathControlValues(angular_p=_DEFAULT_ANGULAR_P,
                                                            lateral_p=_DEFAULT_LATERAL_P,
                                                            angular_d=_DEFAULT_ANGULAR_D,
@@ -232,7 +234,7 @@ class RemoteControl():
                                     max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS,
                                     max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES,
                                     end_dist=_DEFAULT_PATH_END_DISTANCE_METERS,
-                                    end_angle=30)
+                                    end_angle=_DEFAULT_PATH_END_ANGLE_DEGREES)
         self.maximum_velocity = _DEFAULT_MAXIMUM_VELOCITY
         self.nav_path_list = []
         self.nav_path_index = 0
@@ -262,7 +264,7 @@ class RemoteControl():
         self.bus_currents = []
         self.last_energy_segment = None
         self.temperatures = []
-        self.last_calculated_steering = calculate_steering(0, 0, 0, _STEERING_ANGLE_LIMIT_DEGREES)
+        self.last_calculated_steering = calculate_steering(0, 0, 0)
         self.last_wifi_restart_time = time.time()
         self.last_vel_cmd = 0
         self.vel_cmd = 0
@@ -337,7 +339,10 @@ class RemoteControl():
                                         max_dist=_MAXIMUM_ALLOWED_DISTANCE_METERS,
                                         max_angle=_MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES,
                                         end_dist=_DEFAULT_PATH_END_DISTANCE_METERS,
-                                        end_angle=45)
+                                        end_angle=_DEFAULT_PATH_END_ANGLE_DEGREES)
+            path_ends_distance = gps_tools.get_distance(self.nav_path.points[-1], self.nav_path.points[0])
+            if path_ends_distance < _CLOSED_LOOP_ENDS_DISTANCE_METERS:
+                self.nav_path.closed_loop = True
             self.nav_path.spline = nav_spline
         self.loaded_path_name = self.robot_object.loaded_path_name
         if self.simulated_hardware and simulation_teleport:
@@ -354,7 +359,7 @@ class RemoteControl():
 
         # Set initial nav_direction.
         direction = self.nav_path.navigation_parameters.path_following_direction
-        # self.logger.warn(direction)
+
         if direction == Direction.EITHER:
             dist_start = gps_tools.get_distance(self.gps.last_sample(), self.nav_path.points[0])
             dist_end = gps_tools.get_distance(
@@ -488,6 +493,9 @@ class RemoteControl():
             self.disengagement_time = time.time() - _DISENGAGEMENT_RETRY_DELAY_SEC
             self.logger.info("Joystick requested autonomy.")
 
+        if self.loop_count % 10 == 0 and _DEBUG_STEERING:
+            self.logger.warn("{} {} {}".format(calculated_rotation, calculated_strafe, drive_reverse))
+
         (user_web_page_plot_steer_cmd, user_web_page_plot_strafe_cmd,
          strafe_d, steer_d, strafe_p, steer_p,
          autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd
@@ -549,11 +557,39 @@ class RemoteControl():
             self.alarm2.value = False
             self.alarm3.value = False
 
+        if self.loop_count % 10 == 0 and _DEBUG_STEERING:
+            self.logger.warn("autonomy_vel_cmd = {}, autonomy_steer_cmd = {}, autonomy_strafe_cmd = {}".format(
+                    autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd))
+
         # Determine final drive commands.
         vel_cmd, steer_cmd, strafe_cmd = self.calc_drive_commands(
             autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd, zero_output)
         # Slow Vel down by 50% when steering is at max.
         self.vel_cmd = vel_cmd * 1.0 / (1.0 + abs(steer_cmd))
+
+        period = time.time() - tick_time
+
+        # Fixed factor reduction TODO: eliminate by reducing vel where assigned
+        self.vel_cmd = self.vel_cmd * 0.6
+
+        # Perform acceleration on self.vel_cmd value.
+        profiled_vel = get_profiled_velocity(self.last_vel_cmd, self.vel_cmd,
+                                             period)
+        self.logger.debug("self.last_vel_cmd {}, self.vel_cmd {}, profiled_vel {}".format(
+            self.last_vel_cmd, self.vel_cmd, profiled_vel))
+        self.vel_cmd = profiled_vel
+        self.last_vel_cmd = self.vel_cmd
+        tick_time = time.time()
+
+        self.logger.debug("Final values: Steer {}, Vel {}, Strafe {}".format(
+            steer_cmd, self.vel_cmd, strafe_cmd))
+
+        calc = calculate_steering(steer_cmd, self.vel_cmd, strafe_cmd)
+
+        # find steering angles that are closest to present steering angles
+        calc = recalculate_steering_values(calc, self.last_calculated_steering)
+
+        steering_debug = (calc, steer_cmd, self.vel_cmd, strafe_cmd)
 
         time8b = time.time() - debug_time
         # Update master on latest calculations.
@@ -570,33 +606,19 @@ class RemoteControl():
                      self.gps.is_dual_fix(),
                      self.voltage_average,
                      self.last_energy_segment,
-                     self.temperatures)
+                     self.temperatures,
+                     steering_debug)
         with self.remote_to_main_lock:
             self.remote_to_main_string["value"] = pickle.dumps(send_data)
 
-        period = time.time() - tick_time
         self.last_energy_segment = None
-
         time9 = time.time() - debug_time
-        self.vel_cmd = self.vel_cmd * 0.6  # Fixed factor reduction
 
-        # Perform acceleration on self.vel_cmd value.
-        profiled_vel = get_profiled_velocity(self.last_vel_cmd, self.vel_cmd,
-                                             period)
-        self.logger.debug("self.last_vel_cmd {}, self.vel_cmd {}, profiled_vel {}".format(
-            self.last_vel_cmd, self.vel_cmd, profiled_vel))
-        self.vel_cmd = profiled_vel
-        self.last_vel_cmd = self.vel_cmd
-        tick_time = time.time()
-
-        steering_limit = _STEERING_ANGLE_LIMIT_DEGREES
-        if len(self.nav_path.points) == 2 and self.activate_autonomy:
-            steering_limit = _STEERING_ANGLE_LIMIT_AUTONOMY_DEGREES
-        self.logger.debug("Final values: Steer {}, Vel {}, Strafe {}".format(
-            steer_cmd, self.vel_cmd, strafe_cmd))
-        calc = calculate_steering(steer_cmd, self.vel_cmd, strafe_cmd, steering_limit)
-        self.logger.debug("Calculated 4ws values: Steer {}, Vel {}".format(
-            calc, self.vel_cmd))
+        if self.loop_count % 10 == 0 and _DEBUG_STEERING:
+            self.logger.warn(
+                    "vel_cmd = {}, steer_cmd = {}, strafe_cmd = {}".format(
+                    self.vel_cmd, steer_cmd, strafe_cmd))
+            self.logger.warn("{}".format(calc))
 
         if self.joy.activated() and self.autonomy_hold:
             steering_okay, steering_error_string = True, ""
@@ -612,6 +634,8 @@ class RemoteControl():
             self.logger.error("new 4ws values: Steer {}".format(calc))
 
         self.last_calculated_steering = calc
+        if not self.joy.activated() and self.joy.strafe_allowed:
+            calc = calculate_steering(0, 0, 0)
 
         # Send calculated values to shared memory, copying in values
         # rather than replacing the object.
@@ -630,13 +654,17 @@ class RemoteControl():
 
         if self.simulated_hardware:
             time.sleep(_POLL_MILLISECONDS / _MILLISECONDS_PER_SECOND)
-            # time.sleep(0.1)
+
         self.logger.debug(
             "Took {} sec to get here. {} {} {} {} {} {} {} {} {} {} {} {}"
             .format(time.time() - debug_time, time1, time2, time3,
                     time4, time5, time6, time7, time8, time8b, time9,
                     time10, self.robot_object.wifi_ap_name))
 
+    # TODO: in refactoring this method was created, but name is too similar
+    # to load_path. Figure out what this is doing and whether it is needed,
+    # and if needed give it a more descriptive name. It may be that load_path
+    # has been expanded enough to make some of this redundant?
     def reload_path(self):
         if isinstance(self.robot_object.loaded_path[0], PathSection):
             self.nav_path_list = self.robot_object.loaded_path
@@ -694,10 +722,10 @@ class RemoteControl():
         self.logger.debug("robot heading {}, path heading {}".format(
             self.gps.last_sample().azimuth_degrees, path_point_heading))
 
-        projected_path_tangent_point = gps_tools.project_point(closest_path_point, path_point_heading, 3.0)
+        projected_path_tangent_point = gps_tools.project_point(closest_path_point, path_point_heading, _PROJECTED_POINT_DISTANCE_METERS)
         gps_lateral_distance_error = gps_tools.get_approx_distance_point_from_line(
             self.gps.last_sample(), closest_path_point, projected_path_tangent_point)
-        calculated_strafe = gps_lateral_distance_error
+        calculated_strafe = -1 * gps_lateral_distance_error
 
         # Truncate values to between 0 and 360
         calculated_rotation %= 360
@@ -721,13 +749,12 @@ class RemoteControl():
             self.driving_direction = -1
         else:
             self.driving_direction = 1
-        if vehicle_dir == Direction.EITHER and (abs(calculated_rotation) > 90 or self.nav_direction == -1):
-            self.driving_direction = -1
-
         if vehicle_dir == Direction.EITHER:
             if abs(calculated_rotation) > 90:
+                self.driving_direction = -1
                 calculated_rotation -= math.copysign(180, calculated_rotation)
-            calculated_strafe *= self.nav_direction
+            self.driving_direction *= self.nav_direction
+            calculated_strafe *= self.nav_direction * self.driving_direction
         elif vehicle_dir == Direction.FORWARD:
             if (abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES and
                     (path_dir in (Direction.EITHER, Direction.BACKWARD))):
@@ -738,7 +765,6 @@ class RemoteControl():
             if abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES:
                 if (path_dir in (Direction.EITHER, Direction.FORWARD)):
                     calculated_rotation -= math.copysign(180, calculated_rotation)
-                    # calculated_strafe *= -1
                     self.nav_direction = 1
             elif path_dir == Direction.BACKWARD:
                 calculated_strafe *= -1
@@ -820,9 +846,11 @@ class RemoteControl():
         # Check end conditions.
         pt = self.nav_path.points[0] if self.nav_direction == -1 else self.nav_path.points[-1]
         end_distance = gps_tools.get_distance(self.gps.last_sample(), pt)
-        if abs(calculated_rotation) < self.nav_path.end_angle_degrees and end_distance < self.nav_path.end_distance_m:
+        if abs(calculated_rotation) < self.nav_path.end_angle_degrees and \
+                            end_distance < self.nav_path.end_distance_m and \
+                            not self.nav_path.closed_loop:
             self.logger.info("MET END CONDITIONS {} {}".format(calculated_rotation, absolute_path_distance))
-            if self.nav_path.navigation_parameters.loop_path:
+            if self.nav_path.navigation_parameters.repeat_path:
                 self.load_path(self.nav_path, simulation_teleport=False, generate_spline=False)
                 self.load_path_time = time.time()
             else:
@@ -886,11 +914,6 @@ class RemoteControl():
         if (self.next_point_heading != -180 and self.activate_autonomy and
                 calculated_rotation is not None and calculated_strafe is not None):
 
-            # calculated_rotation *= 2.0
-            # calculated_strafe *= -0.35
-            # steer_d = self.gps_path_angular_error_rate() * 0.8
-            # strafe_d = self.gps_path_lateral_error_rate * -0.2
-
             steer_p = calculated_rotation * self.nav_path.control_values.angular_p
             strafe_p = calculated_strafe * self.nav_path.control_values.lateral_p
             steer_d = self.gps_path_angular_error_rate() * self.nav_path.control_values.angular_d
@@ -903,33 +926,38 @@ class RemoteControl():
             strafe_command_value = strafe_p + strafe_d
 
             _STEER_LIMIT = 45
+            self.logger.debug("steer_command_value {}".format(steer_command_value))
             unfiltered_steer_cmd = clamp(steer_command_value, -_STEER_LIMIT, _STEER_LIMIT)
+            self.logger.debug("unfiltered_steer_cmd {}".format(unfiltered_steer_cmd))
             unfiltered_steer_cmd /= 45.0
             _STRAFE_LIMIT = 0.25
             unfiltered_strafe_cmd = clamp(strafe_command_value, -_STRAFE_LIMIT, _STRAFE_LIMIT)
-            unfiltered_strafe_cmd *= self.driving_direction * strafe_multiplier
-
-            autonomy_steer_diff = unfiltered_steer_cmd - self.last_autonomy_steer_cmd
-            autonomy_strafe_diff = unfiltered_strafe_cmd - self.last_autonomy_strafe_cmd
-
-            self.logger.debug("diffs: {}, {}".format(
-                autonomy_steer_diff * _LOOP_RATE, autonomy_strafe_diff * _LOOP_RATE))
+            unfiltered_strafe_cmd *= strafe_multiplier
 
             # Rate of change clamping
-            steer_rate = 4.0 / _LOOP_RATE
-            strafe_rate = 40.0 / _LOOP_RATE
+            steer_rate = 1.0
+            strafe_rate = 4.0
+            self.logger.debug("unfiltered_steer_cmd {}".format(unfiltered_steer_cmd))
+            self.logger.debug("last_autonomy_steer_cmd {}".format(self.last_autonomy_steer_cmd))
+            unfiltered_steer_cmd *= self.driving_direction
             autonomy_steer_cmd = clamp(unfiltered_steer_cmd,
                                        self.last_autonomy_steer_cmd - steer_rate,
                                        self.last_autonomy_steer_cmd + steer_rate)
-            autonomy_steer_cmd *= self.driving_direction
+
+            self.logger.debug("autonomy_steer_cmd {}".format(autonomy_steer_cmd))
             autonomy_strafe_cmd = clamp(unfiltered_strafe_cmd,
                                         self.last_autonomy_strafe_cmd - strafe_rate,
                                         self.last_autonomy_strafe_cmd + strafe_rate)
-            if abs(autonomy_steer_cmd) > 0.8:
+
+
+            if abs(unfiltered_steer_cmd) > 0.5:
                 # Maxed out steer and strafe can result in strafe only
                 # due to steering limits, so reduce strafe with maxed
-                # steering. TODO: linear taper
-                autonomy_strafe_cmd *= 0.2
+                # steering. using unfiltered_steer_cmd which will peg
+                # immediately
+                strafe_scalar = 0.5 - (abs(unfiltered_steer_cmd)-0.5)
+                strafe_scalar = clamp(strafe_scalar, 0.2, 1.0)
+                autonomy_strafe_cmd *= strafe_scalar
 
             self.last_autonomy_steer_cmd = autonomy_steer_cmd
             self.last_autonomy_strafe_cmd = autonomy_strafe_cmd
@@ -945,8 +973,8 @@ class RemoteControl():
                                   .format(self.nav_path.navigation_parameters.travel_speed, self.maximum_velocity))
                 autonomy_vel_cmd = 0.0
             self.logger.debug(
-                "self.autonomy_velocity {}, self.driving_direction {}, drive_reverse {} , autonomy_vel_cmd {}"
-                .format(self.autonomy_velocity, self.driving_direction,
+                "self.autonomy_velocity {}, self.driving_direction {}, self.nav_direction {}, drive_reverse {} , autonomy_vel_cmd {}"
+                .format(self.autonomy_velocity, self.driving_direction, self.nav_direction,
                         drive_reverse, autonomy_vel_cmd))
 
             self.joy.clear_steer()  # ensures that vel goes to zero when autonomy disabled
