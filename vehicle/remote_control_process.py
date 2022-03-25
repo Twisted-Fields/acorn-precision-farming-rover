@@ -32,7 +32,6 @@ import datetime
 import gps
 import subprocess
 from enum import Enum
-from multiprocessing import shared_memory, resource_tracker
 import random
 
 from joystick import Joystick, JoystickSBUS
@@ -376,7 +375,6 @@ class RemoteControl():
 
     def run_loop(self):
         self.reloaded_path = True
-        self.setup_shared_memory()
 
         try:
             while not self.stop_signal.is_set():
@@ -385,24 +383,6 @@ class RemoteControl():
         except KeyboardInterrupt:
             pass
 
-    def setup_shared_memory(self):
-        # set up shared memory for GUI four wheel steeing debugger (sim only).
-        steering_tmp = steering_to_numpy(self.last_calculated_steering)
-        name = 'acorn_steering_debug'
-        try:
-            self.steering_debug_shared_memory = shared_memory.SharedMemory(name=name)
-            self.logger.info("Connected to existing shared memory {}".format(name))
-        except FileNotFoundError:
-            self.steering_debug_shared_memory = shared_memory.SharedMemory(
-                name=name, create=True, size=steering_tmp.nbytes)
-            self.logger.info("Created shared memory acorn_steering_debug")
-        # Untrack the resource so it does not get destroyed. This allows the
-        # steering debug window to stay open.
-        resource_tracker.unregister(self.steering_debug_shared_memory._name, 'shared_memory')
-        self.steering_debug = np.ndarray(steering_tmp.shape,
-                                         dtype=steering_tmp.dtype,
-                                         buffer=self.steering_debug_shared_memory.buf)
-        self.steering_debug[:] = steering_tmp[:]
 
     def run_once(self):
         tick_time = time.time()
@@ -636,11 +616,6 @@ class RemoteControl():
         self.last_calculated_steering = calc
         if not self.joy.activated() and self.joy.strafe_allowed:
             calc = calculate_steering(0, 0, 0)
-
-        # Send calculated values to shared memory, copying in values
-        # rather than replacing the object.
-        self.steering_debug[:] = steering_to_numpy(calc)[:]
-
 
         # If the robot is simulated, estimate movement odometry.
         if self.simulated_hardware:

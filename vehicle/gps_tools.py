@@ -115,7 +115,7 @@ def get_heading(start_pt, second_pt):
     return float(g['azi1'])
 
 
-def project_point(point, bearing, distance_meters):
+def project_point(point, bearing_degrees, distance_meters):
     point = check_point(point)
     # Convert to geopy point for calculation.
     point = geopy.Point(point.lat, point.lon)
@@ -123,7 +123,7 @@ def project_point(point, bearing, distance_meters):
     d = geopy.distance.geodesic(kilometers=distance_meters / 1000.0)
 
     # Use the `destination` method with a bearing of bearing degrees
-    geo_point = d.destination(point=point, bearing=bearing)
+    geo_point = d.destination(point=point, bearing=bearing_degrees)
 
     return GpsPoint(geo_point.latitude, geo_point.longitude)
 
