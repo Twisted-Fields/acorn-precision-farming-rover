@@ -67,7 +67,7 @@ def map_test():
 
 def date_handler(obj):
     if isinstance(obj, (datetime.datetime, datetime.date)):
-        return obj.isoformat() + "-08:00"
+        return obj.isoformat() + "-07:00"
     else:
         return None
 
