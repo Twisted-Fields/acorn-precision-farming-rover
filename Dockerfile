@@ -54,7 +54,7 @@ RUN apt update && apt install -y libffi-dev \
                   bash \
                   iputils-ping
 RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install wheel certifi==2020.06.20 pytest coverage[toml]
+RUN python3 -m pip install wheel certifi==2020.06.20 pytest==6.2.5 coverage[toml]
 COPY server/requirements.txt /install/server/
 RUN python3 -m pip install -r /install/server/requirements.txt
 COPY vehicle/requirements.txt /install/vehicle/

@@ -3,7 +3,7 @@ relative_files = true
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q"
+addopts = "-ra -v"
 log_cli_level = "DEBUG"
 testpaths = [
   "vehicle/tests",
