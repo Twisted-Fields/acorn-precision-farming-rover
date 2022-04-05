@@ -173,7 +173,7 @@ class SBUSReceiver:
         # self.sbus_values[:] = channels[:]
 
 
-async def main():
+async def main(debug_values=False):
     logger = logging.getLogger('sbus_joystick')
     config_logging(logger, debug=False)
     sbus = await SBUSReceiver.create(port="/dev/ttyAMA1", logger=logger)
@@ -186,10 +186,11 @@ async def main():
     # sbus.sbus_values[:] = channels[:]
     while True:
         frame = await sbus.get_frame()
-        # print(frame.sbusChannels)
+        if debug_values:
+            print(frame.sbusChannels)
         channels = np.array(frame.sbusChannels)
         sbus.sbus_values[:] = channels[:]
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    asyncio.run(main(debug_values=True))

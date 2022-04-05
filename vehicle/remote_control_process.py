@@ -439,8 +439,10 @@ class RemoteControl():
         gps_path_angle_error = 0
         absolute_path_distance = math.inf
         time5 = 0
+        gps_sample_valid = False
         sample = self.gps.last_sample()
         if sample is not None:
+            gps_sample_valid = True
             vehicle_front = gps_tools.project_point(sample, sample.azimuth_degrees, 1.0)
             vehicle_rear = gps_tools.project_point(sample, sample.azimuth_degrees, -1.0)
 
@@ -450,8 +452,7 @@ class RemoteControl():
 
             # These extra points can be displayed in the web UI.
             debug_points = (vehicle_front, vehicle_rear, projected_path_tangent_point, closest_path_point)
-        else:
-            return
+
 
         time6 = time.time() - debug_time
 
@@ -473,14 +474,24 @@ class RemoteControl():
             self.disengagement_time = time.time() - _DISENGAGEMENT_RETRY_DELAY_SEC
             self.logger.info("Joystick requested autonomy.")
 
-        if self.loop_count % 10 == 0 and _DEBUG_STEERING:
-            self.logger.warn("{} {} {}".format(calculated_rotation, calculated_strafe, drive_reverse))
+        if gps_sample_valid:
+            if self.loop_count % 10 == 0 and _DEBUG_STEERING:
+                self.logger.warn("{} {} {}".format(calculated_rotation, calculated_strafe, drive_reverse))
 
-        (user_web_page_plot_steer_cmd, user_web_page_plot_strafe_cmd,
-         strafe_d, steer_d, strafe_p, steer_p,
-         autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd
-         ) = self.calc_commands_for_autonomy(calculated_rotation, calculated_strafe, drive_reverse)
-
+            (user_web_page_plot_steer_cmd, user_web_page_plot_strafe_cmd,
+             strafe_d, steer_d, strafe_p, steer_p,
+             autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd
+             ) = self.calc_commands_for_autonomy(calculated_rotation, calculated_strafe, drive_reverse)
+        else:
+            autonomy_vel_cmd = 0.0
+            autonomy_steer_cmd = 0.0
+            autonomy_strafe_cmd = 0.0
+            strafe_d = 0.0
+            steer_d = 0.0
+            strafe_p = 0.0
+            steer_p = 0.0
+            user_web_page_plot_steer_cmd = 0.0
+            user_web_page_plot_strafe_cmd = 0.0
 
         time7 = time.time() - debug_time
 
@@ -537,11 +548,11 @@ class RemoteControl():
             self.alarm2.value = False
             self.alarm3.value = False
 
-        if self.loop_count % 10 == 0 and _DEBUG_STEERING:
+        if self.loop_count % 10 == 0 and _DEBUG_STEERING and gps_sample_valid:
             self.logger.warn("autonomy_vel_cmd = {}, autonomy_steer_cmd = {}, autonomy_strafe_cmd = {}".format(
                     autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd))
 
-        # Determine final drive commands.
+        # Determine final drive commands for autonomy or joystick.
         vel_cmd, steer_cmd, strafe_cmd = self.calc_drive_commands(
             autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd, zero_output)
         # Slow Vel down by 50% when steering is at max.
