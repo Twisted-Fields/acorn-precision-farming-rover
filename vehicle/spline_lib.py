@@ -230,7 +230,7 @@ class GpsSpline():
                 min_distance = dist
         return min_dist_index/len(self.points)
 
-    def closestUOnSplinePointsNearU(self, point, previous_u, search_range=0.1):
+    def closestUOnSplinePointsNearU(self, point, previous_u, search_range=0.05):
         point = gps_tools.check_point(point)
         min_distance = math.inf
         min_dist_index = -1
@@ -246,8 +246,8 @@ class GpsSpline():
             min_u = 0.0
             max_u = 1.0
 
-            start = int(len(self.points) * min_u)
-            end = int(len(self.points) * max_u)
+        start = int(len(self.points) * min_u)
+        end = int(len(self.points) * max_u)
         for idx in range(start, end):
             p = self.points[idx]
             # Using naive x-y distance calculation as it was found to be ~100x
@@ -256,7 +256,7 @@ class GpsSpline():
             if dist < min_distance:
                 min_dist_index = idx
                 min_distance = dist
-            return min_dist_index/len(self.points)
+        return min_dist_index/len(self.points)
 
     def closest_point_on_spline(self, point):
         return self.coordAtU(self.closestUOnSpline(point))
