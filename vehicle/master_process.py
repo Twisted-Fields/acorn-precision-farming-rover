@@ -61,6 +61,8 @@ _SIMULATION_SERVER_REPLY_TIMEOUT_MILLISECONDS = 300
 _UPDATE_PERIOD = 2.0
 _SERVER_REPLY_TIMEOUT_MILLISECONDS = 3000
 
+_DEFAULT_LOGGER_PRINT_PERIOD_SECONDS = 3
+
 _MAX_ALLOWED_SERVER_COMMS_OUTAGE_SEC = 60
 
 _SERVER_CONNECT_TIME_LIMIT_MINUTES = 10
@@ -88,6 +90,7 @@ class MainProcess():
         self.simulation = simulation
         self.debug = debug
         self.logger = logging.getLogger('main')
+        self.last_logger_print = time.time() - _DEFAULT_LOGGER_PRINT_PERIOD_SECONDS
         config_logging(self.logger, self.debug)
 
     def setup(self, config):
@@ -144,7 +147,7 @@ class MainProcess():
         remote_to_main_string = remote_control_manager.dict()
         main_to_remote_string = remote_control_manager.dict()
 
-        main_to_remote_string["value"] = pickle.dumps(self.acorn)
+        main_to_remote_string["value"] = pickle.dumps(model.RobotSubset(self.acorn))
 
         remote_control_proc = mp.Process(
             target=run_control,
@@ -177,7 +180,7 @@ class MainProcess():
             #     remote_control_parent_conn.send_pyobj(pickle.dumps(acorn))
             #     send_robot_object = False
             with main_to_remote_lock:
-                main_to_remote_string["value"] = pickle.dumps(self.acorn)
+                main_to_remote_string["value"] = pickle.dumps(model.RobotSubset(self.acorn))
 
             # print("4444")
 
@@ -303,11 +306,13 @@ class MainProcess():
                 # gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
                 # autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage, energy_segment,
                 # self.acorn.motor_temperatures) = pickle.loads(remote_control_parent_conn.recv_pyobj(flags=zmq.NOBLOCK))
-                (acorn_location, self.acorn.live_path_data, self.acorn.turn_intent_degrees, self.acorn.debug_points,
+                (acorn_location, live_path_data, self.acorn.turn_intent_degrees, self.acorn.debug_points,
                  self.acorn.control_state, self.acorn.motor_state, self.acorn.autonomy_hold, gps_distance, gps_angle,
                  gps_lateral_rate, gps_angular_rate, strafeP, steerP, strafeD, steerD,
                  autonomy_steer_cmd, autonomy_strafe_cmd, gps_fix, self.acorn.voltage,
                  energy_segment, self.acorn.motor_temperatures, self.acorn.steering_debug) = pickle.loads(remote_to_main_string["value"])
+                if len(live_path_data) > 0:
+                     self.acorn.live_path_data = live_path_data
             read_okay = True
             # send_robot_object = True
             if acorn_location is not None:
@@ -389,11 +394,13 @@ class MainProcess():
                 self.acorn.clear_autonomy_hold = robot_command.clear_autonomy_hold
                 # if self.acorn.activate_autonomy == True:
                 #     self.acorn.request_autonomy_at_startup = False
-                self.logger.info(f"GPS Path: {robot_command.record_gps_path}, "
-                                 f"Autonomy Hold: {self.acorn.autonomy_hold}, "
-                                 f"Activate Autonomy: {robot_command.activate_autonomy}, "
-                                 f"Autonomy Velocity: {robot_command.autonomy_velocity}, "
-                                 f"Clear Autonomy Hold: {self.acorn.clear_autonomy_hold}")
+                if time.time() > self.last_logger_print + _DEFAULT_LOGGER_PRINT_PERIOD_SECONDS:
+                    self.last_logger_print = time.time()
+                    self.logger.info(f"GPS Path: {robot_command.record_gps_path}, "
+                                     f"Autonomy Hold: {self.acorn.autonomy_hold}, "
+                                     f"Activate Autonomy: {robot_command.activate_autonomy}, "
+                                     f"Autonomy Velocity: {robot_command.autonomy_velocity}, "
+                                     f"Clear Autonomy Hold: {self.acorn.clear_autonomy_hold}")
         return updated_object
 
 
@@ -411,8 +418,9 @@ def run_main(simulation, debug):
     stop_signal = mp.Event()
     try:
         main_process.run(stop_signal)
-    except Exception:
+    except Exception as e:
         stop_signal.set()  # allow sub-processes to terminate gracefully
+        raise e
 
 
 if __name__ == "__main__":

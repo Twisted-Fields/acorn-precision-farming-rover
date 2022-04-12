@@ -48,7 +48,7 @@ def AcornServerComms(stop_signal, acorn_pipe, server_endpoint, logging):
             if stop_signal.is_set():
                 break
             if not acorn_pipe.poll(timeout=_POLL_TIMEOUT_SEC):
-                logger.error("No data from master.")
+                logger.error("No data from main.")
                 continue
 
             request = acorn_pipe.recv()

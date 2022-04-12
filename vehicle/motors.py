@@ -23,18 +23,18 @@ limitations under the License.
 
 import time
 import math
-import zmq
 import pickle
 import click
 import argparse
-from multiprocessing import Process
+from multiprocessing import Process, shared_memory
 import os
 import fibre
+import numpy as np
 
 import corner_actuator
 from corner_actuator import OdriveConnection
 import model
-
+from model import CORNER_NAMES
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if os.uname().machine in ['armv7l','aarch64']:
@@ -72,17 +72,18 @@ class AcornMotorInterface():
     def __init__(self, manual_control=False, simulated_hardware=False):
 
         self.odrive_connections = [
-            OdriveConnection(name='front_right', serial="335E31483536",
+            OdriveConnection(name=CORNER_NAMES['front_right'], serial="335E31483536",
                              path="/dev/ttySC0", enable_steering=True, enable_traction=True),
-            OdriveConnection(name='front_left', serial="335B314C3536",
+            OdriveConnection(name=CORNER_NAMES['front_left'], serial="335B314C3536",
                              path="/dev/ttySC1", enable_steering=True, enable_traction=True),
-            OdriveConnection(name='rear_right', serial="3352316E3536",
+            OdriveConnection(name=CORNER_NAMES['rear_right'], serial="3352316E3536",
                              path="/dev/ttySC2", enable_steering=True, enable_traction=True),
-            OdriveConnection(name='rear_left', serial="205F3882304E",
+            OdriveConnection(name=CORNER_NAMES['rear_left'], serial="205F3882304E",
                              path="/dev/ttySC3", enable_steering=True, enable_traction=True)
         ]
 
-        self.command_socket = self.create_socket()
+        self.setup_shared_memory()
+
         self.odrives_connected = False
         self.motors_initialized = False
         self.steering_adjusted = False
@@ -95,11 +96,34 @@ class AcornMotorInterface():
             self.GPIO = GPIO
             self.setup_GPIO(self.GPIO)
 
-    def create_socket(self, port=5590):
-        context = zmq.Context()
-        socket = context.socket(zmq.REP)
-        socket.bind("tcp://*:{}".format(port))
-        return socket
+    def setup_shared_memory(self):
+        self.output_shm_name = 'motor_output_sharedmem'
+        try:
+            self.out_shm = shared_memory.SharedMemory(name=self.output_shm_name)
+            print(f"Connected to existing shared memory {self.output_shm_name}")
+        except FileNotFoundError:
+            self.out_shm = shared_memory.SharedMemory(
+                name=self.output_shm_name, create=True,
+                size=model.MOTOR_SAMPLE_OUTPUT.nbytes)
+            print(f"Created shared memory {self.output_shm_name}")
+        self.motor_output_values = np.ndarray(model.MOTOR_SAMPLE_OUTPUT.shape,
+                                         dtype=model.MOTOR_SAMPLE_OUTPUT.dtype,
+                                         buffer=self.out_shm.buf)
+        self.motor_output_values[:] = model.MOTOR_SAMPLE_OUTPUT[:]
+
+        self.input_shm_name = 'motor_input_sharedmem'
+        try:
+            self.in_shm = shared_memory.SharedMemory(name=self.input_shm_name)
+            print(f"Connected to existing shared memory {self.input_shm_name}")
+        except FileNotFoundError:
+            self.in_shm = shared_memory.SharedMemory(
+                name=self.input_shm_name, create=True,
+                size=model.MOTOR_SAMPLE_INPUT.nbytes)
+            print(f"Created shared memory {self.input_shm_name}")
+        self.motor_input_values = np.ndarray(model.MOTOR_SAMPLE_INPUT.shape,
+                                         dtype=model.MOTOR_SAMPLE_INPUT.dtype,
+                                         buffer=self.in_shm.buf)
+        self.motor_input_values[:] = model.MOTOR_SAMPLE_INPUT[:]
 
     def ask_if_adjust_steering(self):
         self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
@@ -115,7 +139,7 @@ class AcornMotorInterface():
         while True:
             drive = self.odrives[index]
             print("(Use arrow keys or d if done) Adjusting Odrive: {} with home position: {}".format(
-                drive.name, drive.home_position))
+                list(CORNER_NAMES)[drive.name], drive.home_position))
             c = click.getchar()
             click.echo()
             if c == 'd':
@@ -170,7 +194,7 @@ class AcornMotorInterface():
         for drive in self.odrives:
             if drive.enable_steering:
                 steering = 0.0
-                if "rear" in drive.name:
+                if "rear" in list(CORNER_NAMES)[drive.name]:
                     drive.initialize_steering(
                         steering_flipped=True, skip_homing=self.manual_control)
                 else:
@@ -179,7 +203,7 @@ class AcornMotorInterface():
                 drive.update_actuator(steering, 0.0)
         for drive in self.odrives:
             if drive.enable_traction:
-                if "rear_left" in drive.name:
+                if "rear_left" in list(CORNER_NAMES)[drive.name]:
                     drive.enable_thermistor()
                     continue
                 drive.initialize_traction()
@@ -190,27 +214,29 @@ class AcornMotorInterface():
             try:
                 drive.check_errors()
             except fibre.protocol.ChannelBrokenException as e:
-                print("Exception in {} odrive.".format(drive.name))
+                print("Exception in {} odrive.".format(list(CORNER_NAMES)[drive.name]))
                 raise e
             except RuntimeError:
-                print("RuntimeError in {} odrive.".format(drive.name))
+                print("RuntimeError in {} odrive.".format(list(CORNER_NAMES)[drive.name]))
                 return True
         return False
 
-    def communicate_message(self, state, voltages=None, ibus=None, temperatures=None):
-        # print("TRYING TO SEND STATE: {}, Voltages {}".format(state, voltages))
+    def communicate_message(self, state, voltages=[-1,-1,-1,-1], ibus=[0,0,0,0], temperatures=[-1,-1,-1,-1]):
         try:
-            corner_actuator.gpio_toggle(self.GPIO)
-            while self.command_socket.poll(timeout=20):
-                corner_actuator.gpio_toggle(self.GPIO)
-                recv = pickle.loads(self.command_socket.recv_pyobj())
-                self.command_socket.send_pyobj(pickle.dumps(
-                    (state, voltages, ibus, temperatures)), flags=zmq.DONTWAIT)
-                corner_actuator.gpio_toggle(self.GPIO)
-                return recv
-            # print("no incoming messages")
-        except zmq.error.ZMQError as e:
-            print("Error with motor command socket: {}".format(e))
+            # Set some values (MOTOR_READING, CLEAR_TO_WRITE) to notify the
+            # remote control process when it is safe to read and write these
+            # values.
+            self.motor_output_values[0][1] = model.MOTOR_READING
+            # This very short (0.5 millisecond) sleep ensures no race condition
+            # between access on these values during important reads.
+            time.sleep(model.MOTOR_READ_DELAY_SECONDS)
+            received_values = np.copy(self.motor_input_values[:])
+            # Now set this flag to STALE so we know we have read it.
+            self.motor_input_values[-1] = [model.STALE_MESSAGE, 0]
+            send_vals = np.array([[state,model.CLEAR_TO_WRITE,0,0], voltages,ibus,temperatures])
+            self.motor_output_values[:] = send_vals[:]
+            return received_values
+        except Exception as e:
             raise e
 
     def run_debug_control(self, enable_steering=True, enable_traction=True):
@@ -250,6 +276,13 @@ class AcornMotorInterface():
         print("RUN_MAIN_MOTORS")
         try:
             while True:
+                # Due to a bug in python, closing another process with access
+                # to this shared memory will close it. So if it gets closed,
+                # just make it again.
+                # https://github.com/python/cpython/issues/82300
+                if not os.path.exists(f'/dev/shm/{self.input_shm_name}') or \
+                    not os.path.exists(f'/dev/shm/{self.output_shm_name}'):
+                    self.setup_shared_memory()
                 if not self.odrives_connected:
                     self.communicate_message(model.MOTOR_DISCONNECTED)
                     self.connect_to_motors()
@@ -280,7 +313,7 @@ class AcornMotorInterface():
                         vehicle_corner.update_thermistor_temperature_C()
                     except Exception as e:
                         print("Error in vehicle corner {}".format(
-                            vehicle_corner.name))
+                            list(CORNER_NAMES)[vehicle_corner.name]))
                         raise e
                     corner_actuator.gpio_toggle(self.GPIO)
                     voltages.append(vehicle_corner.voltage)
@@ -298,7 +331,7 @@ class AcornMotorInterface():
                     corner_actuator.toggling_sleep(self.GPIO, 0.2)
                     print("ERROR DETECTED IN ODRIVES.")
                     for drive in self.odrives:
-                        print("Drive: {}:".format(drive.name))
+                        print("Drive: {}:".format(list(CORNER_NAMES)[drive.name]))
                         start = time.time()
                         drive.print_errors(clear_errors=True)
                         print("clear_errors_duration {}".format(
@@ -306,7 +339,6 @@ class AcornMotorInterface():
                     print("ERROR DETECTED IN ODRIVES.")
                     corner_actuator.toggling_sleep(
                         self.GPIO, _ERROR_RECOVERY_DELAY_S)
-                    # time.sleep(_ERROR_RECOVERY_DELAY_S)
                     recv = self.communicate_message(
                         model.MOTOR_DISABLED, voltages, bus_currents, temperatures)
                     if recv:
@@ -323,7 +355,7 @@ class AcornMotorInterface():
                     calc = self.communicate_message(
                         model.MOTOR_ENABLED, voltages, bus_currents, temperatures)
                     corner_actuator.gpio_toggle(self.GPIO)
-                    if calc:
+                    if len(calc) > 0 and calc[-1][0] == model.FRESH_MESSAGE:
                         if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
                             print("Regained Motor Comms")
                         tick_time = time.time()
@@ -343,7 +375,6 @@ class AcornMotorInterface():
                                 print("self.motors_initialized {}".format(
                                     self.motors_initialized))
                                 print("self {}".format(self))
-                            # time.sleep(0.02)
                             corner_actuator.toggling_sleep(self.GPIO, 0.02)
 
                     if time.time() - tick_time > _SHUT_DOWN_MOTORS_COMMS_DELAY_S:
@@ -355,8 +386,7 @@ class AcornMotorInterface():
                             except RuntimeError as e:
                                 print("Error updating actuator.")
                                 print(e)
-                        # time.sleep(0.05)
-                        corner_actuator.toggling_sleep(self.GPIO, 0.05)
+                        corner_actuator.toggling_sleep(self.GPIO, 0.15)
 
         except KeyboardInterrupt:
             for drive in self.odrives:

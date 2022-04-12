@@ -1,6 +1,6 @@
 import time
 from datetime import datetime
-
+import numpy as np
 import gps_tools
 
 
@@ -19,9 +19,34 @@ CONTROL_SERVER_ERROR = "Server communication error."
 CONTROL_MOTOR_ERROR = "Motor error detected."
 CONTROL_NO_STEERING_SOLUTION = "No steering solution possible."
 
-MOTOR_DISCONNECTED = "Not connected."
-MOTOR_DISABLED = "Motor error."
-MOTOR_ENABLED = "Motors enabled."
+MOTOR_DISCONNECTED = 0
+MOTOR_DISABLED = 1
+MOTOR_ENABLED = 2
+
+MOTOR_STATE_STRINGS = ["Not connected.",
+"Motor error.",
+"Motors enabled."]
+
+# Due to shared memory errors, these must be rectangular in shape.
+# Shared memory threw segfaults when these were stepped in shape (dtype object)
+MOTOR_SAMPLE_OUTPUT = np.array([[0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0]])
+MOTOR_SAMPLE_INPUT = np.array([[0.0,0.0],[0.0,0.0],[0.0,0.0],[0.0,0.0], [0,0]])
+
+# Flow control flags for motor shared memory link.
+MOTOR_READING = 1
+CLEAR_TO_WRITE = 0
+# Message status flags for motor shared memory link.
+FRESH_MESSAGE = 1
+STALE_MESSAGE = 0
+
+MOTOR_READ_DELAY_MILLISECONDS = 0.5
+MOTOR_READ_DELAY_SECONDS = MOTOR_READ_DELAY_MILLISECONDS / 1000.0
+
+CORNER_NAMES={'front_right' : 0,
+              'front_left': 1,
+              'rear_right' : 2,
+              'rear_left': 3}
+
 
 GPS_RECORDING_ACTIVATE = "Record"
 GPS_RECORDING_PAUSE = "Pause"
@@ -83,6 +108,16 @@ class Robot:
                          encoding='ascii')
         self.voltage = 0.0
 
+class RobotSubset:
+    def __init__(self, robot_object):
+        self.last_server_communication_stamp = robot_object.last_server_communication_stamp
+        self.wifi_ap_name = robot_object.wifi_ap_name
+        self.wifi_strength = robot_object.wifi_strength
+        self.cpu_temperature_c = robot_object.cpu_temperature_c
+        self.loaded_path_name = robot_object.loaded_path_name
+        self.loaded_path = robot_object.loaded_path
+        self.activate_autonomy = robot_object.activate_autonomy
+        self.clear_autonomy_hold = robot_object.clear_autonomy_hold
 
 class RobotCommand:
     def __init__(self):

@@ -215,10 +215,6 @@ class CornerActuator:
                     transitions.append(self.odrv0.axis0.encoder.pos_estimate)
                     print(transitions)
                     attempts += 1
-                #rotation_sensor_val = self.sample_steering_pot()
-                #print("{} Home: {}, Rotation: {}".format(self.name, home_sensor_val, rotation_sensor_val))
-
-                # print(home_sensor_val)
 
                 if time.time() - last_tick_time > tick_time_s:
                     last_tick_time = time.time()
@@ -347,23 +343,15 @@ class CornerActuator:
             drive_velocity *= -1
         self.position = steering_pos_deg
         self.velocity = drive_velocity
-        # print(drive_velocity)
         self.update_voltage()
-        # if self.steering_flipped:
-        #     pos_counts = self.home_position + (180 + steering_pos_deg) * COUNTS_PER_REVOLUTION / 360.0
-        # else:
         if self.name == 'rear_left':
             pos_counts = self.home_position + steering_pos_deg * \
                 COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
         else:
             pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
-        # if self.name=='rear_left':
-        #    print("pos_counts: {}, shadow_count: {}, count_in_cpr: {}".format(pos_counts, self.odrv0.axis0.encoder.shadow_count,self.odrv0.axis0.encoder.count_in_cpr))
-        #self.odrv0.axis0.controller.pos_setpoint = pos_counts
+
         self.odrv0.axis0.controller.move_to_pos(pos_counts)
         gpio_toggle(self.GPIO)
-        # TODO: Setting vel_integrator_current to zero every time we update
-        # means we just don't get integrator control. But that would be nice.
 
         if abs(self.velocity) > _ZERO_VEL_COUNTS_THRESHOLD:
             self.zero_vel_timestamp = None
