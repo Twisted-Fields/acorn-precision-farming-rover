@@ -341,7 +341,7 @@ class AcornMotorInterface():
                         self.GPIO, _ERROR_RECOVERY_DELAY_S)
                     recv = self.communicate_message(
                         model.MOTOR_DISABLED, voltages, bus_currents, temperatures)
-                    if recv:
+                    if len(recv) > 0 and recv[-1][0] == model.FRESH_MESSAGE:
                         print("Got motor command but motors are in error state.")
                         print("Motor command was {}".format(recv))
                 else:

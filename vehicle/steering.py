@@ -103,10 +103,12 @@ def calculate_steering(steer, throttle, strafe, angle_limit_deg=360):
     vel_right_rear = ws4
     vel_left_rear = ws3
 
-    return {"front_left": (front_left_steering, vel_left_front),
+    return {
             "front_right": (front_right_steering, vel_right_front),
-            "rear_left": (rear_left_steering, vel_left_rear),
-            "rear_right": (rear_right_steering, vel_right_rear)}
+            "front_left": (front_left_steering, vel_left_front),
+            "rear_right": (rear_right_steering, vel_right_rear),
+            "rear_left": (rear_left_steering, vel_left_rear)
+            }
 
 
 def recalculate_steering_values(calc, last_calc):

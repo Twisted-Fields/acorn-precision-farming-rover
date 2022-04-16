@@ -9,7 +9,7 @@ import time
 
 BAUD = 115200
 
-ser0 = serial.Serial('/dev/ttySC1', BAUD, timeout=0.5)
+ser0 = serial.Serial('/dev/ttyACM2', BAUD, timeout=0.5)
 print(ser0.name)
 # ser1 = serial.Serial('/dev/ttySC1', BAUD, timeout=1)
 # print(ser1.name)
@@ -22,7 +22,7 @@ while loop:
     start = time.time()
     for _ in range(100):
         # time.sleep(0.001)
-        ser0.write(b'r vbus_voltage\n')
+        # ser0.write(b'r vbus_voltage\n')
         # ser1.write(b'hababababa\n')
         # ser2.readline()
         # ser3.readline()

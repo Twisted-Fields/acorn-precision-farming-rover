@@ -24,17 +24,20 @@ limitations under the License.
 """
 Control one corner of the Acorn robot via the Odrive motor controller.
 """
+import time
+import math
+import sys
+import random
+import collections
 
+import fibre
 import odrive_manager
 import fake_odrive_manager
 from odrive.enums import *
 from odrive.utils import _VT100Colors
-import time
-import math
-import sys
-import fibre
-import random
-import collections
+import model
+from model import CORNER_NAMES
+
 THERMISTOR_ADC_CHANNEL = 3
 _ADC_PORT_STEERING_POT = 5
 _ADC_PORT_STEERING_HOME = 6
@@ -158,7 +161,7 @@ class CornerActuator:
         rotation_sensor_val = self.sample_steering_pot()
         if self.disable_steering_limits:
             print("{} steering sensor {}".format(
-                self.name, rotation_sensor_val))
+                list(CORNER_NAMES)[self.name], rotation_sensor_val))
         if rotation_sensor_val < _POT_VOLTAGE_LOW or rotation_sensor_val > _POT_VOLTAGE_HIGH:
             if self.disable_steering_limits:
                 print("WARNING POTENTIOMETER VOLTAGE OUT OF RANGE DAMAGE " +
@@ -207,7 +210,7 @@ class CornerActuator:
 
                 rotation_sensor_val = self.sample_steering_pot()
                 print("{} Home: {}, Rotation: {}".format(
-                    self.name, home_sensor_val, rotation_sensor_val))
+                    list(CORNER_NAMES)[self.name], home_sensor_val, rotation_sensor_val))
                 if home_sensor_val == True:
                     self.home_position = self.odrv0.axis0.encoder.pos_estimate
                     break
@@ -219,7 +222,7 @@ class CornerActuator:
                 if time.time() - last_tick_time > tick_time_s:
                     last_tick_time = time.time()
                     position *= -1
-                    if self.name == 'rear_left':
+                    if self.name == model.CORNER_NAMES['rear_left']:
                         pos_counts = self.home_position + position * \
                             COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
                     else:
@@ -260,7 +263,7 @@ class CornerActuator:
         self.odrv0.axis0.motor.config.motor_type = 4  # MOTOR_TYPE_BRUSHED_VOLTAGE
         self.odrv0.axis0.motor.config.current_lim = 20.0
         gpio_toggle(self.GPIO)
-        if self.name == 'rear_left':
+        if self.name == model.CORNER_NAMES['rear_left']:
             self.odrv0.axis0.controller.config.vel_gain = 0.020
             self.odrv0.axis0.controller.config.pos_gain = -40
             self.odrv0.axis0.encoder.config.cpr = 520
@@ -344,7 +347,7 @@ class CornerActuator:
         self.position = steering_pos_deg
         self.velocity = drive_velocity
         self.update_voltage()
-        if self.name == 'rear_left':
+        if self.name == model.CORNER_NAMES['rear_left']:
             pos_counts = self.home_position + steering_pos_deg * \
                 COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
         else:

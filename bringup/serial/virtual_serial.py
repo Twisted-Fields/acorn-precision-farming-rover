@@ -6,11 +6,14 @@ import shlex
 import socket
 
 HOST = "192.168.1.50"  # The server's hostname or IP address
-PORT = 65433  # The port used by the server
+HOST = "192.168.1.86"  # The server's hostname or IP address
+HOST = "192.168.1.71"
+PORT = 65436  # The port used by the server
 
 COMMAND = 'socat -d -d pty,raw,echo=0 pty,raw,echo=0'
 
 LINKNAME = "/home/taylor/.wine/dosdevices/com1"
+# LINKNAME = "/dev/ttyACM7"
 
 proc = sp.Popen(shlex.split(COMMAND),stdout=sp.PIPE,stderr=sp.STDOUT)
 
@@ -24,25 +27,28 @@ comms_port = "/dev" + str(proc.stdout.readline().split(b"dev")[1][:-1], 'utf-8')
 os.remove(LINKNAME)
 os.symlink(dummy_port, LINKNAME)
 
-ser = serial.Serial(comms_port, timeout=1)
+ser = serial.Serial(comms_port, 9600, timeout=1)
 
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
     conn.connect((HOST, PORT))
+    ticktime = time.time()
     while True:
         bytelist = []
         while ser.in_waiting:
-            toread = ser.in_waiting
-            bytelist.append(ser.read(toread))
+            bytelist.append(ser.read(ser.in_waiting))
         for item in bytelist:
             print("<---" + str(item))
-            conn.sendall(item)
+            if len(item)>0:
+                conn.sendall(item)
         data = conn.recv(1024)
         if data:
             print("--->" + str(data))
             ser.write(data)
-        time.sleep(0.2)
-        print("%%%%")
+        # time.sleep(0.2)
+        if time.time() - 4 > ticktime:
+            ticktime = time.time()
+            print("%%%%")
 
 
 
