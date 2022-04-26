@@ -3,10 +3,18 @@ import logging
 import threading
 import fibre
 from fibre.utils import Logger
+import serial
+import time
+import sys
+import trace
+from async_odrive import request, retrieve_result, set_value, call_remote_function
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 fibre_logger = Logger(verbose=logger.getEffectiveLevel() == logging.DEBUG)
+
+BAUD = 921600
 
 
 class OdriveManager:
@@ -118,7 +126,100 @@ class OdriveManager:
 
 
 if __name__ == '__main__':
-    od = OdriveManager(path='/dev/ttySC0',
+    od0 = OdriveManager(path='/dev/ttySC0',
                        serial_number='336B31643536').find_odrive()
+
+    od1 = OdriveManager(path='/dev/ttySC1',
+                       serial_number='335B314C3536').find_odrive()
+
+    od2 = OdriveManager(path='/dev/ttySC2',
+                       serial_number='3352316E3536').find_odrive()
+
+    od3 = OdriveManager(path='/dev/ttySC3',
+                       serial_number='205F3882304E').find_odrive()
+    odrives = [od0,od1,od2,od3]
+
+    for idx, od in enumerate(odrives):
+        od.vbus_voltage
+
+
+    # tracer = trace.Trace(
+    # ignoredirs=[sys.prefix, sys.exec_prefix],
+    # trace=1,
+    # count=1,
+    # countfuncs=1,
+    # countcallers=1,
+    # outfile='odrive_test.out',
+    # timing=True)
+    #
+    #
+    # def myfunc(odrive):
+    #     odrive.axis0.controller.pos_setpoint = 0
+    #
+    # tracer.runfunc(myfunc, od0)
+    #
+    # r = tracer.results()
+    # r.write_results(show_missing=True, coverdir=".")
+    # sys.exit()
+    _ADC_PORT_STEERING_POT = 5
+    tick_time = time.time()
+    count = 0
+    maxcount = 0
     while True:
-        print(od.vbus_voltage)
+        temp_vals = [[], [], [], []]
+        for idx, od in enumerate(odrives):
+            call_remote_function(od.axis0.controller, 'move_to_pos', 0)
+            time.sleep(0.0005)
+            # temp_vals[idx].append(call_remote_function(od, 'get_adc_voltage', _ADC_PORT_STEERING_POT))
+            # set_value(od.axis0.controller, 'pos_setpoint', 0.0)
+            time.sleep(0.0005)
+            set_value(od.axis1.controller, 'vel_setpoint', 0.0)
+            # temp_vals[idx].append(request(od, 'vbus_voltage'))
+            # time.sleep(0.001)
+            # temp_vals[idx].append(request(od.axis0.motor.current_control, 'Ibus'))
+            # time.sleep(0.001)
+            # temp_vals[idx].append(request(od.axis1.motor.current_control, 'Ibus'))
+            # time.sleep(0.001)
+            time.sleep(0.0005)
+            temp_vals[idx].append(request(od.axis0.encoder, 'pos_estimate'))
+            time.sleep(0.0005)
+            temp_vals[idx].append(request(od.axis0.encoder, 'vel_estimate'))
+            time.sleep(0.0005)
+            temp_vals[idx].append(request(od.axis1.encoder, 'pos_estimate'))
+            time.sleep(0.0005)
+            temp_vals[idx].append(request(od.axis1.encoder, 'vel_estimate'))
+            # time.sleep(0.001)
+            # temp_vals[idx].append(request(od.axis1, 'error'))
+            # time.sleep(0.001)
+            # temp_vals[idx].append(request(od.axis1, 'error'))
+
+        count += 1
+        for tmp in temp_vals:
+            vbus_voltage = retrieve_result(tmp[0])
+            # print(vbus_voltage)
+            ibus1 = retrieve_result(tmp[1])
+            # print(ibus1)
+            ibus2 = retrieve_result(tmp[2])
+            # print(ibus2)
+            pos1 = retrieve_result(tmp[3])
+            # pos1 = retrieve_result(tmp[4])
+
+            # # print(pos1)
+            # vel1 = retrieve_result(tmp[4])
+            # # print(vel1)
+            # pos2 = retrieve_result(tmp[5])
+            # # print(pos2)
+            # vel2 = retrieve_result(tmp[6])
+            # # print(vel1)
+            # err1 = retrieve_result(tmp[7])
+            # # print(pos2)
+            # err2 = retrieve_result(tmp[8])
+            # print(vel2)
+        if time.time() - tick_time > 1.0:
+            print(count)
+            # print(data)
+            tick_time = time.time()
+            maxcount = count
+            count = 0
+        # time.sleep(0.1)
+        # print(od._remote_attributes)
