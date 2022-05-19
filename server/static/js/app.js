@@ -18,8 +18,9 @@ var app = new Vue({
     })
       .then((resp) => {
         if (resp.status == 200) {
-          return response.json();
+          return resp.json();
         } else {
+          store.access_token_data = "NONE"
           throw new Error("unexpected HTTP " + resp.status);
         }
       })
