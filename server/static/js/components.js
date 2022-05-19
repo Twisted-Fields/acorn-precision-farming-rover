@@ -295,12 +295,43 @@ Vue.component("map-canvas", {
       'l-icon': window.Vue2Leaflet.LIcon,
       'l-polyline': window.Vue2Leaflet.LPolyline,
   },
+
+  async created() {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 2500);
+    try {
+      const resp = await fetch("http://192.168.1.170:8090/api/token-auth/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "taylor", password: "taylor" }),
+        signal: controller.signal,
+        });
+      clearTimeout(id);
+      if (resp.status == 200) {
+        const open_drone_map_layer = {
+          url: "http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}",
+          options: {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.twistedfields.com/">Twisted Fields</a>',
+            maxZoom: 22,
+            tileSize: 256,
+            zoomOffset: 0,
+            id: "",
+            accessToken: resp.json()["token"],
+            tms: false,
+          },
+        };
+        this.layers["Drone Map"] = open_drone_map_layer;
+      }
+    } catch { }
+  },
+
   mounted() {
     // Without this the map would partially show up somehow.
     this.$nextTick(() => {
       this.$refs.map.mapObject.invalidateSize();
     })
   },
+
   updated() {
     // this ugly trick is required because the button to start/stop polygon
     // resides in control panel instead of this component.
@@ -316,6 +347,37 @@ Vue.component("map-canvas", {
       this.userPolygon = null;
     }
   },
+
+  data () {
+    const mapbox_layer = {
+      url: "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
+      options: {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 22,
+        id: "mapbox/satellite-v9",
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: "pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g",
+      },
+    };
+    let layers = {Mapbox: mapbox_layer};
+    return {
+      selectedRobot: null,
+      userPolygon: null,
+      mapOptions: {
+        zoom: 18,
+        center: [37.353, -122.332],
+        editable: true,
+      },
+      layers: layers,
+      arrowIcon: L.icon({
+        iconUrl: "/static/images/arrow.png",
+        iconSize: [60, 40],
+        iconAnchor: [30, 35],
+      }),
+    }
+  },
+
   methods: {
     selectRobot(index) {
       if (store.current_robot_index == index) {
@@ -332,50 +394,6 @@ Vue.component("map-canvas", {
         className: this.current_robot_index === index ? "selected-acorn": null,
       })
     },
-  },
-  data: function() {
-    const mapbox_layer = {
-      url: "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
-      options: {
-        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-        maxZoom: 22,
-        id: "mapbox/satellite-v9",
-        tileSize: 512,
-        zoomOffset: -1,
-        accessToken: "pk.eyJ1IjoidHdpc3RlZGZpZWxkcyIsImEiOiJja2ozbmtlOXkwM2ZmMzNueTEzcGxhMGR1In0.eAhUMfZ786vm7KOhbrJj2g",
-      },
-    };
-    let layers = {Mapbox: mapbox_layer};
-    if (store.access_token_data) {
-      const open_drone_map_layer = {
-        url: "http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}",
-        options: {
-          attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.twistedfields.com/">Twisted Fields</a>',
-          maxZoom: 22,
-          tileSize: 256,
-          zoomOffset: 0,
-          id: "",
-          accessToken: store.access_token_data["token"],
-          tms: false,
-        },
-      };
-      layers["Drone Map"] = open_drone_map_layer;
-    }
-    return {
-      selectedRobot: null,
-      userPolygon: null,
-      mapOptions: {
-        zoom: 18,
-        center: [37.353, -122.332],
-        editable: true,
-      },
-      layers: layers,
-      arrowIcon: L.icon({
-        iconUrl: "/static/images/arrow.png",
-        iconSize: [60, 40],
-        iconAnchor: [30, 35],
-      }),
-    }
   },
 });
 

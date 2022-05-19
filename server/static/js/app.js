@@ -7,25 +7,5 @@ var app = new Vue({
   el: "#app",
   data: store,
   delimiters: ["${", "}"], // the default, "{{-}}", conflicts with Jinjia2
-  created: function () {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 2500);
-    fetch("http://192.168.1.170:8090/api/token-auth/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "taylor", password: "taylor" }),
-      signal: controller.signal,
-    })
-      .then((resp) => {
-        if (resp.status == 200) {
-          return resp.json();
-        } else {
-          store.access_token_data = "NONE"
-          throw new Error("unexpected HTTP " + resp.status);
-        }
-      })
-      .then((access_token_data) => {store.access_token_data = access_token_data})
-      .catch(()=>{})
-      .finally(getRobotData); // kick off the ball after the map gets setup.
-  },
+  mounted: getRobotData // kick off the ball.
 });
