@@ -1,6 +1,5 @@
 svgpathtools
 zmq
-odrive==0.4.12
 evdev
 geopy==1.22.0
 Adafruit_ADS1x15

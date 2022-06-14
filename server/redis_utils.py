@@ -23,6 +23,7 @@ limitations under the License.
 
 import pickle
 from model import RobotCommand
+import datetime
 
 
 def get_energy_segment_key(robot_key):
@@ -99,14 +100,22 @@ def get_dense_path(redis_client=None, robot_key=None):
     key = get_energy_segment_key(robot_key)
     list_length = redis_client.llen(key)
     path = []
+    today = datetime.datetime.today()
     for idx in range(list_length - 1, 0, -1):
         segment = pickle.loads(redis_client.lindex(key, idx))
         # print(segment.subsampled_points)
         try:
-            segment.subsampled_points
-            for point in segment.subsampled_points:
-                path.append(point)
-        except:
+            if (today - segment.start_gps.time_stamp.replace(tzinfo=None)).days > 2:
+                return path
+
+            path.append(segment.start_gps)
+            path_length = len(segment.subsampled_points)
+            # path.append(segment.subsampled_points[int(path_length/2)])
+            # path.append(segment.subsampled_points[int(2 * path_length/3)])
+            # for point in segment.subsampled_points:
+            #     path.append(point)
+        except Exception as e:
+            print(e)
             break
             # path.append(segment.start_gps)
         #     break

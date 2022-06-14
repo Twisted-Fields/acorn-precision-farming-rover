@@ -23,6 +23,8 @@ _NO_CHANGE_LIMIT = 10  # If Joystick input hasn't change after a while, zero val
 
 _USE_JOYSTICK_IN_SIMULATION = False
 
+STICK_ACTIVE_MIN = 0.1
+
 
 
 def sbus_proc():
@@ -40,6 +42,8 @@ class JoystickSBUS():
         self.strafe_allowed = False
         self.initial_values = []
         self.initial_value_has_changed = False
+        self.safety_check_passed_switches_down = False
+        self.safety_check_passed_switches_up = False
 
     def __str__(self):
         return "Steer : {:.2f}, Throttle: {:.2f}, Strafe: {:.2f}".format(self.steer, self.throttle, self.strafe)
@@ -49,51 +53,88 @@ class JoystickSBUS():
 
     def update_value(self):
         ch = self.sbus_channels[:]
+
+        # Switch down = True.
+        switch_left_down = ch[_SBUS_SWITCH_L_CH] > _SBUS_MID_VAL
+        switch_right_down = ch[_SBUS_SWITCH_R_CH] > _SBUS_MID_VAL
+
+        steer = (ch[_SBUS_STEER_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
+        throttle = (ch[_SBUS_THROTTLE_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
+        strafe_stick = (ch[_SBUS_STRAFE_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
+
         if len(self.initial_values) == 0:
             self.initial_values =list(ch)
         if not self.initial_value_has_changed:
             for cmp1, cmp2 in zip(ch, self.initial_values):
                 if cmp1 != cmp2:
-                    self.initial_value_has_changed = True
-        # print(self.initial_value_has_changed)
-        # print(ch)
+                    # TODO: this check is potentially over restrictive.
+                    if not self.check_active(steer, throttle, strafe_stick):
+                        self.initial_value_has_changed = True
         if not self.initial_value_has_changed:
             return
-        self.autonomy_allowed = ch[_SBUS_SWITCH_L_CH] > _SBUS_MID_VAL
+
+        """
+        At controller boot, controller requires switches to be up. Once acorn
+        program initializes joystick control, the user must flip both switches
+        down while joysticks are neutral, then flip them back up. Only then
+        will joystick control be active. These safety checks reduce the chances
+        that a malfunctioning joystick will be given control of the robot.
+        """
+        if not self.safety_check_passed_switches_down:
+            if switch_left_down and switch_right_down:
+                if not self.check_active(steer, throttle, strafe_stick):
+                    self.safety_check_passed_switches_down = True
+                else:
+                    return
+            else:
+                return
+
+        if not self.safety_check_passed_switches_up:
+            if not switch_left_down and not switch_right_down:
+                if not self.check_active(steer, throttle, strafe_stick):
+                    self.safety_check_passed_switches_up = True
+                else:
+                    return
+            else:
+                return
+
+        self.strafe_allowed = switch_right_down
+        if self.strafe_allowed:
+            strafe = strafe_stick
+        else:
+            strafe = 0.0
+
+        self.autonomy_allowed = switch_left_down
         if ch[_SBUS_BUTTON] > _SBUS_MID_VAL:
             self.autonomy_requested = True
 
-        steer = (ch[_SBUS_STEER_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
-        throttle = (ch[_SBUS_THROTTLE_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
-        self.strafe_allowed = ch[_SBUS_SWITCH_R_CH] > _SBUS_MID_VAL
-        if self.strafe_allowed:
-            strafe = (ch[_SBUS_STRAFE_CH] - _SBUS_MID_VAL)/(_SBUS_RANGE/2)
-        else:
-            strafe = 0.0
         if self.activated() and steer == self.steer and throttle == self.throttle and strafe == self.strafe:
             self.no_change_counter += 1
-            print("NO CHANGE {} ###############".format(self.no_change_counter))
+            # print("NO CHANGE {} ###############".format(self.no_change_counter))
         else:
             self.steer = steer
             self.throttle = throttle
             self.strafe = strafe
             self.no_change_counter = 0
         if self.no_change_counter > _NO_CHANGE_LIMIT:
-            print("NO CHANGE LIMIT")
+            # print("NO CHANGE LIMIT")
             self.steer, self.throttle, self.strafe = 0.0, 0.0, 0.0
         if self.no_change_counter > self.max_no_change_counter:
             self.max_no_change_counter = self.no_change_counter
-        if self.activated():
-            print("MAX NO CHANGE {}".format(self.max_no_change_counter))
-
+        # if self.activated():
+            # print("MAX NO CHANGE {}".format(self.max_no_change_counter))
 
     def connect(self):
         joy_proc = mp.Process(target=sbus_proc, daemon=True)
         joy_proc.start()
         self.setup_sbus_shared_memory()
+        self.initial_connect_time = time.time()
 
     def activated(self):
-        return abs(self.steer) > 0.1 or abs(self.throttle) > 0.1 or abs(self.strafe) > 0.1
+        return self.check_active(steer=self.steer, throttle=self.throttle, strafe=self.strafe)
+
+    def check_active(self, steer, throttle, strafe):
+        return abs(steer) > STICK_ACTIVE_MIN or abs(throttle) > STICK_ACTIVE_MIN or abs(strafe) > STICK_ACTIVE_MIN
 
     def setup_sbus_shared_memory(self):
         # set up shared memory for GUI four wheel steeing debugger (sim only).
@@ -174,7 +215,10 @@ class Joystick():
                 self.steer = 0.0
 
     def activated(self):
-        return abs(self.steer) > 0.1 or abs(self.throttle) > 0.1 or abs(self.strafe) > 0.1
+        return self.check_active(steer=self.steer, throttle=self.throttle, strafe=self.strafe)
+
+    def check_active(self, steer, throttle, strafe):
+        return abs(steer) > STICK_ACTIVE_MIN or abs(throttle) > STICK_ACTIVE_MIN or abs(strafe) > STICK_ACTIVE_MIN
 
     def clear_steer(self):
         self.steer = 0.0

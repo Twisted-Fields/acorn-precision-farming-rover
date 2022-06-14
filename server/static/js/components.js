@@ -20,6 +20,13 @@ Vue.component("control-panel", {
       updateServerPath(this.pathName, store.gps_path);
       console.log(store.gps_path);
     },
+    saveDensePath: function () {
+      if (!this.pathName) {
+        return;
+      }
+      updateServerPath(this.pathName, store.displayed_dense_path);
+      console.log(store.gps_path);
+    },
     loadPathList: function () {
       loadPathList();
     },
@@ -308,6 +315,10 @@ Vue.component("map-canvas", {
         });
       clearTimeout(id);
       if (resp.status == 200) {
+        var token = await resp.json()
+        console.log("Token Follows")
+        console.log(token)
+        token = token["token"]
         const open_drone_map_layer = {
           url: "http://192.168.1.170:8090/api/projects/3/tasks/3116cce4-4215-4de9-9e9a-0e9c93df87f6/orthophoto/tiles/{z}/{x}/{y}.png?jwt={accessToken}",
           options: {
@@ -316,7 +327,7 @@ Vue.component("map-canvas", {
             tileSize: 256,
             zoomOffset: 0,
             id: "",
-            accessToken: resp.json()["token"],
+            accessToken: token,
             tms: false,
           },
         };

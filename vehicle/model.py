@@ -29,7 +29,12 @@ MOTOR_STATE_STRINGS = ["Not connected.",
 
 # Due to shared memory errors, these must be rectangular in shape.
 # Shared memory threw segfaults when these were stepped in shape (dtype object)
-MOTOR_SAMPLE_OUTPUT = np.array([[0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0]])
+# Output is: [state, control flow, 0,0], [voltage x4],[ibus x4],[temperature x4],
+# [encoder_estimates 0], [encoder_estimates 1], [encoder_estimates 2], [encoder_estimates 3]
+MOTOR_SAMPLE_OUTPUT = np.array([[0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0],
+                                [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0],
+                                [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0],
+                                [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0]])
 MOTOR_SAMPLE_INPUT = np.array([[0.0,0.0],[0.0,0.0],[0.0,0.0],[0.0,0.0], [0,0]])
 
 # Flow control flags for motor shared memory link.

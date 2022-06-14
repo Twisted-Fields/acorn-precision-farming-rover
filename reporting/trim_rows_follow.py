@@ -20,6 +20,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+import sys
+sys.path.append('../vehicle')
 import copy
 from remote_control_process import NavigationParameters, PathControlValues, PathSection, Direction
 from area import area
@@ -35,7 +37,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mp_colors
-import sys
+
 import utm
 
 import scipy
@@ -48,7 +50,7 @@ import random
 
 
 from scipy.interpolate import splprep, splev
-sys.path.append('../vehicle')
+
 
 _SMOOTH_MULTIPLIER = 0.00000000001
 
@@ -104,7 +106,7 @@ for key in r.scan_iter():
         polygon = polygon["geometry"]["coordinates"][0]
         poly_path = path.Path(polygon, closed=True)
         # print(poly_path)
-    if "twistedfields:gpspath:autogen_1_row_" in str(key):
+    if "twistedfields:gpspath:autogen_01_row_" in str(key):
         row = pickle.loads(r.get(key))
         row_list[str(key)] = row
 # print(row_list.keys())
@@ -112,7 +114,7 @@ for key in r.scan_iter():
 rows_in_polygon = []
 
 for row_number in range(len(row_list)):
-    row_key = "b'twistedfields:gpspath:autogen_1_row_{}:key'".format(
+    row_key = "b'twistedfields:gpspath:autogen_01_row_{:02d}:key'".format(
         row_number+1)
     row = row_list[row_key]
     # print(row)
@@ -151,9 +153,9 @@ print("$")
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.BACKWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=True)
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.BACKWARD, loop_path=True)
 forward_navigation_parameters = NavigationParameters(
-    travel_speed=0.4, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
+    travel_speed=0.4, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, repeat_path=False)
 connector_navigation_parameters = NavigationParameters(
-    travel_speed=0.2, path_following_direction=Direction.EITHER, vehicle_travel_direction=Direction.FORWARD, loop_path=False)
+    travel_speed=0.2, path_following_direction=Direction.EITHER, vehicle_travel_direction=Direction.FORWARD, repeat_path=False)
 
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.FORWARD, vehicle_travel_direction=Direction.FORWARD, loop_path=True)
 #self.default_navigation_parameters = NavigationParameters(travel_speed=0.0, path_following_direction=Direction.BACKWARD, vehicle_travel_direction=Direction.BACKWARD, loop_path=True)
@@ -166,9 +168,9 @@ _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 140
 # turn_control_vals = PathControlValues(angular_p=0.9, lateral_p=-0.25, angular_d=0.3, lateral_d=-0.2)
 
 path_control_vals = PathControlValues(
-    angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
+    angular_p=0.7, lateral_p=0.15, angular_d=0.4, lateral_d=0.1)
 turn_control_vals = PathControlValues(
-    angular_p=0.7, lateral_p=-0.15, angular_d=0.4, lateral_d=-0.1)
+    angular_p=0.7, lateral_p=0.15, angular_d=0.4, lateral_d=0.1)
 nav_path = PathSection(points=[],
                        control_values=path_control_vals,
                        navigation_parameters=forward_navigation_parameters,
@@ -261,7 +263,7 @@ rows_in_polygon.append(turn1_path)
 # rows_in_polygon = rows_in_polygon[-8:]
 
 
-r.set('twistedfields:gpspath:aaa_test:key', pickle.dumps(rows_in_polygon))
+r.set('twistedfields:gpspath:aaa_test3:key', pickle.dumps(rows_in_polygon))
 
 sys.exit()
 

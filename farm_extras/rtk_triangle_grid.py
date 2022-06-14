@@ -14,6 +14,7 @@ from rpi_ws281x import PixelStrip, Color
 
 # LED strip configuration:
 LED_COUNT = 97        # Number of LED pixels.
+SKIP_LEDS = LED_COUNT - 60
 LED_PIN = 10          # GPIO pin connected to the pixels (18 uses PWM!).
 LED_FREQ_HZ = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA = 10          # DMA channel to use for generating signal (try 10)
@@ -26,6 +27,9 @@ strip.begin()
 
 def led_color(strip, color):
     for i in range(strip.numPixels()):
+        if i < SKIP_LEDS:
+            strip.setPixelColor(i, Color(0,0,0))
+            continue
         strip.setPixelColor(i, color)
     strip.show()
 
@@ -39,8 +43,11 @@ def led_partial(strip, color, stop_index):
 
 def led_percent(strip, percent, color):
     for i in range(strip.numPixels()):
+        if i < SKIP_LEDS:
+            strip.setPixelColor(i, Color(0,0,0))
+            continue
         RESOLUTION=20
-        idx = i%RESOLUTION
+        idx = (i-SKIP_LEDS)%RESOLUTION
         if idx > percent/(100/RESOLUTION) and idx>0:
             strip.setPixelColor(i, Color(0,0,0))
         else:
@@ -113,7 +120,7 @@ if USE_DATABASE:
     #SECOND_POINT = (polygon[1][1],polygon[1][0])
     if GRID_VERSION == NORTH_ALIGNED_4_METER_GRID:
         BASE_LOCATION = (37.3535689340, -122.3294015900)
-        point = gps_tools.project_point(gps_tools.GpsPoint(BASE_LOCATION[0],BASE_LOCATION[1]), bearing=0, distance_meters=10)
+        point = gps_tools.project_point(gps_tools.GpsPoint(BASE_LOCATION[0],BASE_LOCATION[1]), bearing_degrees=0, distance_meters=10)
         SECOND_POINT = (point.lat, point.lon)
 else:
 
@@ -122,7 +129,7 @@ else:
         SECOND_POINT = (37.3534222740, -122.3291569190)
     if GRID_VERSION == NORTH_ALIGNED_4_METER_GRID:
         BASE_LOCATION = (37.3535689340, -122.3294015900)
-        point = gps_tools.project_point(gps_tools.GpsPoint(BASE_LOCATION[0],BASE_LOCATION[1]), bearing=0, distance_meters=10)
+        point = gps_tools.project_point(gps_tools.GpsPoint(BASE_LOCATION[0],BASE_LOCATION[1]), bearing_degrees=0, distance_meters=10)
         SECOND_POINT = (point.lat, point.lon)
 
 #-122.32923657,   37.35350514
@@ -280,7 +287,7 @@ while True:
             # if sample_tick > 3:
             #     sample_tick = 0
                 #subprocess.Popen("aplay /home/pi/complete.wav", shell=True)
-            led_color(strip,Color(0, 255, 0))
+            led_color(strip,Color(0, 180, 0))
         else:
             # if sample_tick > distance:
             #     sample_tick = 0
@@ -288,7 +295,7 @@ while True:
             max_dist = (grid_spacing_meters/2.0 - DISTANCE_LIMIT)
             # distance = 1.0
             percent = int(100 * ((max_dist - (distance - DISTANCE_LIMIT))/max_dist))
-            led_percent(strip, percent, Color(0, 0, 255))
+            led_percent(strip, percent, Color(0, 0, 180))
             #logger.info(percent)
     else:
         # if sample_tick > 12:

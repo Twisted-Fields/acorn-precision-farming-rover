@@ -37,6 +37,7 @@ from odrive.enums import *
 from odrive.utils import _VT100Colors
 import model
 from model import CORNER_NAMES
+import async_odrive
 
 THERMISTOR_ADC_CHANNEL = 3
 _ADC_PORT_STEERING_POT = 5
@@ -53,7 +54,7 @@ _HOMING_POT_HALF_DEADBAND_V = _HOMING_POT_DEADBAND_VOLTS/2
 _FAST_POLLING_SLEEP_S = 0.01
 _SLOW_POLLING_SLEEP_S = 0.5
 _ODRIVE_CONNECT_TIMEOUT = 75
-_MAX_HOMING_ATTEMPTS = 10
+_MAX_HOMING_ATTEMPTS = 4
 _ZERO_VEL_COUNTS_THRESHOLD = 2
 
 try:
@@ -111,6 +112,8 @@ class CornerActuator:
         self.enable_traction = enable_traction
         self.steering_axis = self.odrv0.axis0
         self.traction_axis = self.odrv0.axis1
+        self.steering_error = self.steering_axis.error
+        self.traction_error = self.traction_axis.error
         self.steering_initialized = False
         self.traction_initialized = False
         self.position = 0.0
@@ -123,6 +126,9 @@ class CornerActuator:
         self.zero_vel_timestamp = None
         self.disable_steering_limits = disable_steering_limits
         self.simulated_hardware = simulated_hardware
+        self.encoder_estimates = (0.0,0.0,0.0,0.0)
+        self.errors = 0
+        self.rotation_sensor_val = None
 
         if self.simulated_hardware:
             self.odrv0.vbus_voltage = 45.5 + random.random() * 2.0
@@ -147,7 +153,8 @@ class CornerActuator:
 
     def sample_steering_pot(self):
         gpio_toggle(self.GPIO)
-        return self.odrv0.get_adc_voltage(_ADC_PORT_STEERING_POT)
+        self.rotation_sensor_val = self.odrv0.get_adc_voltage(_ADC_PORT_STEERING_POT)
+        return self.rotation_sensor_val
 
     def initialize_traction(self):
         gpio_toggle(self.GPIO)
@@ -157,8 +164,9 @@ class CornerActuator:
         self.odrv0.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
         self.traction_initialized = True
 
-    def check_steering_limits(self):
-        rotation_sensor_val = self.sample_steering_pot()
+    def check_steering_limits(self, rotation_sensor_val=None):
+        if rotation_sensor_val is None:
+            rotation_sensor_val = self.sample_steering_pot()
         if self.disable_steering_limits:
             print("{} steering sensor {}".format(
                 list(CORNER_NAMES)[self.name], rotation_sensor_val))
@@ -186,38 +194,59 @@ class CornerActuator:
         self.home_position = self.odrv0.axis0.encoder.pos_estimate
         home_position = None
         if not skip_homing:
+
             last_home_sensor_val = self.sample_home_sensor()
-            rotation_sensor_val = self.sample_steering_pot()
-            print("Rotation sensor voltage: {}".format(rotation_sensor_val))
+            self.sample_steering_pot()
+            print("Rotation sensor voltage: {}".format(self.rotation_sensor_val))
             gpio_toggle(self.GPIO)
 
-            _HOMING_DISPLACEMENT_DEGREES = 25.0
+            _HOMING_DISPLACEMENT_DEGREES = 50.0
             _HOMING_DISPLACEMENT_RADIANS = math.radians(
                 _HOMING_DISPLACEMENT_DEGREES)
 
-            #positions = [_HOMING_DISPLACEMENT_DEGREES, -_HOMING_DISPLACEMENT_DEGREES]
+            _RETRY_OFFSET_DEGREES = 80
+
             position = _HOMING_DISPLACEMENT_DEGREES
 
             tick_time_s = 3
             last_tick_time = 0
             transitions = []
             attempts = 0
+            this_position_failed = False
+            position_checks = 0
             while True:
+                if this_position_failed:
+                    position_checks += 1
+                    if position_checks > 1 + 360 / _RETRY_OFFSET_DEGREES:
+                        raise RuntimeError("Exceeded max homing attempts.")
+                    attempts = 0
+                    this_position_failed = False
+                    self.sample_steering_pot()
+                    if self.rotation_sensor_val > _VOLTAGE_MIDPOINT:
+                        offset = _RETRY_OFFSET_DEGREES
+                    else:
+                        offset = _RETRY_OFFSET_DEGREES * -1.0
+                    if self.name == model.CORNER_NAMES['rear_left']:
+                        self.home_position = self.home_position + offset * \
+                            COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
+                    else:
+                        self.home_position = self.home_position + offset * \
+                            COUNTS_PER_REVOLUTION / 360.0
+
                 gpio_toggle(self.GPIO)
                 time.sleep(_FAST_POLLING_SLEEP_S)
                 gpio_toggle(self.GPIO)
                 home_sensor_val = self.sample_home_sensor()
 
-                rotation_sensor_val = self.sample_steering_pot()
+                self.sample_steering_pot()
                 print("{} Home: {}, Rotation: {}".format(
-                    list(CORNER_NAMES)[self.name], home_sensor_val, rotation_sensor_val))
+                    list(CORNER_NAMES)[self.name], home_sensor_val, self.rotation_sensor_val))
                 if home_sensor_val == True:
                     self.home_position = self.odrv0.axis0.encoder.pos_estimate
                     break
                 if home_sensor_val != last_home_sensor_val:
                     transitions.append(self.odrv0.axis0.encoder.pos_estimate)
                     print(transitions)
-                    attempts += 1
 
                 if time.time() - last_tick_time > tick_time_s:
                     last_tick_time = time.time()
@@ -228,6 +257,7 @@ class CornerActuator:
                     else:
                         pos_counts = self.home_position + position * COUNTS_PER_REVOLUTION / 360.0
                     self.odrv0.axis0.controller.move_to_pos(pos_counts)
+                    attempts += 1
                     #self.odrv0.axis0.controller.pos_setpoint = pos_counts
 
                 if len(transitions) > 4:
@@ -235,7 +265,8 @@ class CornerActuator:
                     break
 
                 if attempts > _MAX_HOMING_ATTEMPTS:
-                    raise RuntimeError("Exceeded max homing attempts.")
+                    this_position_failed = True
+                    # raise RuntimeError("Exceeded max homing attempts.")
                 try:
                     self.check_errors()
                 except RuntimeError:
@@ -249,8 +280,6 @@ class CornerActuator:
                 finally:
                     self.stop_actuator()
 
-            # Save values.
-            #self.home_position = (transitions[0] + transitions[1])/2
         else:
             self.home_position = self.odrv0.axis0.encoder.pos_estimate
         self.odrv0.axis0.controller.move_to_pos(self.home_position)
@@ -316,8 +345,8 @@ class CornerActuator:
             # TODO: Is this sleep time reasonable? Should also make it a variable.
             toggling_sleep(self.GPIO, 5)
 
-    def check_errors(self):
-        gpio_toggle(self.GPIO)
+    def check_errors(self, read_errors=True):
+        # gpio_toggle(self.GPIO)
         if self.enable_traction and self.traction_axis.error:
             gpio_toggle(self.GPIO)
             self.dump_errors()
@@ -330,23 +359,117 @@ class CornerActuator:
             raise RuntimeError("Odrive steering motor error state detected.")
 
     def update_voltage(self):
-        gpio_toggle(self.GPIO)
+        # gpio_toggle(self.GPIO)
         if self.simulated_hardware:
             self.odrv0.vbus_voltage = 45.5 + random.random() * 2.0
         self.voltage = self.odrv0.vbus_voltage
         self.ibus_0 = self.odrv0.axis0.motor.current_control.Ibus
-        gpio_toggle(self.GPIO)
+        # gpio_toggle(self.GPIO)
         self.ibus_1 = self.odrv0.axis1.motor.current_control.Ibus
+
+    def update_encoder_data(self):
+        self.encoder_estimates = (self.steering_axis.encoder.pos_estimate,
+                                    self.steering_axis.encoder.vel_estimate,
+                                    self.traction_axis.encoder.pos_estimate,
+                                    self.traction_axis.encoder.vel_estimate)
+        # gpio_toggle(self.GPIO)
+
+    def update_actuator_async(self, steering_pos_deg, drive_velocity, update_amps=False, update_volts=False, update_errors=False):
+        gpio_toggle(self.GPIO)
+        self.async_tracking_vals = []
+        if self.steering_flipped:
+            drive_velocity *= -1
+        self.position = steering_pos_deg
+        self.velocity = drive_velocity
+
+        if self.simulated_hardware:
+            return
+
+        # Current prototype uses a different steering motor on rear left.
+        if self.name == model.CORNER_NAMES['rear_left']:
+            pos_counts = self.home_position + steering_pos_deg * \
+                COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
+        else:
+            pos_counts = self.home_position + steering_pos_deg * COUNTS_PER_REVOLUTION / 360.0
+
+        # Clear integrator if vehicle is sitting still.
+        if abs(self.velocity) > _ZERO_VEL_COUNTS_THRESHOLD:
+            self.zero_vel_timestamp = None
+        else:
+            if self.zero_vel_timestamp is None:
+                self.zero_vel_timestamp = time.time()
+            else:
+                if time.time() - self.zero_vel_timestamp > 5.0:
+                    async_odrive.set_value(self.traction_axis.controller, 'vel_integrator_current', 0.0)
+
+        async_odrive.call_remote_function(self.steering_axis.controller, 'move_to_pos', pos_counts)
+        time.sleep(0.0005)
+        async_odrive.set_value(self.traction_axis.controller, 'vel_setpoint', self.velocity)
+        time.sleep(0.0005)
+        self.async_tracking_vals.append(async_odrive.request(self.steering_axis.encoder, 'pos_estimate'))
+        time.sleep(0.0005)
+        self.async_tracking_vals.append(async_odrive.request(self.steering_axis.encoder, 'vel_estimate'))
+        time.sleep(0.0005)
+        gpio_toggle(self.GPIO)
+        self.async_tracking_vals.append(async_odrive.request(self.traction_axis.encoder, 'pos_estimate'))
+        time.sleep(0.0005)
+        self.async_tracking_vals.append(async_odrive.request(self.traction_axis.encoder, 'vel_estimate'))
+        gpio_toggle(self.GPIO)
+        if update_amps:
+            time.sleep(0.0005)
+            self.async_tracking_vals.append(async_odrive.request(self.steering_axis.motor.current_control, 'Ibus'))
+            time.sleep(0.0005)
+            self.async_tracking_vals.append(async_odrive.request(self.traction_axis.motor.current_control, 'Ibus'))
+        if update_volts:
+            time.sleep(0.0005)
+            self.async_tracking_vals.append(async_odrive.call_remote_function(self.odrv0, 'get_adc_voltage', _ADC_PORT_STEERING_POT))
+            time.sleep(0.0005)
+            self.async_tracking_vals.append(async_odrive.request(self.odrv0, 'vbus_voltage'))
+        if update_errors:
+            time.sleep(0.0005)
+            self.async_tracking_vals.append(async_odrive.request(self.steering_axis, 'error'))
+            time.sleep(0.0005)
+            self.async_tracking_vals.append(async_odrive.request(self.traction_axis, 'error'))
+        gpio_toggle(self.GPIO)
+
+    def retrieve_async_results(self, update_amps=False, update_volts=False, update_errors=False):
+
+        if self.simulated_hardware:
+            self.update_voltage()
+            return True
+
+        try:
+            gpio_toggle(self.GPIO)
+            time.sleep(0.0005)
+            self.encoder_estimates = (async_odrive.retrieve_result(self.async_tracking_vals.pop(0)),
+                                      async_odrive.retrieve_result(self.async_tracking_vals.pop(0)),
+                                      async_odrive.retrieve_result(self.async_tracking_vals.pop(0)),
+                                      async_odrive.retrieve_result(self.async_tracking_vals.pop(0)))
+            if update_amps:
+                self.ibus_0 = async_odrive.retrieve_result(self.async_tracking_vals.pop(0))
+                self.ibus_1 = async_odrive.retrieve_result(self.async_tracking_vals.pop(0))
+            if update_volts:
+                self.check_steering_limits(async_odrive.retrieve_result(self.async_tracking_vals.pop(0)))
+                self.voltage = async_odrive.retrieve_result(self.async_tracking_vals.pop(0))
+            if update_errors:
+                self.steering_error = async_odrive.retrieve_result(self.async_tracking_vals.pop(0))
+                self.traction_error = async_odrive.retrieve_result(self.async_tracking_vals.pop(0))
+            gpio_toggle(self.GPIO)
+            return True
+        except fibre.protocol.ChannelBrokenException:
+            self.async_tracking_vals = []
+            return False
 
     def update_actuator(self, steering_pos_deg, drive_velocity):
         #print("Update {}".format(self.name))
-        self.check_steering_limits()
+        # self.check_steering_limits()
         gpio_toggle(self.GPIO)
         if self.steering_flipped:
             drive_velocity *= -1
         self.position = steering_pos_deg
         self.velocity = drive_velocity
-        self.update_voltage()
+        # self.update_voltage()
+        self.update_encoder_data()
         if self.name == model.CORNER_NAMES['rear_left']:
             pos_counts = self.home_position + steering_pos_deg * \
                 COUNTS_PER_REVOLUTION_NEW_STEERING / 360.0 * -1.0
@@ -365,7 +488,7 @@ class CornerActuator:
                 if time.time() - self.zero_vel_timestamp > 5.0:
                     self.odrv0.axis1.controller.vel_integrator_current = 0
         self.odrv0.axis1.controller.vel_setpoint = self.velocity
-        self.check_errors()
+        # self.check_errors()
 
     def slow_actuator(self, fraction):
         gpio_toggle(self.GPIO)

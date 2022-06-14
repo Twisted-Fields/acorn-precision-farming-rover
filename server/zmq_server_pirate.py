@@ -28,6 +28,7 @@ import time
 import zmq
 import redis
 import zmq_server
+import model
 
 # keep the two imported to keep pickle working
 from model import Robot, RobotCommand

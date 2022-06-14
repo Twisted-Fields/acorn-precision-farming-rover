@@ -25,10 +25,12 @@ import zmq
 import sys
 import threading
 import time
+import datetime
 import pickle
 import redis
 import psutil
 import redis_utils
+import model
 from model import RobotCommand
 from master_process import _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
 from master_process import _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
@@ -214,7 +216,10 @@ def update_robot(r, key, robot):
         print(key)
         for segment in robot.energy_segment_list:
             this_stamp = segment.start_gps.time_stamp
-            stamp_localtime = time.localtime(this_stamp)
+            if isinstance(this_stamp, datetime.datetime):
+                stamp_localtime = this_stamp.timetuple()
+            else:
+                stamp_localtime = time.localtime(this_stamp)
             print(stamp_localtime)
             # print(segment.time_stamp)
             r.rpush(key, pickle.dumps(segment))

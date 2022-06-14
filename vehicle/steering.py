@@ -7,7 +7,7 @@
 Copyright (c) 2019-2021 Taylor Alexander, Twisted Fields LLC
 Copyright (c) 2021 The Acorn Project contributors (cf. AUTHORS.md).
 
-Licensed under the Apache License, Version 2.0 (the "License");
+Licensed under the Apache License, Version 2.0 (the "License")
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
@@ -23,8 +23,8 @@ limitations under the License.
 import math
 import numpy as np
 
-steering_track = 1.5
-wheel_base_ = 1.830
+wheel_base_width = 1.5
+wheel_base_length = 1.830
 wheel_radius_ = 0.4
 M_PI_2 = math.pi/2.0
 _ABSOLUTE_STEERING_LIMIT = math.pi * 2.0
@@ -62,8 +62,8 @@ def calculate_steering(steer, throttle, strafe, angle_limit_deg=360):
 
     Copies of these documents are in this git repo in the /docs/steering folder.
     """
-    L = wheel_base_
-    W = steering_track
+    L = wheel_base_length
+    W = wheel_base_width
     R = math.sqrt(L * L + W * W)
 
     steer = steer * throttle
@@ -145,3 +145,42 @@ def compare_steering_values(old_val, new_val, steering_limit=0.5, velocity_limit
         error_string = "Steering deltas exceeded! {}".format(error_string)
         return False, error_string
     return True, ""
+
+# 
+# def forwardKinematics(calc):
+# {
+# 	L = wheel_base_length
+# 	W = wheel_base_width
+#
+# 	FR_B = sin(frRotationDelta) * frDriveDelta
+# 	FR_C = cos(frRotationDelta) * frDriveDelta
+#
+# 	FL_B = sin(flRotationDelta) * flDriveDelta
+# 	FL_D = cos(flRotationDelta) * flDriveDelta
+#
+# 	BR_A = sin(brRotationDelta) * brDriveDelta
+# 	BR_C = cos(brRotationDelta) * brDriveDelta
+#
+# 	BL_A = sin(blRotationDelta) * blDriveDelta
+# 	BL_D = cos(blRotationDelta) * blDriveDelta
+#
+# 	A = (BR_A + BL_A) / 2.0
+# 	B = (FR_B + FL_B) / 2.0
+# 	C = (FR_C + BR_C) / 2.0
+# 	D = (FL_D + BL_D) / 2.0
+#
+# 	omega1 = (B - A) / L
+# 	omega2 = (C - D) / W
+# 	omega = (omega1 + omega2) / 2.0
+#
+# 	STR, FWD, STR1, STR2, FWD1, FWD2
+# 	STR1 = omega * (L / 2.0) + A
+# 	STR2 = -omega * (L / 2.0) + B
+# 	FWD1 = omega * (W / 2.0) + C
+# 	FWD2 = -omega * (W / 2.0) + D
+#
+# 	STR = (STR1 + STR2) / 2.0
+# 	FWD = (FWD1 + FWD2) / 2.0
+#
+# 	return FWD, STR
+# }

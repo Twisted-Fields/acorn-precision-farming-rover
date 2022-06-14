@@ -292,10 +292,7 @@ def send_arrow_paths():
 def send_robot_icon():
     return send_from_directory('../', "robot.svg")
 
-
 # @app.route('/api/get_dense_path/<start>/<end>')
-
-
 @app.route('/api/get_dense_path')
 def get_dense_path():
     robot_keys = redis_utils.get_robot_keys(redis_client)
@@ -303,6 +300,16 @@ def get_dense_path():
         # TODO(tlalexander): support multiple robots in database
         path = redis_utils.get_dense_path(redis_client=redis_client, robot_key=robot_keys[0])
         path = [point._asdict() for point in path]
+        # path = path[45:2120]
+        last_p = None
+        new_path = []
+        for p in path:
+            if p != last_p:
+                new_path.append(p)
+                last_p = p
+                print(p)
+        path = new_path[6:]
+        print(f"Returning dense path of length {len(path)}")
         print(type(path))
         print(type(path[0]))
         return jsonify(path)

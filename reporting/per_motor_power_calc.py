@@ -20,6 +20,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+import sys
+sys.path.append('../vehicle')
+
 from remote_control_process import EnergySegment
 import redis
 import time
@@ -29,16 +32,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mp_colors
-import sys
+
 
 from scipy.interpolate import splprep, splev
-sys.path.append('../vehicle')
+
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
 
 r = redis.Redis(
-    host='acornserver.local',
+    host='localhost',
     port=6379)
 
 # r.set('foo', 'bar')

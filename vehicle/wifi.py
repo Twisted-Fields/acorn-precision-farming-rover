@@ -41,8 +41,6 @@ access_points = {
     '1a:e8:29:a5:ee:7d': 'Farmhouse Exterior HP',
     '78:8a:20:2d:9d:0d': 'Farmhouse Kitchen',
     '78:8a:20:2e:9d:0d': 'Farmhouse Kitchen',
-    'e0:63:da:15:1e:0f': 'Goat Barn Exterior HP',
-    'e2:63:da:16:1e:0f': 'Goat Barn Exterior HP',
     '74:ac:b9:34:fd:27': 'Goat Barn Interior',
     '74:ac:b9:35:fd:27': 'Goat Barn Interior',
     '18:e8:29:a4:ed:5f': 'Taylor Office New',
@@ -57,8 +55,12 @@ access_points = {
     '74:ac:b9:63:36:a1': 'Back of Farmhouse',
     '74:ac:b9:34:fd:08': 'Farm Store',
     '76:ac:b9:35:fd:08': 'Farm Store',
-    '78:8a:20:23:58:9b': 'Mobile Tower Middle Ag',
-    '78:8a:20:24:58:9b': 'Mobile Tower Middle Ag'
+    '74:83:c2:c3:d0:21': 'Mobile Tower Middle Ag',
+    '74:83:c2:c4:d0:21': 'Mobile Tower Middle Ag',
+    '78:8a:20:23:59:2d': 'Goat Barn Exterior HP',
+    '78:8a:20:24:59:2d': 'Goat Barn Exterior HP',
+    '78:8a:20:23:58:b0': 'Middle Upper Field HP',
+    '78:8a:20:24:58:b0': 'Middle Upper Field HP'
 }
 
 

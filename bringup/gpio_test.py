@@ -28,8 +28,7 @@ GPIO.setup(ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(VOLT_OUT_PIN, GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(NVIDIA_ENABLE_PIN, GPIO.OUT, initial=GPIO.LOW)
 
-#
-#
+
 if len(sys.argv) > 1:
     GPIO.output(VOLT_OUT_PIN, GPIO.LOW)
     sys.exit()

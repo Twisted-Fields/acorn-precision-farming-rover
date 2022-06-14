@@ -352,7 +352,7 @@ class MainProcess():
 
             updated_object = True
             self.gps_count += 1
-            if self.gps_count % 10 == 0:
+            if self.gps_count % 160 == 0:
                 if self.acorn.record_gps_command == model.GPS_RECORDING_ACTIVATE:
                     self.acorn.gps_path_data.append(self.acorn.location)
                     self.logger.info("APPEND GPS. TEMP PATH LENGTH {}".format(len(self.acorn.gps_path_data)))
@@ -397,10 +397,11 @@ class MainProcess():
                 if time.time() > self.last_logger_print + _DEFAULT_LOGGER_PRINT_PERIOD_SECONDS:
                     self.last_logger_print = time.time()
                     self.logger.info(f"GPS Path: {robot_command.record_gps_path}, "
-                                     f"Autonomy Hold: {self.acorn.autonomy_hold}, "
-                                     f"Activate Autonomy: {robot_command.activate_autonomy}, "
-                                     f"Autonomy Velocity: {robot_command.autonomy_velocity}, "
-                                     f"Clear Autonomy Hold: {self.acorn.clear_autonomy_hold}")
+                                     f"Aut Hold: {self.acorn.autonomy_hold}, "
+                                     f"Activate Aut: {robot_command.activate_autonomy}, "
+                                     f"Aut Vel: {robot_command.autonomy_velocity}, "
+                                     f"Clear Aut Hold: {self.acorn.clear_autonomy_hold}, "
+                                     f"Voltage: {self.acorn.voltage}")
         return updated_object
 
 
