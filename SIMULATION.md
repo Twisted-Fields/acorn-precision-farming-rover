@@ -39,7 +39,17 @@ hardware and sensors return fake data. This was originally intended primarily
 for integration testing but it has proven useful for navigation software
 development.
 
-Connect to the vehicle container:
+now you should be able to open the User Interface in your browser on:
+http://localhost
+
+The UI will be refactored later. But for now just do the following steps:
+- click `select a path` and then e.g. `aaa_test3`.
+- click `Load Path` on the Right. The Loaded Path Name should appear on the right.
+- click `Clear Autonomy Hold`.
+- click `Activate Autonomy`. The Rover will follow the loaded path.
+
+
+To get some Debut Output connect to the vehicle container:
 ```
 ./attach_docker_vehicle.sh
 ```
