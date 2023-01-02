@@ -6,9 +6,9 @@ services:
       file: docker-compose-vehicle.yml
       service: acorn_vehicle
     volumes:
-      - .:/home/pi/
-      - ./.bashrc:/home/pi/.bashrc
-    command: bash -c /home/pi/vehicle/autolaunch_vehicle_sim.sh
+      - .:/home/acorn/
+      - ./.bashrc:/home/acorn/.bashrc
+    command: bash -c /home/acorn/vehicle/autolaunch_vehicle_sim.sh
     ipc: host
   acorn_server:
     extends:

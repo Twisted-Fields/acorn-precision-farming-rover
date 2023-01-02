@@ -80,14 +80,20 @@ otg_mode=1
 # Run as fast as firmware / board allows
 arm_boost=1
 
-[all]
-#dtoverlay=dual-sc16is752-spi1
-dtoverlay=triple-sc16is752-spi1
+dtoverlay=dual-sc16is752-spi1
+#dtoverlay=triple-sc16is752-spi1
 gpu_mem=128
 #dtoverlay=imx219,cam0
 dtparam=i2c1=on
 dtparam=i2c3=on
+dtparam=i2c6=on
+dtoverlay=i2c6,pins_22_23
 dtoverlay=uart3
 dtoverlay=uart0
 dtoverlay=spi0
 console=ttyAMA0,115200
+dtparam=spi=on
+dtoverlay=spi0-hw-cs
+dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=25
+dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24
+dtoverlay=spi-bcm2835-overlay

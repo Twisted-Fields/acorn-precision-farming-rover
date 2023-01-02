@@ -46,7 +46,7 @@ Connect to the vehicle container:
 Multiple processes are running in separate tmux windows. The vehicle has a main
 process and a separate motor process.
 ```
-/home/pi # tmux ls
+/home/acorn # tmux ls
 main: 1 windows (created Mon Aug 30 21:07:27 2021)
 motors: 1 windows (created Mon Aug 30 21:07:27 2021)
 ```

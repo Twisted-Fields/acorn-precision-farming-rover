@@ -127,7 +127,7 @@ _RUN_PROFILER = False
 
 _PROJECTED_POINT_DISTANCE_METERS = 1.0
 
-_ENCODER_LOG_PATH = "/home/pi/encoder_logs/"
+_ENCODER_LOG_PATH = "/home/acorn/encoder_logs/"
 _FUSION_LOG_CUTOFF = 1000
 
 def get_profiled_velocity(last_vel, unfiltered_vel, period_s):

@@ -56,25 +56,25 @@ else:
 ret = subprocess.run("cat /etc/os-release", shell=True, capture_output=True).stdout.decode("utf-8")
 if os.uname().machine =='armv7l':
     if "Alpine" in ret:
-        RTK_BIN_DIR = '/home/pi/bringup/rtk_bin/bin32_alpine/'
+        RTK_BIN_DIR = '/home/acorn/bringup/rtk_bin/bin32_alpine/'
     elif "Raspbian" in ret:
-        RTK_BIN_DIR = '/home/pi/bringup/rtk_bin/bin32_raspbian/'
+        RTK_BIN_DIR = '/home/acorn/bringup/rtk_bin/bin32_raspbian/'
 elif os.uname().machine =='aarch64':
     if "Alpine" in ret:
-        RTK_BIN_DIR = '/home/pi/bringup/rtk_bin/bin64_alpine/'
+        RTK_BIN_DIR = '/home/acorn/bringup/rtk_bin/bin64_alpine/'
     elif "Debian" in ret or  "Ubuntu" in ret:
-        RTK_BIN_DIR = '/home/pi/bringup/rtk_bin/bin64_debian/'
+        RTK_BIN_DIR = '/home/acorn/bringup/rtk_bin/bin64_debian/'
 else:
     RTK_BIN_DIR = ''
 
 
 RTK_CMD1 = [RTK_BIN_DIR + 'rtkrcv', '-s', '-d',
-            '/dev/null', '-o', '/home/pi/vehicle/twisted.conf']
+            '/dev/null', '-o', '/home/acorn/vehicle/twisted.conf']
 RTK_CMD2 = [RTK_BIN_DIR + 'rtkrcv', '-s', '-d',
-            '/dev/null', '-o', '/home/pi/vehicle/twisted2.conf']
+            '/dev/null', '-o', '/home/acorn/vehicle/twisted2.conf']
 
-# /usr/local/bin/rtkrcv -s -d /dev/null -o /home/pi/vehicle/twisted.conf
-# /usr/local/bin/rtkrcv -s -o /home/pi/vehicle/twisted.conf
+# /usr/local/bin/rtkrcv -s -d /dev/null -o /home/acorn/vehicle/twisted.conf
+# /usr/local/bin/rtkrcv -s -o /home/acorn/vehicle/twisted.conf
 
 
 """
@@ -217,7 +217,7 @@ def launch_rtk_sub_procs(logger, single=False):
     except OSError as e:
         sys.exit(1)
 
-    cwd = "/home/pi/vehicle/"
+    cwd = "/home/acorn/vehicle/"
 
     proc1 = subprocess.Popen(RTK_CMD1, cwd=cwd, stdin=None,
                              stdout=None, stderr=None, close_fds=True, shell=False)

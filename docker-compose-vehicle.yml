@@ -5,14 +5,14 @@ services:
     build: .
     container_name: acorn_vehicle
     image: acorn_docker:1.0
-    working_dir: /home/pi
+    working_dir: /home/acorn
     volumes:
       - /dev:/dev
-      - /home/pi/acorn:/home/pi/
+      - /home/acorn/acorn:/home/acorn/
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /usr/local/bin:/usr/local/bin
     privileged: true
-    command: bash -c /home/pi/vehicle/autolaunch_vehicle.sh
+    command: bash -c /home/acorn/vehicle/autolaunch_vehicle.sh
     restart: unless-stopped
     network_mode: "host"

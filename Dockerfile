@@ -59,9 +59,6 @@ COPY server/requirements.txt /install/server/
 RUN python3 -m pip install -r /install/server/requirements.txt
 COPY vehicle/requirements.txt /install/vehicle/
 RUN python3 -m pip install -r /install/vehicle/requirements.txt
-COPY bringup/ODriveAcorn /install/bringup/ODriveAcorn
-RUN cd /install/bringup/ODriveAcorn/tools/ && python3 /install/bringup/ODriveAcorn/tools/fibre/python/setup.py install
-RUN cd /install/bringup/ODriveAcorn/tools/ && python3 /install/bringup/ODriveAcorn/tools/setup.py install
-RUN cd /install/bringup/ODriveAcorn/tools/fibre/python/ && python3 setup.py install
+
 RUN python3 -m pip install adafruit-circuitpython-mcp230xx coloredlogs pyserial_asyncio pyubx2 pygame
 RUN apt update && apt install -y libraspberrypi-bin; exit 0 # Only succeeds on raspberry pi but not needed otherwise.

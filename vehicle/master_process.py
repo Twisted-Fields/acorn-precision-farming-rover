@@ -42,7 +42,7 @@ from utils import AppendFIFO, config_logging
 
 
 _YAML_NAME_SIMULATION = "vehicle/server_config_sim.yaml"
-_YAML_NAME_RASPBERRY = "/home/pi/vehicle/server_config.yaml"
+_YAML_NAME_RASPBERRY = "/home/acorn/vehicle/server_config.yaml"
 _YAML_NAME_DOCKER = "/acorn/vehicle/server_config.yaml"
 
 _CMD_WRITE_KEY = bytes('w', encoding='ascii')
