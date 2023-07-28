@@ -57,7 +57,6 @@ GPS_RECORDING_ACTIVATE = "Record"
 GPS_RECORDING_PAUSE = "Pause"
 GPS_RECORDING_CLEAR = "Clear"
 
-
 class Robot:
     def __init__(self, simulated_data=False, logger=None):
         self.key = ""

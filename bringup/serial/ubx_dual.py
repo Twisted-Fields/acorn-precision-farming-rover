@@ -14,16 +14,16 @@ from pyubx2 import UBXMessage
 # layers = 1
 # transaction = 0
 # cfgData = [("CFG_RATE_MEAS", 40)]
-msg = UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_MEAS", 40)])
+# msg = UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_MEAS", 40)])
 # print(msg)
 # sys.exit()
 
-stream0 = Serial('/dev/ttySC4', 921600, timeout=0.10)
-stream1 = Serial('/dev/ttySC5', 921600, timeout=0.10)
+stream0 = Serial('/dev/ttyACM0', 921600, timeout=0.10)
+# stream1 = Serial('/dev/ttySC5', 921600, timeout=0.10)
 # Set high measurement rate.
 
 ubr0 = UBXReader(stream0)
-ubr1 = UBXReader(stream1)
+# ubr1 = UBXReader(stream1)
 
 start = time.time()
 loop_count = 0
@@ -31,9 +31,10 @@ while True:
     try:
         # ubr._stream.write(msg.serialize())
         (raw_data, parsed_data0) = ubr0.read()
-        (raw_data, parsed_data1) = ubr1.read()
+        print(parsed_data0)
+        # (raw_data, parsed_data1) = ubr1.read()
         print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-        print(f"{parsed_data0.numSV} {parsed_data1.numSV}")
+        # print(f"{parsed_data0.numSV} {parsed_data1.numSV}")
         # print(parsed_data.iTOW)
         # print(parsed_data.identity)
         # print(dir(parsed_data))

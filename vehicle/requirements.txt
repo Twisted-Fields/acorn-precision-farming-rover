@@ -12,3 +12,4 @@ RPi.GPIO
 adafruit-blinka
 csaps
 rpi_ws281x
+can-isotp

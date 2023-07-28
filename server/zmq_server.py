@@ -32,8 +32,8 @@ import psutil
 import redis_utils
 import model
 from model import RobotCommand
-from master_process import _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
-from master_process import _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
+from main_process import _CMD_WRITE_KEY, _CMD_READ_KEY, _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
+from main_process import _CMD_ACK, _CMD_READ_KEY_REPLY, _CMD_READ_PATH_KEY
 
 _ALLOWED_ACTIVITY_LAPSE_SEC = 120
 _SOCKET_RESET_TIMEOUT_MIN = 60

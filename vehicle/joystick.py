@@ -8,7 +8,7 @@ import os
 import numpy as np
 
 _JOYSTICK_MIN = 0.02
-_SBUS_MID_VAL = 992
+_SBUS_MID_VAL = 1024
 _SBUS_MIN = 193
 _SBUS_MAX = 1791
 _SBUS_RANGE = _SBUS_MAX - _SBUS_MIN
@@ -19,7 +19,7 @@ _SBUS_STRAFE_CH = 0
 _SBUS_SWITCH_R_CH = 7
 _SBUS_SWITCH_L_CH = 6
 _SBUS_BUTTON = 5
-_NO_CHANGE_LIMIT = 10  # If Joystick input hasn't change after a while, zero values.
+_NO_CHANGE_LIMIT = 20  # If Joystick input hasn't change after a while, zero values.
 
 _USE_JOYSTICK_IN_SIMULATION = False
 

@@ -30,7 +30,7 @@ import sys
 import random
 import collections
 
-import fibre
+# import fibre
 import odrive_manager
 import fake_odrive_manager
 from odrive.enums import *

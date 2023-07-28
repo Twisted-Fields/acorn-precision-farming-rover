@@ -38,9 +38,10 @@ import datetime
 from joystick import Joystick, JoystickSBUS
 from steering import calculate_steering, compare_steering_values, steering_to_numpy, recalculate_steering_values
 from utils import AppendFIFO, clamp
-import corner_actuator
+import corner_actuator_can as corner_actuator
 import model
 import utils
+import display
 
 BOARD_VERSION = 2
 
@@ -51,7 +52,7 @@ if os.uname().machine in ['armv7l','aarch64']:
     from adafruit_mcp230xx.mcp23017 import MCP23017
     from adafruit_mcp230xx.mcp23016 import MCP23016
 
-COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
+# COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
 
 ACCELERATION_COUNTS_SEC = 0.5
 
@@ -234,7 +235,7 @@ class RemoteControl():
             self.joy = JoystickSBUS(self.logger, simulated_hardware)
         else:
             self.joy = Joystick(simulated_hardware)
-        self.gps = gps.GPS(self.logger, self.simulated_hardware, use_new_gps=True)
+        self.gps = gps.GPS(self.logger, self.simulated_hardware)
         self.default_navigation_parameters = NavigationParameters(travel_speed=_DEFAULT_TRAVEL_SPEED,
                                                                   path_following_direction=Direction.EITHER,
                                                                   vehicle_travel_direction=Direction.EITHER,
@@ -290,6 +291,8 @@ class RemoteControl():
         self.tick_time = time.time()
         self.loop_count = -1
         self.fusion_data_collector = []
+        self.display = display.Display()
+        self.display.display_voltage(0.0)
 
     def run_setup(self):
         if True or self.simulated_hardware:
@@ -441,19 +444,18 @@ class RemoteControl():
             s = self.gps.last_sample()
             self.gps.update_simulated_sample(s.lat, s.lon, s.azimuth_degrees)
             time.sleep(1.0/_SIMULATED_LOOP_RATE_HZ)
-        else:
-            # if self.gps.last_sample() and self.gps.last_sample().status:
-            #     self.fusion_data_collector.append((self.motor_encoders.copy(), self.gps.last_sample(), self.gps.raw_sample))
-            #     if len(self.fusion_data_collector) > _FUSION_LOG_CUTOFF:
-            #         timestr = time.strftime("%Y%m%d-%H%M%S")
-            #         path  = os.path.join(_ENCODER_LOG_PATH, f"encoder_log_dual{timestr}.pickle")
-            #         self.logger.info(f"Saving encoder data to {path}")
-            #         with open(path, 'wb') as handle:
-            #             pickle.dump(self.fusion_data_collector, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            #         self.fusion_data_collector = []
-
-            self.gps.update_from_device(print_gps=self.loop_count % GPS_PRINT_INTERVAL == 0,
-                                        retries=_GPS_ERROR_RETRIES,)
+        # else:
+        #     # if self.gps.last_sample() and self.gps.last_sample().status:
+        #     #     self.fusion_data_collector.append((self.motor_encoders.copy(), self.gps.last_sample(), self.gps.raw_sample))
+        #     #     if len(self.fusion_data_collector) > _FUSION_LOG_CUTOFF:
+        #     #         timestr = time.strftime("%Y%m%d-%H%M%S")
+        #     #         path  = os.path.join(_ENCODER_LOG_PATH, f"encoder_log_dual{timestr}.pickle")
+        #     #         self.logger.info(f"Saving encoder data to {path}")
+        #     #         with open(path, 'wb') as handle:
+        #     #             pickle.dump(self.fusion_data_collector, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        #     #         self.fusion_data_collector = []
+        #
+        #     self.gps.new_gps_sample(print_gps=self.loop_count % GPS_PRINT_INTERVAL == 0)
         if self.loop_count == 200 and _RUN_PROFILER:
             import cProfile
             prof = cProfile.Profile()
@@ -740,6 +742,8 @@ class RemoteControl():
             if abs(steer_cmd) > 0.001 or abs(self.vel_cmd) > 0.001 or abs(strafe_cmd) > 0.001:
                 self.simulate_next_gps_sample(steer_cmd, strafe_cmd)
 
+        self.logger.debug("Communicate to motors")
+        self.logger.debug(calc)
         time10 = self.communicate_to_motors_sharedmem(calc, debug_time)
 
         # self.logger.warn("time: {} {}".format(self.period, time.time() - debug_time))
@@ -807,7 +811,7 @@ class RemoteControl():
 
     def steering_calc(self):
         """
-        Begin steering calculation.
+        Determine the steering commands for the robot.
         TODO: Break this out to a separate module.
         """
 
@@ -1319,6 +1323,7 @@ class RemoteControl():
                 self.total_watts = 0
                 if len(self.voltages) > 0:
                     self.voltage_average = sum(self.voltages) / len(self.voltages)
+                    self.display.display_voltage(self.voltage_average)
                 for volt, current in zip(self.voltages,
                                          self.bus_currents):
                     self.total_watts += volt * current

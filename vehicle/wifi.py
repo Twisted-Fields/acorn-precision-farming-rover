@@ -85,7 +85,7 @@ def wifi_process(stop_signal, master_conn, logging, debug):
             logger.info(
                 "Found IP addresses for wlan0 and wlan1 so turning off wlan0.")
             logger.info("wlan1 IP is {}".format(wlan1_ip))
-            subprocess.check_call("ifconfig wlan0 down", shell=True)
+            subprocess.check_call("ip link set dev wlan0 down", shell=True)
             logger.info("Turned off wlan0.")
         else:
             logger.info("Two connected wifi adapters present but both not connected " +

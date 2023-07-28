@@ -1,0 +1,18 @@
+version: "2.4"
+
+services:
+  acorn_vehicle:
+    build: .
+    container_name: acorn_gps_grid
+    image: acorn_docker:1.0
+    working_dir: /home/acorn
+    volumes:
+      - /dev:/dev
+      - /home/acorn/acorn:/home/acorn/
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /usr/local/bin:/usr/local/bin
+    privileged: true
+    command: bash -c /home/acorn/farm_extras/autolaunch_gps_grid.sh
+    restart: unless-stopped
+    network_mode: "host"

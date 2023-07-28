@@ -14,16 +14,18 @@ if _SUPPORT_NEW_GPS:
 if _SUPPORT_OLD_GPS:
     import rtk_process
 
+BAUD = 921600
 
 class GPS:
-    def __init__(self, logger, simulate_hardware=False, use_new_gps=False):
+    def __init__(self, logger, simulate_hardware=False, single_gps=False, single_gps_port=None):
         self.logger = logger
         self.simulate_hardware = simulate_hardware
         self.simulated_sample = gps_tools.GpsSample(37.353039233,
                                                     -122.333725682, 100,
                                                     ("fix", "fix"), 20, 0,
                                                     time.time(), 0.5)
-        self.use_new_gps = use_new_gps
+        self.single_gps = single_gps
+        self.single_gps_port = single_gps_port
         self.last_gps_sample = None
         self.last_good_gps_sample = None
         self.gps_buffers = ["", ""]
@@ -31,19 +33,32 @@ class GPS:
             self.rtk_socket1 = None
             self.rtk_socket2 = None
         else:
-            if not self.use_new_gps:
-                rtk_process.launch_rtk_sub_procs(self.logger)
-                self.rtk_socket1, self.rtk_socket2 = rtk_process.connect_rtk_procs(self.logger)
+            msg = pyubx2.UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_MEAS", 40)])
+
+            if self.single_gps:
+                self.stream_gps = Serial(self.single_gps_port, BAUD, timeout=0.10)
+                self.stream_gps.write(msg.serialize())
+                msg2 = pyubx2.UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_NAV", 1)])
+                self.stream_gps.write(msg2.serialize())
+                self.ubr_gps = UBXReader(self.stream_gps)
+                self.flush_single()
             else:
-                self.stream_center = Serial('/dev/ttySC4', 921600, timeout=0.10) # Center Receiver
-                self.stream_rear = Serial('/dev/ttySC5', 921600, timeout=0.10) # Rear Receiver
+                # self.stream_center = Serial('/dev/ttySC4', 921600, timeout=0.10) # Center Receiver
+                # self.stream_rear = Serial('/dev/ttySC5', 921600, timeout=0.10) # Rear Receiver
+                self.stream_center = Serial('/dev/ttySC1', BAUD, timeout=0.10) # Center Receiver
+                self.stream_rear = Serial('/dev/ttySC3', BAUD, timeout=0.10) # Rear Receiver
                 # Set high measurement rate.
-                msg = pyubx2.UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_MEAS", 40)])
                 self.stream_center.write(msg.serialize())
                 self.stream_rear.write(msg.serialize())
                 self.ubr_center = UBXReader(self.stream_center)
                 self.ubr_rear = UBXReader(self.stream_rear)
                 self.flush_serial()
+
+    def flush_single(self):
+        if self.simulate_hardware:
+            return
+        self.stream_gps.reset_input_buffer()
+        self.stream_gps.reset_output_buffer()
 
     def flush_serial(self):
         if self.simulate_hardware:
@@ -91,13 +106,18 @@ class GPS:
         4 = GNSS + dead reckoning combined
         5 = time only ﬁx
         """
+        if self.single_gps:
+            return self.new_gps_sample_single(print_gps)
         data_center = None
         data_rear = None
         try:
             (raw_data_center, data_center) = self.ubr_center.read()
             (raw_data_rear, data_rear) = self.ubr_rear.read()
             if data_center==None or data_rear==None:
-                self.logger.error(f"{data_center} {data_rear}")
+                if data_center==None:
+                    self.logger.error(f"NO DATA FROM CENTER GPS MODULE! Rear module returned: {data_rear}")
+                if data_rear==None:
+                    self.logger.error(f"NO DATA FROM REAR GPS MODULE! Center module returned: {data_center}")
                 return None
             if data_center.identity != "NAV-PVT" or data_rear.identity != "NAV-PVT":
                 self.logger.error(f"{data_center} {data_rear}")
@@ -152,31 +172,61 @@ class GPS:
                 pass
             return None
 
-    def update_from_device(self, print_gps, retries):
-        """calls the rtk process to get real GPS sample"""
-        # print(print_gps)
-        if self.use_new_gps:
-            self.last_gps_sample = self.new_gps_sample(print_gps)
-            if self.last_gps_sample is not None:
-                self.last_good_gps_sample = self.last_gps_sample
-        else:
-            self.gps_buffers, self.last_gps_sample = (
-                rtk_process.rtk_loop_once(
-                    self.rtk_socket1,
-                    self.rtk_socket2,
-                    buffers=self.gps_buffers,
-                    print_gps=print_gps,
-                    last_sample=self.last_gps_sample,
-                    retries=retries,
-                    logger=self.logger))
-        if self.last_gps_sample is not None:
-            self.last_good_gps_sample = self.last_gps_sample
-            # print(type(self.last_gps_sample.time_stamp))
-            # print(self.last_gps_sample)
-        else:
-            # Occasional bad samples are fine. A very old sample will
-            # get flagged in the final checks.
-            self.last_gps_sample = self.last_good_gps_sample
+
+    def new_gps_sample_single(self, print_gps):
+        """
+        grab GPS data when we are using a single reciever.
+        This is not used on acorn but is used on our GPS grid box
+        at the farm and relies on acorn code.
+        TODO: refactor this file to more cleanly support this?
+        """
+        data_center = None
+        try:
+            errors = 0
+            ERROR_LIMIT = 2
+            while True:
+                (raw_data_gps, data_gps) = self.ubr_gps.read()
+                # self.logger.info(raw_data_gps)
+                if data_gps==None:
+                    if errors > ERROR_LIMIT:
+                        self.logger.error("NO DATA FROM GPS MODULE!")
+                        return None
+                    errors+=1
+                elif data_gps.identity != "NAV-PVT":
+                    if errors > ERROR_LIMIT:
+                        self.logger.error(f"{data_center}")
+                        return None
+                    errors+=1
+                else:
+                    break
+
+            self.raw_samples = (data_gps)
+            microseconds = int(data_gps.nano/1000)
+            if microseconds < 0:
+                microseconds = 0
+            time_stamp = datetime.datetime(data_gps.year, data_gps.month, data_gps.day, data_gps.hour, data_gps.min, data_gps.second, microsecond=microseconds, tzinfo=datetime.timezone.utc)
+            local_timezone = datetime.datetime.now().astimezone().tzinfo
+            time_stamp = time_stamp.replace(tzinfo=datetime.timezone.utc).astimezone(tz=local_timezone)
+            heading = 0
+            latest_sample = gps_tools.GpsSample(data_gps.lat, data_gps.lon,
+                data_gps.hMSL/MM_IN_METER, data_gps.fixType>=3 and data_gps.difSoln==1, (
+                data_gps.numSV), heading, time_stamp, 0)
+            # print(f"Speed: {data.gSpeed}, Heading: {data.vehHeading}, Accuracy: {data.accHeading}")
+            if print_gps:
+                if self.last_gps_sample:
+                    period = (latest_sample.time_stamp - self.last_gps_sample.time_stamp).total_seconds()
+                else:
+                    period = 0.0
+                self.logger.info("Lat: {:.8f}, Lon: {:.8f}, Height M: {:.2f}, Heading: {:.1f}, Fix: {}, Period: {:.3f}".format(
+                    latest_sample.lat, latest_sample.lon, latest_sample.height_m, latest_sample.azimuth_degrees, latest_sample.status, period))
+            return latest_sample
+        except Exception as e:
+            self.logger.error(e)
+            try:
+                self.logger.error(f"GPS: {data_gps}")
+            except:
+                pass
+            return None
 
 
     def update_simulated_sample(self, lat, lon, azimuth_degrees):
@@ -187,13 +237,10 @@ class GPS:
 
     def is_dual_fix(self):
         """check if the last sample is dual fix."""
-        if self.use_new_gps:
-            try:
-                return all(self.last_sample().status)
-            except:
-                return False
-        else:
-            return gps_tools.is_dual_fix(self.last_sample())
+        try:
+            return all(self.last_sample().status)
+        except:
+            return False
 
     def dump(self):
         """dump the sample (only if simulated)"""

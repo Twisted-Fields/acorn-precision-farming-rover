@@ -1,14 +1,14 @@
 import socket
 import serial
 import time
-# serial_port = "/dev/ttyACM0"
-serial_port = "/dev/ttySC5"
+serial_port = "/dev/ttyACM0"
+# serial_port = "/dev/ttySC5"
 # serial_port = "/dev/ttyACM2"
 
 HOST = "0.0.0.0"  # Standard loopback interface address (localhost)
 PORT = 65436  # Port to listen on (non-privileged ports are > 1023)
 
-BAUD = 9600
+BAUD = 115200
 
 ser = serial.Serial(serial_port, BAUD, timeout=1)
 

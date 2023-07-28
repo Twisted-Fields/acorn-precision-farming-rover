@@ -12,6 +12,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /usr/local/bin:/usr/local/bin
+      - /usr/sbin:/usr/sbin
     privileged: true
     command: bash -c /home/acorn/vehicle/autolaunch_vehicle.sh
     restart: unless-stopped

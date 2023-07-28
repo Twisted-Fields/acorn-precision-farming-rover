@@ -7,11 +7,13 @@ import socket
 import sys
 import struct
 import fcntl
+from pyrtcm import RTCMReader
 
 HOST = "192.168.1.50"  # The server's hostname or IP address
 PORT = 130  # The port used by the server
 
 BAUD = 921600
+# BAUD = 1000000  # NOTE: Actual baud rate is 1M but must set as 921600
 
 SOCKET_TIMEOUT_SECONDS = 1
 if sys.maxsize > 2**32:
@@ -21,8 +23,10 @@ else:
 
 while True:
     try:
-        ser_rtcm_out0 = serial.Serial('/dev/gps_0', BAUD, timeout=0.5)
-        ser_rtcm_out1 = serial.Serial('/dev/gps_1', BAUD, timeout=0.5)
+        # ser_rtcm_out0 = serial.Serial('/dev/gps_0', BAUD, timeout=0.5)
+        # ser_rtcm_out1 = serial.Serial('/dev/gps_1', BAUD, timeout=0.5)
+        ser_rtcm_out0 = serial.Serial('/dev/ttySC0', BAUD, timeout=0.5)
+        ser_rtcm_out1 = serial.Serial('/dev/ttySC2', BAUD, timeout=0.5)
         print(ser_rtcm_out0.name)
         print(ser_rtcm_out1.name)
         ser_rtcm_out0.reset_input_buffer()
@@ -36,13 +40,22 @@ while True:
             last_data = time.time()
             while True:
                 try:
-                    data = conn.recv(1024)
-                    if data:
+                    rtr = RTCMReader(conn)
+                    for (raw_data, parsed_data) in rtr.iterate():
                         last_data = time.time()
-                        print("--->" + str(data))
-                        ser_rtcm_out0.write(data)
-                        ser_rtcm_out1.write(data)
-                        print(f"Sent {len(data)} bytes")
+                        print("--->--->--->--->--->--->--->--->--->--->--->--->")
+                        print(parsed_data)
+                        ser_rtcm_out0.write(raw_data)
+                        ser_rtcm_out1.write(raw_data)
+                        print(f"Sent {len(raw_data)} bytes")
+                    # continue
+                    # data = conn.recv(1024)
+                    # if data:
+                    #     last_data = time.time()
+                    #     print("--->" + str(data))
+                    #     ser_rtcm_out0.write(data)
+                    #     ser_rtcm_out1.write(data)
+                    #     print(f"Sent {len(data)} bytes")
                 except BlockingIOError:
                     print("------")
                     time.sleep(0.5)

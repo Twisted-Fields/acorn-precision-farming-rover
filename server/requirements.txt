@@ -2,3 +2,4 @@ redis
 flask-redis
 zmq
 csaps
+pyubx2

@@ -6,9 +6,9 @@ import time
 # cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
 # 1500000
 
-BAUD = 115200
+BAUD = 921600
 
-ser0 = serial.Serial('/dev/ttySC5', BAUD, timeout=1.5)
+ser0 = serial.Serial('/dev/ttySC1', BAUD, timeout=1.5)
 print(ser0.name)
 
 try:
@@ -20,5 +20,3 @@ except Exception as e:
     print("SERIAL EXCEPTION")
 
 ser0.close()
-ser1.close()
-ser2.close()

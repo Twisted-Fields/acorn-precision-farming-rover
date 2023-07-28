@@ -1,5 +1,6 @@
-
-FROM ros:galactic-ros-core-focal
+# This is an auto generated Dockerfile for ros:ros-base
+# generated from docker_images_ros2/create_ros_image.Dockerfile.em
+FROM ros:humble-ros-core-jammy
 
 # install bootstrap tools
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -25,10 +26,11 @@ RUN colcon mixin add default \
 
 # install ros2 packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-galactic-ros-base=0.9.3-2*
+    ros-humble-ros-base=0.10.0-1* \
+    && rm -rf /var/lib/apt/lists/*
 
 # Everything above this line comes from:
-# https://github.com/osrf/docker_images/blob/master/ros/galactic/ubuntu/focal/ros-base/Dockerfile
+# https://github.com/osrf/docker_images/blob/master/ros/humble/ubuntu/jammy/ros-base/Dockerfile
 
 # Below this line, twistedfields additions.
 
@@ -62,3 +64,5 @@ RUN python3 -m pip install -r /install/vehicle/requirements.txt
 
 RUN python3 -m pip install adafruit-circuitpython-mcp230xx coloredlogs pyserial_asyncio pyubx2 pygame
 RUN apt update && apt install -y libraspberrypi-bin; exit 0 # Only succeeds on raspberry pi but not needed otherwise.
+RUN apt install -y iproute2
+RUN python3 -m pip install utm crccheck

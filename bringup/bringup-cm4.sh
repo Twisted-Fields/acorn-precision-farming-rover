@@ -27,7 +27,7 @@ sudo cp overlay/dt-blob.bin /media/$USER/boot/
 sudo cp overlay/config.txt /media/$USER/boot/
 sudo cp overlay/dual-sc16is752-spi1.dtbo /media/$USER/boot/overlays/
 sudo cp raspberry/99-gps.rules /media/$USER/rootfs/etc/udev/rules.d/
-sudo cp raspberry/80-can.network /media/$USER/etc/systemd/network/
+sudo cp raspberry/80-can.network /media/$USER/rootfs/etc/systemd/network/
 
 # user acorn password acorn
 sudo echo 'acorn:$6$kd42OyeOBbMXuLqd$slFEIHfA7g0yrs8ae4gvVUZcj38Mm2Q/kksW.jmW9w/K.eva4QHlMKsQtSWpe497MxXe4byzPwLnpubNXitSn1' > /media/$USER/boot/userconf
@@ -56,4 +56,5 @@ sync
 sudo umount /media/$USER/rootfs
 sudo umount /media/$USER/boot
 
-echo "Completed"
+echo "Completed. Now boot the pi and run rsync -aP ../. acorn@$1.local:/home/acorn/acorn/"
+echo "Then run the post-flash script from inside the pi."
