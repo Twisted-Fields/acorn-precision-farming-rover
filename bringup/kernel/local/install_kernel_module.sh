@@ -1,5 +1,5 @@
 
-sudo cp kernel/can-isotp.ko /lib/modules/`uname -r`/kernel/net/can/
+#sudo cp kernel/can-isotp.ko /lib/modules/`uname -r`/kernel/net/can/
 
 sudo echo "
 # /etc/modules: kernel modules to load at boot time.
