@@ -1,3 +1,26 @@
+"""
+*********************************************************************
+                     This file is part of:
+                       The Acorn Project
+             https://wwww.twistedfields.com/research
+*********************************************************************
+Copyright (c) 2019-2021 Taylor Alexander, Twisted Fields LLC
+Copyright (c) 2021 The Acorn Project contributors (cf. AUTHORS.md).
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*********************************************************************
+"""
+
 from motor_controller import MessageType
 import sys
 import struct
@@ -19,8 +42,6 @@ class SimulatedSocket:
         self.last_packet = packet
 
     def recv(self):
-        # print(MessageType._value2member_map_[self.last_packet[0]])
-        # print(self.last_packet[0])
         reply = None
         if self.last_packet[0] == MessageType.REQUEST_SENSORS.value:
             reply = [0]*18
@@ -44,34 +65,12 @@ class SimulatedSocket:
             crc = Crc16.calc(reply[:16])
             reply[16] = crc & 0xFF
             reply[17] = (crc>>8) & 0xFF
-            # print(reply)
             reply = bytearray(reply)
             return reply
 
         if self.last_packet[0] == MessageType.LOG_REQUEST.value:
             reply = [self.address]
             reply.append(self.last_packet[0] & 0x7F)
-            # reply.append(0)
             reply = bytearray(reply)
-            # print(reply[2:].decode)
 
         return reply
-
-
-
-
-            # self.voltage = struct.unpack_from("<f", packet, offset=11)[0]
-
-
-        #
-        # if packet[0] != self.id:
-        #     print(f"PACKET {packet[0]} NOT FOR THIS CONTROLLER ID! {self.id}:")
-        #     hex_string = "".join(" 0x%02x" % b for b in packet)
-        #     print(hex_string)
-        #     return False
-        # if packet[1] & 0x7F != MessageType.REQUEST_SENSORS.value:
-        #     print("DECODE SENSOR PACKET RECEIVED WRONG PACKET TYPE")
-        #     return False
-        # crc = Crc16.calc(packet[:16])
-        # if crc != packet[17]<<8 | packet[16]:
-        #     return False

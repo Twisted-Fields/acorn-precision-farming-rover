@@ -179,7 +179,13 @@ def handle_command(r, command, key, msg):
         command_key = redis_utils.get_robot_command_key(key)
         # if not command_key:
         #     print("Error. Command key is none. Key was:")
-        command_object = pickle.loads(r.get(command_key))
+        command_encoded = r.get(command_key)
+        try:
+            command_object = pickle.loads(command_encoded)
+        except:
+            print(f"Error loading command object with key {command_key}"+ 
+                    "will generate a new command object.")
+            command_object = None
 
         # If the object changed definition we need to create a new one.
         if len(dir(RobotCommand())) != len(dir(command_object)):

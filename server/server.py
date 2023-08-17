@@ -275,6 +275,8 @@ def send_path_names():
             active_site = str(str(key).split(":")[0]).replace('b\'', '')
             print(active_site)
     names.sort()
+    if len(names) == 0:
+        print("Zero paths found when loading path names!")
     return jsonify(names)
 
 
