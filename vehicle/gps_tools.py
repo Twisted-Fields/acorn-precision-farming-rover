@@ -49,6 +49,11 @@ def get_distance(point1, point2):
     point2 = check_point(point2)
     return distance((point1.lat, point1.lon), (point2.lat, point2.lon)).m
 
+def calc_path_length(points):
+    length = 0
+    for idx in range(len(points)-1):
+        length += get_distance(points[idx], points[idx+1])
+    return length
 
 def check_point(point):
     if isinstance(point, dict):

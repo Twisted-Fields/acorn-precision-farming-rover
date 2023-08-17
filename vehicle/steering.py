@@ -22,12 +22,20 @@ limitations under the License.
 """
 import math
 import numpy as np
+import gps_tools
+from enum import Enum
+import model
+from model import Direction
+import time
+from utils import AppendFIFO
 
 wheel_base_width = 1.5
 wheel_base_length = 1.830
 wheel_radius_ = 0.4
 M_PI_2 = math.pi/2.0
 _ABSOLUTE_STEERING_LIMIT = math.pi * 2.0
+_PROJECTED_POINT_DISTANCE_METERS = 1.0
+_ERROR_RATE_AVERAGING_COUNT = 3
 
 
 def normalize_values(angle, throttle, angle_limit_deg):
@@ -146,7 +154,210 @@ def compare_steering_values(old_val, new_val, steering_limit=0.5, velocity_limit
         return False, error_string
     return True, ""
 
-# 
+
+
+def steering_calc(controller):
+    """
+    Determine the steering commands for the robot.
+    TODO: Break this out to a separate module.
+    """
+
+    if not controller.nav_path.points:
+        return (gps_tools.GpsPoint(0, 0),  # projected_path_tangent_point,
+                None,  # closest_path_point,
+                math.inf,  # absolute_path_distance,
+                None,  # drive_reverse,
+                None,  # calculated_rotation,
+                None)  # calculated_strafe)
+    closest_path_point, path_point_heading = controller.calc_closest_path_point_and_heading()
+    absolute_path_distance = gps_tools.get_distance(controller.gps.last_sample(), closest_path_point)
+    calculated_rotation = path_point_heading - controller.gps.last_sample().azimuth_degrees
+    # Truncate values to between 0 and 360
+    calculated_rotation %= 360
+    # Set value to +/- 180
+    if calculated_rotation > 180:
+        calculated_rotation -= 360
+    controller.logger.debug("calculated_rotation: {}, distance to path: {}".format(
+        calculated_rotation, abs(absolute_path_distance)))
+    controller.logger.debug("robot heading {}, path heading {}".format(
+        controller.gps.last_sample().azimuth_degrees, path_point_heading))
+
+    projected_path_tangent_point = gps_tools.project_point(closest_path_point, path_point_heading, _PROJECTED_POINT_DISTANCE_METERS)
+    gps_lateral_distance_error = gps_tools.get_approx_distance_point_from_line(
+        controller.gps.last_sample(), closest_path_point, projected_path_tangent_point)
+    calculated_strafe = -1 * gps_lateral_distance_error
+
+    # Truncate values to between 0 and 360
+    calculated_rotation %= 360
+
+    # Set value to +/- 180
+    if calculated_rotation > 180:
+        calculated_rotation -= 360
+
+    controller.logger.debug("calculated_rotation: {}".format(calculated_rotation))
+
+    _MAXIMUM_ROTATION_ERROR_DEGREES = 140
+
+    vehicle_dir = controller.nav_path.navigation_parameters.vehicle_travel_direction
+    path_dir = controller.nav_path.navigation_parameters.path_following_direction
+    drive_solution_okay = (vehicle_dir == Direction.EITHER or
+                           path_dir == Direction.EITHER or
+                           (vehicle_dir == path_dir and
+                            abs(calculated_rotation) <= _MAXIMUM_ROTATION_ERROR_DEGREES))
+
+    if vehicle_dir == Direction.BACKWARD:
+        controller.driving_direction = -1
+    else:
+        controller.driving_direction = 1
+    if vehicle_dir == Direction.EITHER:
+        if abs(calculated_rotation) > 90:
+            controller.driving_direction = -1
+            calculated_rotation -= math.copysign(180, calculated_rotation)
+        controller.driving_direction *= controller.nav_direction
+        calculated_strafe *= controller.nav_direction * controller.driving_direction
+    elif vehicle_dir == Direction.FORWARD:
+        if (abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES and
+                (path_dir in (Direction.EITHER, Direction.BACKWARD))):
+            calculated_rotation -= math.copysign(180, calculated_rotation)
+            calculated_strafe *= -1
+            controller.nav_direction = -1
+    elif vehicle_dir == Direction.BACKWARD:
+        if abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES:
+            if (path_dir in (Direction.EITHER, Direction.FORWARD)):
+                calculated_rotation -= math.copysign(180, calculated_rotation)
+                controller.nav_direction = 1
+        elif path_dir == Direction.BACKWARD:
+            calculated_strafe *= -1
+
+    drive_reverse = 1.0
+    if (len(controller.nav_path.points) == 2 and path_dir == Direction.EITHER):
+        if abs(calculated_rotation) > 20:
+            original = calculated_strafe
+            if abs(calculated_rotation) > 40:
+                calculated_strafe = 0
+                controller.gps_lateral_error_rate_averaging_list = []
+            else:
+                calculated_strafe *= (40 - abs(calculated_rotation)) / 20.0
+            controller.logger.debug("Reduced strafe from {}, to: {}".format(original, calculated_strafe))
+        else:
+            vehicle_position = (controller.gps.last_sample().lat, controller.gps.last_sample().lon)
+            drive_reverse = gps_tools.determine_point_move_sign(
+                controller.nav_path.points, vehicle_position)
+            # Figure out if we're close to aligned with the
+            # target point and reduce forward or reverse
+            # velocity if so.
+            closest_pt_on_line = gps_tools.find_closest_pt_on_line(
+                controller.nav_path.points[0], controller.nav_path.points[1],
+                vehicle_position)
+            dist_along_line = gps_tools.get_distance(controller.nav_path.points[0], closest_pt_on_line)
+            controller.logger.debug("dist_along_line {}".format(dist_along_line))
+            if gps_lateral_distance_error > 1.0:
+                # Reduce forward/reverse direction command
+                # if we are far from the line but also
+                # aligned to the target point.
+                if dist_along_line < 1.0:
+                    drive_reverse = 0
+                elif dist_along_line < 2.0:
+                    drive_reverse *= 0.1
+                elif dist_along_line < 4.0:
+                    drive_reverse *= 0.25
+
+        controller.logger.debug("rotation {}, strafe: {} direction {}, drive_reverse {}".
+                          format(calculated_rotation, calculated_strafe,
+                                 controller.driving_direction, drive_reverse))
+
+    if not drive_solution_okay:
+        controller.autonomy_hold = True
+        controller.activate_autonomy = False
+        controller.control_state = model.CONTROL_NO_STEERING_SOLUTION
+        controller.logger.error("Could not find drive solution. Disabling autonomy.")
+        controller.logger.error("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}"
+                          .format(calculated_rotation, controller.nav_path.
+                                  navigation_parameters.vehicle_travel_direction,
+                                  controller.nav_path.navigation_parameters.
+                                  path_following_direction))
+
+    controller.logger.debug(
+        f"calculated_rotation: {calculated_rotation}, "
+        f"vehicle_travel_direction {controller.nav_path.navigation_parameters.vehicle_travel_direction}, "
+        f"path_following_direction {controller.nav_path.navigation_parameters.path_following_direction}, "
+        f"controller.nav_direction {controller.nav_direction}, "
+        f"controller.driving_direction {controller.driving_direction}")
+
+    gps_path_angle_error = calculated_rotation
+    # Accumulate a list of error values for angular and
+    # lateral error. This allows averaging of errors
+    # and also determination of their rate of change.
+    time_delta = time.time() - controller.gps_error_update_time
+    controller.gps_error_update_time = time.time()
+    if not controller.reloaded_path:
+        AppendFIFO(controller.gps_lateral_error_rate_averaging_list,
+                   (gps_lateral_distance_error - controller.gps_path_lateral_error) / time_delta,
+                   _ERROR_RATE_AVERAGING_COUNT)
+        AppendFIFO(controller.gps_angle_error_rate_averaging_list,
+                   (gps_path_angle_error - controller.gps_path_angular_error) / time_delta,
+                   _ERROR_RATE_AVERAGING_COUNT)
+        controller.logger.debug(
+            "gps_lateral_distance_error: {}, controller.gps_path_lateral_error: {}"
+            .format(gps_lateral_distance_error, controller.gps_path_lateral_error))
+    controller.gps_path_angular_error = gps_path_angle_error
+    controller.gps_path_lateral_error = gps_lateral_distance_error
+
+    # Evaluate end conditions.
+
+    pt = controller.nav_path.points[0] if controller.nav_direction == -1 else controller.nav_path.points[-1]
+    end_distance = gps_tools.get_distance(controller.gps.last_sample(), pt)
+
+    if controller.nav_path.closed_loop:
+        pt = controller.nav_path.points[-1] if controller.nav_direction == -1 else controller.nav_path.points[0]
+        start_distance = gps_tools.get_distance(controller.gps.last_sample(), pt)
+        if end_distance < controller.nav_path.end_distance_m or start_distance < controller.nav_path.end_distance_m:
+            # this resets the path point tracking variable to ensure
+            # proper track looping
+            controller.last_closest_path_u = -1
+
+    if abs(calculated_rotation) < controller.nav_path.end_angle_degrees and \
+                        end_distance < controller.nav_path.end_distance_m and \
+                        not controller.nav_path.closed_loop:
+        controller.logger.info("MET END CONDITIONS {} {}".format(calculated_rotation, absolute_path_distance))
+        if controller.nav_path.navigation_parameters.repeat_path:
+            controller.load_path(controller.nav_path, simulation_teleport=False, generate_spline=False)
+            controller.load_path_time = time.time()
+        else:
+            controller.nav_path_index += 1
+            if controller.nav_path_index < len(controller.nav_path_list):
+                controller.load_path(controller.nav_path_list[controller.nav_path_index],
+                               simulation_teleport=False, generate_spline=True)
+            else:
+                controller.nav_path_index = 0
+                controller.load_path(controller.nav_path_list[controller.nav_path_index],
+                               simulation_teleport=True, generate_spline=True)
+
+        controller.gps_lateral_error_rate_averaging_list = []
+        controller.gps_angle_error_rate_averaging_list = []
+        controller.reloaded_path = True
+        return (projected_path_tangent_point, closest_path_point, absolute_path_distance,
+                drive_reverse, calculated_rotation, calculated_strafe)
+
+    controller.reloaded_path = False
+    controller.logger.debug("controller.gps_path_lateral_error_rate {}, {} / {}".format(
+        controller.gps_path_lateral_error_rate(),
+        sum(controller.gps_lateral_error_rate_averaging_list),
+        len(controller.gps_lateral_error_rate_averaging_list)))
+
+    controller.next_point_heading = calculated_rotation
+    return (projected_path_tangent_point, closest_path_point, absolute_path_distance,
+            drive_reverse, calculated_rotation, calculated_strafe)
+
+
+
+
+
+
+
+
+
+#
 # def forwardKinematics(calc):
 # {
 # 	L = wheel_base_length

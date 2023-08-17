@@ -46,6 +46,8 @@ redis_client = FlaskRedis(app)
 volatile_path = []  # When the robot is streaming a path, save it in RAM here.
 active_site = "twistedfields"
 
+HIDE_AUTOGEN_PATHS = True
+
 
 def get_svg_path(filename):
     p = re.compile(r'\s+[d][=]["]([M][^"]+)["]')
@@ -264,10 +266,13 @@ def show_path(pathname=None):
         return jsonify(path)
 
 
+
 @app.route('/api/get_path_names')
 def send_path_names():
     names = []
     for key in redis_client.scan_iter():
+        if HIDE_AUTOGEN_PATHS and "autogen" in str(key):
+            continue
         if ':gpspath:' in str(key):
             pathname = str(key).split(":")[2]
             names.append(pathname)
@@ -312,10 +317,9 @@ def get_dense_path():
                 print(p)
         path = new_path[6:]
         print(f"Returning dense path of length {len(path)}")
-        print(type(path))
-        print(type(path[0]))
         return jsonify(path)
     return "No keys found"
+
 
 
 if __name__ == "__main__":
@@ -325,6 +329,7 @@ if __name__ == "__main__":
                     use_reloader=True,
                     host="0.0.0.0",
                     port=int("80"))
-        except BaseException:
+        except BaseException as e:
+            print(e)
             print("Server had some error. Restarting...")
             time.sleep(5)

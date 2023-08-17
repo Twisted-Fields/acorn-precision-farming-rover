@@ -2,6 +2,7 @@ import time
 from datetime import datetime
 import numpy as np
 import gps_tools
+from enum import Enum
 
 
 CONTROL_STARTUP = "Initializing..."
@@ -51,6 +52,11 @@ CORNER_NAMES={'front_right' : 0,
               'front_left': 1,
               'rear_right' : 2,
               'rear_left': 3}
+
+class Direction(Enum):
+    FORWARD = 1
+    BACKWARD = 2
+    EITHER = 3
 
 
 GPS_RECORDING_ACTIVATE = "Record"

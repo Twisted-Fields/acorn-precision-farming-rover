@@ -36,10 +36,11 @@ from multiprocessing import shared_memory
 import datetime
 
 from joystick import Joystick, JoystickSBUS
-from steering import calculate_steering, compare_steering_values, steering_to_numpy, recalculate_steering_values
+from steering import calculate_steering, compare_steering_values, steering_to_numpy, recalculate_steering_values, steering_calc
 from utils import AppendFIFO, clamp
 import corner_actuator_can as corner_actuator
 import model
+from model import Direction
 import utils
 import display
 
@@ -91,7 +92,6 @@ _GPS_ERROR_RETRIES = 3
 
 _NUM_GPS_SUBSAMPLES = 10
 
-_ERROR_RATE_AVERAGING_COUNT = 3
 
 _ALLOWED_RTK_AGE_SEC = 20.0
 _ALLOWED_SOLUTION_AGE_SEC = 1.0
@@ -126,7 +126,7 @@ _USE_SBUS_JOYSTICK = True
 _DEBUG_STEERING = False
 _RUN_PROFILER = False
 
-_PROJECTED_POINT_DISTANCE_METERS = 1.0
+
 
 _ENCODER_LOG_PATH = "/home/acorn/encoder_logs/"
 _FUSION_LOG_CUTOFF = 1000
@@ -140,11 +140,6 @@ def get_profiled_velocity(last_vel, unfiltered_vel, period_s):
     return last_vel + increment
 
 
-class Direction(Enum):
-    FORWARD = 1
-    BACKWARD = 2
-    EITHER = 3
-
 
 class PathControlValues():
     def __init__(self, angular_p, lateral_p, angular_d, lateral_d):
@@ -152,6 +147,10 @@ class PathControlValues():
         self.lateral_p = lateral_p
         self.angular_d = angular_d
         self.lateral_d = lateral_d
+
+    def __str__(self):
+        return f"Angular P:{self.angular_p}, Lateral P:{self.lateral_p}, Angular D:{self.angular_d}, Lateral D:{self.lateral_d}"
+
 
 
 class NavigationParameters():
@@ -181,6 +180,12 @@ class PathSection():
         self.end_angle_degrees = end_angle
         self.navigation_parameters: NavigationParameters = navigation_parameters
         self.closed_loop = False
+
+    def __str__(self):
+        str = (f"PathSection is {gps_tools.calc_path_length(self.points):.2f} meters long with {len(self.points)} points.\n")
+        str += f"Control Values: {self.control_values}"
+        return str
+
 
 
 class EnergySegment():
@@ -518,7 +523,7 @@ class RemoteControl():
 
             time5 = time.time() - debug_time
             (projected_path_tangent_point, closest_path_point,
-             absolute_path_distance, drive_reverse, calculated_rotation, calculated_strafe) = self.steering_calc()
+             absolute_path_distance, drive_reverse, calculated_rotation, calculated_strafe) = steering_calc(self)
 
 
             # front_raw = gps_tools.project_point(self.gps.raw_samples[0], sample.azimuth_degrees, 0)
@@ -660,6 +665,7 @@ class RemoteControl():
             strafe_cmd = 0
 
         # Slow Vel down by 50% when steering is at max.
+        # TODO: Looks like I altered this to 100%. Make reduction a variable.
         self.vel_cmd = vel_cmd * 1.0 / (1.0 + abs(steer_cmd))
 
         # Fixed factor reduction TODO: eliminate by reducing vel where assigned
@@ -818,198 +824,6 @@ class RemoteControl():
             self.reloaded_path = True
         self.load_path_time = time.time()
 
-    def steering_calc(self):
-        """
-        Determine the steering commands for the robot.
-        TODO: Break this out to a separate module.
-        """
-
-        if not self.nav_path.points:
-            return (gps_tools.GpsPoint(0, 0),  # projected_path_tangent_point,
-                    None,  # closest_path_point,
-                    math.inf,  # absolute_path_distance,
-                    None,  # drive_reverse,
-                    None,  # calculated_rotation,
-                    None)  # calculated_strafe)
-        closest_path_point, path_point_heading = self.calc_closest_path_point_and_heading()
-        absolute_path_distance = gps_tools.get_distance(self.gps.last_sample(), closest_path_point)
-        calculated_rotation = path_point_heading - self.gps.last_sample().azimuth_degrees
-        # Truncate values to between 0 and 360
-        calculated_rotation %= 360
-        # Set value to +/- 180
-        if calculated_rotation > 180:
-            calculated_rotation -= 360
-        self.logger.debug("calculated_rotation: {}, distance to path: {}".format(
-            calculated_rotation, abs(absolute_path_distance)))
-        self.logger.debug("robot heading {}, path heading {}".format(
-            self.gps.last_sample().azimuth_degrees, path_point_heading))
-
-        projected_path_tangent_point = gps_tools.project_point(closest_path_point, path_point_heading, _PROJECTED_POINT_DISTANCE_METERS)
-        gps_lateral_distance_error = gps_tools.get_approx_distance_point_from_line(
-            self.gps.last_sample(), closest_path_point, projected_path_tangent_point)
-        calculated_strafe = -1 * gps_lateral_distance_error
-
-        # Truncate values to between 0 and 360
-        calculated_rotation %= 360
-
-        # Set value to +/- 180
-        if calculated_rotation > 180:
-            calculated_rotation -= 360
-
-        self.logger.debug("calculated_rotation: {}".format(calculated_rotation))
-
-        _MAXIMUM_ROTATION_ERROR_DEGREES = 140
-
-        vehicle_dir = self.nav_path.navigation_parameters.vehicle_travel_direction
-        path_dir = self.nav_path.navigation_parameters.path_following_direction
-        drive_solution_okay = (vehicle_dir == Direction.EITHER or
-                               path_dir == Direction.EITHER or
-                               (vehicle_dir == path_dir and
-                                abs(calculated_rotation) <= _MAXIMUM_ROTATION_ERROR_DEGREES))
-
-        if vehicle_dir == Direction.BACKWARD:
-            self.driving_direction = -1
-        else:
-            self.driving_direction = 1
-        if vehicle_dir == Direction.EITHER:
-            if abs(calculated_rotation) > 90:
-                self.driving_direction = -1
-                calculated_rotation -= math.copysign(180, calculated_rotation)
-            self.driving_direction *= self.nav_direction
-            calculated_strafe *= self.nav_direction * self.driving_direction
-        elif vehicle_dir == Direction.FORWARD:
-            if (abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES and
-                    (path_dir in (Direction.EITHER, Direction.BACKWARD))):
-                calculated_rotation -= math.copysign(180, calculated_rotation)
-                calculated_strafe *= -1
-                self.nav_direction = -1
-        elif vehicle_dir == Direction.BACKWARD:
-            if abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES:
-                if (path_dir in (Direction.EITHER, Direction.FORWARD)):
-                    calculated_rotation -= math.copysign(180, calculated_rotation)
-                    self.nav_direction = 1
-            elif path_dir == Direction.BACKWARD:
-                calculated_strafe *= -1
-
-        drive_reverse = 1.0
-        if (len(self.nav_path.points) == 2 and path_dir == Direction.EITHER):
-            if abs(calculated_rotation) > 20:
-                original = calculated_strafe
-                if abs(calculated_rotation) > 40:
-                    calculated_strafe = 0
-                    self.gps_lateral_error_rate_averaging_list = []
-                else:
-                    calculated_strafe *= (40 - abs(calculated_rotation)) / 20.0
-                self.logger.debug("Reduced strafe from {}, to: {}".format(original, calculated_strafe))
-            else:
-                vehicle_position = (self.gps.last_sample().lat, self.gps.last_sample().lon)
-                drive_reverse = gps_tools.determine_point_move_sign(
-                    self.nav_path.points, vehicle_position)
-                # Figure out if we're close to aligned with the
-                # target point and reduce forward or reverse
-                # velocity if so.
-                closest_pt_on_line = gps_tools.find_closest_pt_on_line(
-                    self.nav_path.points[0], self.nav_path.points[1],
-                    vehicle_position)
-                dist_along_line = gps_tools.get_distance(self.nav_path.points[0], closest_pt_on_line)
-                self.logger.debug("dist_along_line {}".format(dist_along_line))
-                if gps_lateral_distance_error > 1.0:
-                    # Reduce forward/reverse direction command
-                    # if we are far from the line but also
-                    # aligned to the target point.
-                    if dist_along_line < 1.0:
-                        drive_reverse = 0
-                    elif dist_along_line < 2.0:
-                        drive_reverse *= 0.1
-                    elif dist_along_line < 4.0:
-                        drive_reverse *= 0.25
-
-            self.logger.debug("rotation {}, strafe: {} direction {}, drive_reverse {}".
-                              format(calculated_rotation, calculated_strafe,
-                                     self.driving_direction, drive_reverse))
-
-        if not drive_solution_okay:
-            self.autonomy_hold = True
-            self.activate_autonomy = False
-            self.control_state = model.CONTROL_NO_STEERING_SOLUTION
-            self.logger.error("Could not find drive solution. Disabling autonomy.")
-            self.logger.error("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}"
-                              .format(calculated_rotation, self.nav_path.
-                                      navigation_parameters.vehicle_travel_direction,
-                                      self.nav_path.navigation_parameters.
-                                      path_following_direction))
-
-        self.logger.debug(
-            f"calculated_rotation: {calculated_rotation}, "
-            f"vehicle_travel_direction {self.nav_path.navigation_parameters.vehicle_travel_direction}, "
-            f"path_following_direction {self.nav_path.navigation_parameters.path_following_direction}, "
-            f"self.nav_direction {self.nav_direction}, "
-            f"self.driving_direction {self.driving_direction}")
-
-        gps_path_angle_error = calculated_rotation
-        # Accumulate a list of error values for angular and
-        # lateral error. This allows averaging of errors
-        # and also determination of their rate of change.
-        time_delta = time.time() - self.gps_error_update_time
-        self.gps_error_update_time = time.time()
-        if not self.reloaded_path:
-            AppendFIFO(self.gps_lateral_error_rate_averaging_list,
-                       (gps_lateral_distance_error - self.gps_path_lateral_error) / time_delta,
-                       _ERROR_RATE_AVERAGING_COUNT)
-            AppendFIFO(self.gps_angle_error_rate_averaging_list,
-                       (gps_path_angle_error - self.gps_path_angular_error) / time_delta,
-                       _ERROR_RATE_AVERAGING_COUNT)
-            self.logger.debug(
-                "gps_lateral_distance_error: {}, self.gps_path_lateral_error: {}"
-                .format(gps_lateral_distance_error, self.gps_path_lateral_error))
-        self.gps_path_angular_error = gps_path_angle_error
-        self.gps_path_lateral_error = gps_lateral_distance_error
-
-        # Evaluate end conditions.
-
-        pt = self.nav_path.points[0] if self.nav_direction == -1 else self.nav_path.points[-1]
-        end_distance = gps_tools.get_distance(self.gps.last_sample(), pt)
-
-        if self.nav_path.closed_loop:
-            pt = self.nav_path.points[-1] if self.nav_direction == -1 else self.nav_path.points[0]
-            start_distance = gps_tools.get_distance(self.gps.last_sample(), pt)
-            if end_distance < self.nav_path.end_distance_m or start_distance < self.nav_path.end_distance_m:
-                # this resets the path point tracking variable to ensure
-                # proper track looping
-                self.last_closest_path_u = -1
-
-        if abs(calculated_rotation) < self.nav_path.end_angle_degrees and \
-                            end_distance < self.nav_path.end_distance_m and \
-                            not self.nav_path.closed_loop:
-            self.logger.info("MET END CONDITIONS {} {}".format(calculated_rotation, absolute_path_distance))
-            if self.nav_path.navigation_parameters.repeat_path:
-                self.load_path(self.nav_path, simulation_teleport=False, generate_spline=False)
-                self.load_path_time = time.time()
-            else:
-                self.nav_path_index += 1
-                if self.nav_path_index < len(self.nav_path_list):
-                    self.load_path(self.nav_path_list[self.nav_path_index],
-                                   simulation_teleport=False, generate_spline=True)
-                else:
-                    self.nav_path_index = 0
-                    self.load_path(self.nav_path_list[self.nav_path_index],
-                                   simulation_teleport=True, generate_spline=True)
-
-            self.gps_lateral_error_rate_averaging_list = []
-            self.gps_angle_error_rate_averaging_list = []
-            self.reloaded_path = True
-            return (projected_path_tangent_point, closest_path_point, absolute_path_distance,
-                    drive_reverse, calculated_rotation, calculated_strafe)
-
-        self.reloaded_path = False
-        self.logger.debug("self.gps_path_lateral_error_rate {}, {} / {}".format(
-            self.gps_path_lateral_error_rate(),
-            sum(self.gps_lateral_error_rate_averaging_list),
-            len(self.gps_lateral_error_rate_averaging_list)))
-
-        self.next_point_heading = calculated_rotation
-        return (projected_path_tangent_point, closest_path_point, absolute_path_distance,
-                drive_reverse, calculated_rotation, calculated_strafe)
 
     def calc_closest_path_point_and_heading(self):
         path_point_heading = None
@@ -1050,7 +864,7 @@ class RemoteControl():
             steer_p = calculated_rotation * self.nav_path.control_values.angular_p
             strafe_p = calculated_strafe * self.nav_path.control_values.lateral_p
             steer_d = self.gps_path_angular_error_rate() * self.nav_path.control_values.angular_d
-            strafe_d = self.gps_path_lateral_error_rate() * self.nav_path.control_values.lateral_d
+            strafe_d = self.gps_path_lateral_error_rate() * self.nav_path.control_values.lateral_d * -1
 
             self.logger.debug("strafe_p {}, strafe_d {}, steer_p {} steer_d {}".format(
                 strafe_p, strafe_d, strafe_d, steer_d))

@@ -82,6 +82,7 @@ if selection == 2:
         selection = input(f"Will save path with key {pathkey} to database. Continue? y/(n): ")
         if selection == "y":
             r.set(pathkey,pickle.dumps(path))
+            r.bgsave()
             print("Changes saved to database! Exiting.")
         else:
             print("Nothing changed. Exiting.")
@@ -152,13 +153,15 @@ print("1: Sample (print first item)")
 print("2: Export to disk")
 print("3: Print in full")
 print("4: Delete path")
+print("5: Fix Control Values")
 
 
 selection = int(input("Enter selection: "))
 
 if(selection==1):
     if isinstance(path[0], PathSection):
-        print(path[0].points[0])
+        for item in path:
+            print(item)
     else:
         print(path[0])
 
@@ -182,3 +185,22 @@ if(selection==4):
     else:
         print("Nothing changed. Exiting.")
     sys.exit()
+
+if(selection==5):
+    if isinstance(path[0], PathSection):
+        path[0].control_values.lateral_p *= -1
+        path[0].control_values.lateral_d *= -1
+        for idx in range(len(path)):
+            path[idx].control_values = path[0].control_values
+            # item.control_values.lateral_d *= -1
+            print(path[idx])
+        selection = input("Values shown above will be committed to database. Continue? y/(n): ")
+        if selection == "y":
+            r.set(pathkey,pickle.dumps(path))
+            r.bgsave()
+            print("Changes saved to database! Exiting.")
+        else:
+            print("Nothing changed. Exiting.")
+        sys.exit()
+    else:
+        print(path[0])
