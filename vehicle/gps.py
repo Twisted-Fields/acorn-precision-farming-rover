@@ -154,6 +154,7 @@ class GPS:
             latest_sample = gps_tools.GpsSample(data_center.lat, data_center.lon,
                 data_center.hMSL/MM_IN_METER, (data_center.fixType>=3, data_rear.fixType>=3), (
                 data_center.numSV, data_rear.numSV), heading, time_stamp, 0)
+            self.last_gps_sample = latest_sample
             # print(f"Speed: {data.gSpeed}, Heading: {data.vehHeading}, Accuracy: {data.accHeading}")
             if print_gps:
                 if self.last_gps_sample:

@@ -377,7 +377,7 @@ class MainProcess():
                                      f"Activate Aut: {robot_command.activate_autonomy}, "
                                      f"Aut Vel: {robot_command.autonomy_velocity}, "
                                      f"Clear Aut Hold: {self.acorn.clear_autonomy_hold}, "
-                                     f"Voltage: {self.acorn.voltage}")
+                                     f"Voltage: {self.acorn.voltage:0.2f}")
         return updated_object
 
 

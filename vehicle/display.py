@@ -1,5 +1,9 @@
-import RPi.GPIO as GPIO
+
+import os
 import time
+
+if os.uname().machine in ['armv7l','aarch64']:
+    import RPi.GPIO as GPIO
 
 clk = 23
 data = 22
@@ -48,6 +52,12 @@ charmap = {
     ' ': 0x00
 }
 
+
+class DisplaySimulated:
+    def __init__(self):
+        pass
+    def display_voltage(self, _):
+        pass
 
 
 class Display:

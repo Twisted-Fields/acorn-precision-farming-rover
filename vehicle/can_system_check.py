@@ -34,7 +34,7 @@ GPIO.setup(corner_actuator.ESTOP_PIN, GPIO.OUT, initial=GPIO.LOW)
 # square_wave.start()
 
 
-def request_reply(socket, request_packet, address, error_limit=10):
+def request_reply(socket, request_packet, address, error_limit=3):
     send_ok = False
     errors = 0
     while not send_ok:
@@ -55,19 +55,20 @@ def request_reply(socket, request_packet, address, error_limit=10):
                 return False
     errors = 0
     data = None
+    # print("===============================================")
     while not data:
         try:
             data=socket.recv()
             # data2=socket.recv()
-            hex_string = "".join(" 0x%02x" % b for b in data)
-            # print(f"Recieve returned {hex_string}")
+            # hex_string = "".join(" 0x%02x" % b for b in data)
+            # print(f"{address} recieve returned {hex_string}")
             if not data:
-                print("Recieve error.")
                 errors += 1
                 if errors > error_limit:
+                    print("Recieve error.")
                     return False
-            if data[0] != address:
-                # print("Skipping wrong packet")
+            elif data[0] != address:
+                print("Skipping wrong packet")
                 data = None
         except KeyboardInterrupt as e:
             raise e
@@ -76,12 +77,20 @@ def request_reply(socket, request_packet, address, error_limit=10):
             return False
     return data
 
-def ping_request(socket, controller):
-    reply = request_reply(socket, controller.simple_ping(), controller.id)
+def ping_request(socket, controller, error_limit=2):
+    reply = request_reply(socket, controller.simple_ping(), controller.id, error_limit)
     if reply:
         return controller.decode_ping_reply(reply, print_result=True)
     else:
         return (False, False)
+
+def log_request(socket, controller, error_limit=2):
+    reply = request_reply(socket, controller.log_request(), controller.id, error_limit)
+    # print(reply)
+    if reply:
+        return controller.decode_log_reply(reply)
+    else:
+        return None
 
 
 def sensor_request(socket, controller):
@@ -102,7 +111,7 @@ def reset_can_port(interface):
 
 def init_controller(interface, address):
     reset_can_port(interface)
-    s = isotp.socket(timeout=0.1)
+    s = isotp.socket(timeout=0.2)
     s.set_opts(isotp.socket.flags.WAIT_TX_DONE)
     s.bind(interface, isotp.Address(rxid=0x1, txid=address))
     print(s.address)
@@ -115,7 +124,7 @@ interface = "can1"
 
 addresses_found = []
 
-for address in range(5, 13):
+for address in range(4, 13):
     s, controller = init_controller(interface, address)
     result = ping_request(s, controller)
     if all(result):
@@ -152,21 +161,28 @@ for s, controller in zip(sockets, controllers):
 
 count = 0
 ticktime = time.time()
+error_count = 0
+start_time = time.time()
 
 try:
     while True:
         count += 1
         for s, controller in zip(sockets, controllers):
-            time.sleep(0.0002)
-            if sensor_request(s, controller):
-                controller.read_error = False
-                if controller.thermal_warning:
-                    print("THERMAL WARNING!!!")
-                if controller.thermal_shutdown:
-                    print("THERMAL SHUTDOWN!!!")
-            else:
-                controller.read_error = True
-                print("READ_ERROR")
+            # time.sleep(0.0002)
+            # if sensor_request(s, controller):
+            #     controller.read_error = False
+            #     if controller.thermal_warning:
+            #         print("THERMAL WARNING!!!")
+            #     if controller.thermal_shutdown:
+            #         print("THERMAL SHUTDOWN!!!")
+            # else:
+            #     controller.read_error = True
+            #     error_count +=1
+            #     print("READ_ERROR")
+            log_reply = log_request(s,controller)
+            if log_reply:
+                # print(len(log_reply))
+                print(log_reply)
         if time.time() - ticktime > 0.1:
             print(f"Rate: {count*10} hz ", end='')
             for controller in controllers:
@@ -174,7 +190,8 @@ try:
                     print(f"|  ID:{controller.id} --------------- |", end='')
                 else:
                     print(f"| ID:{controller.id}, {controller.voltage:.2f}, {controller.therm_bridge1}, {controller.therm_bridge2} |", end='')
-            print()
+            runtime = time.time() - start_time
+            print(f" | ERRORS: {error_count} | time: {int(runtime/60)}:{int(runtime%60):02d}")
             ticktime = time.time()
             count = 0
 

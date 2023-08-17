@@ -291,7 +291,10 @@ class RemoteControl():
         self.tick_time = time.time()
         self.loop_count = -1
         self.fusion_data_collector = []
-        self.display = display.Display()
+        if simulated_hardware:
+            self.display = display.DisplaySimulated()
+        else:
+            self.display = display.Display()
         self.display.display_voltage(0.0)
 
     def run_setup(self):
@@ -444,18 +447,18 @@ class RemoteControl():
             s = self.gps.last_sample()
             self.gps.update_simulated_sample(s.lat, s.lon, s.azimuth_degrees)
             time.sleep(1.0/_SIMULATED_LOOP_RATE_HZ)
-        # else:
-        #     # if self.gps.last_sample() and self.gps.last_sample().status:
-        #     #     self.fusion_data_collector.append((self.motor_encoders.copy(), self.gps.last_sample(), self.gps.raw_sample))
-        #     #     if len(self.fusion_data_collector) > _FUSION_LOG_CUTOFF:
-        #     #         timestr = time.strftime("%Y%m%d-%H%M%S")
-        #     #         path  = os.path.join(_ENCODER_LOG_PATH, f"encoder_log_dual{timestr}.pickle")
-        #     #         self.logger.info(f"Saving encoder data to {path}")
-        #     #         with open(path, 'wb') as handle:
-        #     #             pickle.dump(self.fusion_data_collector, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        #     #         self.fusion_data_collector = []
-        #
-        #     self.gps.new_gps_sample(print_gps=self.loop_count % GPS_PRINT_INTERVAL == 0)
+        else:
+            # if self.gps.last_sample() and self.gps.last_sample().status:
+            #     self.fusion_data_collector.append((self.motor_encoders.copy(), self.gps.last_sample(), self.gps.raw_sample))
+            #     if len(self.fusion_data_collector) > _FUSION_LOG_CUTOFF:
+            #         timestr = time.strftime("%Y%m%d-%H%M%S")
+            #         path  = os.path.join(_ENCODER_LOG_PATH, f"encoder_log_dual{timestr}.pickle")
+            #         self.logger.info(f"Saving encoder data to {path}")
+            #         with open(path, 'wb') as handle:
+            #             pickle.dump(self.fusion_data_collector, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            #         self.fusion_data_collector = []
+
+            self.gps.new_gps_sample(print_gps=self.loop_count % GPS_PRINT_INTERVAL == 0)
         if self.loop_count == 200 and _RUN_PROFILER:
             import cProfile
             prof = cProfile.Profile()
@@ -648,8 +651,14 @@ class RemoteControl():
                     autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd))
 
         # Determine final drive commands for autonomy or joystick.
-        vel_cmd, steer_cmd, strafe_cmd = self.calc_drive_commands(
-            autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd, zero_output)
+        if self.motor_state == model.MOTOR_ENABLED:
+            vel_cmd, steer_cmd, strafe_cmd = self.calc_drive_commands(
+                autonomy_vel_cmd, autonomy_steer_cmd, autonomy_strafe_cmd, zero_output)
+        else:
+            vel_cmd = 0
+            steer_cmd = 0
+            strafe_cmd = 0
+
         # Slow Vel down by 50% when steering is at max.
         self.vel_cmd = vel_cmd * 1.0 / (1.0 + abs(steer_cmd))
 
@@ -1089,9 +1098,10 @@ class RemoteControl():
             user_web_page_plot_strafe_cmd = autonomy_strafe_cmd * self.driving_direction
 
             if 0.0 <= self.nav_path.navigation_parameters.travel_speed <= self.maximum_velocity:
-                autonomy_vel_cmd = (self.nav_path.navigation_parameters.travel_speed
+                AUTONOMY_FACTOR = 3.0
+                autonomy_vel_cmd = (AUTONOMY_FACTOR * self.nav_path.navigation_parameters.travel_speed
                                     * self.driving_direction * drive_reverse)
-                self.logger.debug("Travel speed: {}".format(self.nav_path.navigation_parameters.travel_speed))
+                self.logger.debug("Travel speed: {}".format(AUTONOMY_FACTOR * self.nav_path.navigation_parameters.travel_speed))
             else:
                 self.logger.error("Invalid travel speed specified! Got {}. Maximum allowed is {}"
                                   .format(self.nav_path.navigation_parameters.travel_speed, self.maximum_velocity))
@@ -1138,7 +1148,7 @@ class RemoteControl():
 
 
         if self.motor_state != model.MOTOR_ENABLED:
-            error_messages.append("Motor error so zeroing out autonomy commands.")
+            error_messages.append("Motors not enabled so zeroing out autonomy commands.")
             zero_output = True
             self.control_state = model.CONTROL_MOTOR_ERROR
             self.resume_motion_timer = time.time()
@@ -1152,6 +1162,10 @@ class RemoteControl():
 
         if not self.gps.is_dual_fix():
             error_messages.append("No GPS fix so zeroing out autonomy commands.")
+            try:
+                print(self.gps.last_sample().status)
+            except:
+                pass
             zero_output = True
             self.control_state = model.CONTROL_GPS_STARTUP
             self.resume_motion_timer = time.time()
@@ -1186,6 +1200,7 @@ class RemoteControl():
             self.logger.error(self.gps.last_sample())
             self.gps.flush_serial()
             error_messages.append("RTK solution too old so zeroing out autonomy commands.")
+        # self.logger.error(f"solution_age: {solution_age}")
 
         if time.time() - self.robot_object.last_server_communication_stamp > SERVER_COMMUNICATION_DELAY_LIMIT_SEC:
             zero_output = True

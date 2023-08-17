@@ -41,7 +41,7 @@ while True:
             while True:
                 try:
                     rtr = RTCMReader(conn)
-                    for (raw_data, parsed_data) in rtr.iterate():
+                    for (raw_data, parsed_data) in rtr:
                         last_data = time.time()
                         print("--->--->--->--->--->--->--->--->--->--->--->--->")
                         print(parsed_data)

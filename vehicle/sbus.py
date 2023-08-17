@@ -176,7 +176,7 @@ class SBUSReceiver:
 async def main(debug_values=False):
     logger = logging.getLogger('sbus_joystick')
     config_logging(logger, debug=False)
-    sbus = await SBUSReceiver.create(port="/dev/ttyAMA1", logger=logger)
+    sbus = await SBUSReceiver.create(port="/dev/ttyAMA3", logger=logger)
     min = 193
     max = 1791
     middle = 992

@@ -66,6 +66,7 @@ from crccheck.crc import Crc16
 
 THERMAL_WARNING_LIMIT = 60 # low for testing
 THERMAL_SHUTDOWN_LIMIT = 100 # TODO: test
+LOGGING_DIVIDER = '#'
 
 class MessageType(Enum):
     SEND_COMPLETE_SETTINGS = 1
@@ -77,6 +78,7 @@ class MessageType(Enum):
     FIRMWARE_UPDATE = 7
     FIRMWARE_UPDATE_CPU2 = 8
     SIMPLE_PING = 9
+    LOG_REQUEST = 10
 
 
 class Motor:
@@ -111,6 +113,7 @@ class MotorController:
             self.thermal_shutdown = False
             self.read_error = False
             self.last_packet = None
+            self.log_messages = []
 
 
         def check_thermals(self):
@@ -169,6 +172,14 @@ class MotorController:
             values.extend(MessageType.SIMPLE_PING.value.to_bytes(1, byteorder='big'))
             return values
 
+        def log_request(self):
+            """
+            Send log request.
+            """
+            values = bytearray()
+            values.extend(MessageType.LOG_REQUEST.value.to_bytes(1, byteorder='big'))
+            return values
+
         def simple_FOC_pass_through(self, data):
             values = bytearray()
             values.extend(MessageType.SIMPLEFOC_PASS_THROUGH.value.to_bytes(1, byteorder='big'))
@@ -189,8 +200,9 @@ class MotorController:
                 return False
             crc = Crc16.calc(packet[:16])
             if crc != packet[17]<<8 | packet[16]:
+                print("DECODE SENSOR BAD CRC!")
                 return False
-            self.adc1 = packet[3]<<8 | packet[1]
+            self.adc1 = packet[3]<<8 | packet[2]
             self.adc2 = packet[5]<<8 | packet[4]
             self.aux1 = (packet[6] & (0x1)) > 0
             self.aux2 = (packet[6] & (0x1<<1)) > 0
@@ -201,14 +213,7 @@ class MotorController:
             self.therm_motor2 = packet[10]
             self.voltage = struct.unpack_from("<f", packet, offset=11)[0]
             self.check_thermals()
-            if self.voltage>100 or self.voltage < -1:
-                self.print_sensors()
-                print(packet)
-                print(self.last_packet)
-                # import time
-                # time.sleep(10)
             self.last_packet = packet
-
             return True
 
         def decode_ping_reply(self, packet, print_result=False):
@@ -223,6 +228,18 @@ class MotorController:
             if print_result:
                 print(f"CAN CPU ack: {can_cpu_ack} | Motor CPU ack: {can_motor_ack}")
             return (can_cpu_ack, can_motor_ack)
+
+        def decode_log_reply(self, packet):
+            if packet[0] != self.id:
+                print(f"PACKET {packet[0]} NOT FOR THIS CONTROLLER ID! {self.id}")
+                return False
+            if packet[1] & 0x7F != MessageType.LOG_REQUEST.value:
+                print(f"DECODE LOG REPLY {MessageType.LOG_REQUEST.value} RECEIVED WRONG PACKET TYPE {packet[1]& 0x7F}")
+                return False
+            message = packet[2:].decode("utf-8")
+            if len(message) > 0:
+                self.log_messages.append(message)
+            return message
 
         def decode_basic_reply(self, packet):
             self.motor1.encoder_counts = struct.unpack_from("<f", packet, offset=0)

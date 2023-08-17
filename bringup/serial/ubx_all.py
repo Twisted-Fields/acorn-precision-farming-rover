@@ -18,11 +18,26 @@ from pyubx2 import UBXMessage
 # print(msg)
 # sys.exit()
 
-stream0 = Serial('/dev/ttySC2', 921600, timeout=0.10)
-# stream1 = Serial('/dev/ttySC5', 921600, timeout=0.10)
-# Set high measurement rate.
+port_names = ('/dev/ttySC0', '/dev/ttySC1', '/dev/ttySC2', '/dev/ttySC3')
+# port_names = ('/dev/ttySC1','/dev/ttySC3')
 
-ubr0 = UBXReader(stream0)
+BAUD = 921600
+# BAUD = 999999
+# BAUD = 1000000  # NOTE: Actual baud rate is 1M but must set as 921600
+
+
+port_list = []
+
+for name in port_names:
+    port_list.append(Serial(name, BAUD, timeout=0.1))
+
+reader_list = []
+for port in port_list:
+    port.flushInput()
+    port.flushOutput()
+    reader_list.append(UBXReader(port))
+
+# ubr0 = UBXReader(stream0)
 # ubr1 = UBXReader(stream1)
 
 start = time.time()
@@ -30,10 +45,14 @@ loop_count = 0
 while True:
     try:
         # ubr._stream.write(msg.serialize())
-        (raw_data, parsed_data0) = ubr0.read()
-        print(parsed_data0)
+        idx = 0
+        for reader in reader_list:
+            (raw_data, parsed_data0) = reader.read()
+            print(f"{port_names[idx]} | {parsed_data0}")
+            idx+=1
+            # print(dir(reader))
         # (raw_data, parsed_data1) = ubr1.read()
-        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+            print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
         # print(f"{parsed_data0.numSV} {parsed_data1.numSV}")
         # print(parsed_data.iTOW)
         # print(parsed_data.identity)

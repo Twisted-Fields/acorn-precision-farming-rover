@@ -82,7 +82,11 @@ class CornerActuator:
                  connection_definition=None, enable_steering=True, enable_traction=True,
                  simulated_hardware=False, disable_steering_limits=False):
 
-        socket = isotp.socket()
+        if simulated_hardware:
+            import sim_socket
+            socket = sim_socket.SimulatedSocket()
+        else:
+            socket = isotp.socket()
         socket.set_opts(isotp.socket.flags.WAIT_TX_DONE)
         socket.bind("can1", isotp.Address(rxid=0x1, txid=connection_definition.id))
 
@@ -100,10 +104,7 @@ class CornerActuator:
         self.steering_flipped = False
         self.steering_initialized = False
         self.traction_initialized = False
-        if simulated_hardware:
-            raise RuntimeError("Simulation not yet defined. Cannot run.")
-        else:
-            pass
+
 
 
     def enable_thermistor(self):
@@ -125,10 +126,10 @@ class CornerActuator:
         return 0
 
     def request_reply(self, request_packet, error_limit=10):
-        gpio_toggle(self.GPIO)
         send_ok = False
         errors = 0
         while not send_ok:
+            gpio_toggle(self.GPIO)
             try:
                 # hex_string = "".join(" 0x%02x" % b for b in request_packet)
                 # print(f"Send: {address} {hex_string}")
@@ -150,11 +151,14 @@ class CornerActuator:
     def get_reply(self, error_limit=10):
         errors = 0
         data = None
+        # print("===============================================")
         while not data:
+            gpio_toggle(self.GPIO)
             try:
                 data=self.socket.recv()
-                # hex_string = "".join(" 0x%02x" % b for b in data)
-                # print(f"Recieve returned {hex_string}")
+                # if data:
+                    # hex_string = "".join(" 0x%02x" % b for b in data)
+                    # print(f"{self.controller.id} recieve returned {hex_string}")
                 if not data:
                     print(f"Recieve error (no data) with controller {self.controller.id}")
                     errors += 1
@@ -172,11 +176,22 @@ class CornerActuator:
         return data
 
     def ping_request(self):
-        reply = self.request_reply(controller.simple_ping())
+        gpio_toggle(self.GPIO)
+        reply = self.request_reply(self.controller.simple_ping())
+        gpio_toggle(self.GPIO)
         if reply:
             return self.controller.decode_ping_reply(reply, print_result=True)
         else:
             return (False, False)
+
+    def log_request(self):
+        gpio_toggle(self.GPIO)
+        reply = self.request_reply(self.controller.log_request())
+        gpio_toggle(self.GPIO)
+        if reply:
+            return self.controller.decode_log_reply(reply)
+        else:
+            return None
 
     def sample_sensors(self, request_send=True):
         gpio_toggle(self.GPIO)
@@ -185,12 +200,11 @@ class CornerActuator:
             data = self.request_reply(self.controller.sensor_request())
         else:
             data = self.get_reply()
-        if data:
-            self.controller.decode_sensor_reply(data)
+        gpio_toggle(self.GPIO)
+        if data and self.controller.decode_sensor_reply(data):
             self.rotation_sensor_val = self.controller.adc1 * 3.3/1024
         else:
             print(f"ERROR: No data on sample_sensors read, controller {self.controller.id}")
-        # print(self.rotation_sensor_val)
 
     def initialize_traction(self):
         self.traction_initialized = True
@@ -219,6 +233,7 @@ class CornerActuator:
         self.sample_sensors()
         self.check_steering_limits()
         self.enable_steering_control()
+        gpio_toggle(self.GPIO)
 
         # do some homing
 
@@ -234,11 +249,6 @@ class CornerActuator:
         # gpio_toggle(self.GPIO)
         # check system errors here
         pass
-
-    def update_voltage(self):
-        gpio_toggle(self.GPIO)
-        # read motor voltage and currents - unless we do this as part of update
-        # packet.
 
     def update_encoder_data(self):
         # self.encoder_estimates = (self.steering_axis.encoder.pos_estimate,
@@ -257,25 +267,29 @@ class CornerActuator:
             drive_velocity *= -1
         self.position = steering_pos_deg
         self.velocity = drive_velocity
-        # self.update_voltage()
         self.update_encoder_data()
+        self.log_request()
 
 
-        if abs(self.velocity) > _ZERO_VEL_COUNTS_THRESHOLD:
-            self.zero_vel_timestamp = None
-        else:
-            if self.zero_vel_timestamp is None:
-                self.zero_vel_timestamp = time.time()
-            else:
-                if time.time() - self.zero_vel_timestamp > 5.0:
-                    pass
-                    # self.odrv0.axis1.controller.vel_integrator_current = 0
+        # TODO: on previous robot this code reset integrator current after
+        # a few seconds. May not be needed on V2 robot.
+        # if abs(self.velocity) > _ZERO_VEL_COUNTS_THRESHOLD:
+        #     self.zero_vel_timestamp = None
+        # else:
+        #     if self.zero_vel_timestamp is None:
+        #         self.zero_vel_timestamp = time.time()
+        #     else:
+        #         if time.time() - self.zero_vel_timestamp > 5.0:
+        #             # could reset integrator current here if needed
+        #             pass
+
         self.controller.motor1.setpoint = STEERING_RADIANS_TO_COUNTS * self.position + self.home_position
         self.controller.motor2.setpoint = self.velocity
         if(self.enable_traction or self.enable_steering):
             try:
                 # print(self.controller.serialize_motors())
                 # print(f"pos: {self.position}, vel:{self.velocity}")
+                gpio_toggle(self.GPIO)
                 if simple_request:
                     self.socket.send(self.controller.serialize_basic(reply_requested=True))
                     self.sample_sensors(request_send=False)

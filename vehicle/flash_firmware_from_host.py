@@ -2,14 +2,16 @@
 import subprocess
 
 FIRMWARE_FOLDER = "/home/taylor/Software/2023_code/rp2040_combine/"
-ROBOT_HOSTNAME = "acorn3"
+ROBOT_HOSTNAME = "acornv2.local"
 CAN_SUBPATH = ".pio/build/canbus/firmware.bin"
 MOTOR_SUBPATH = ".pio/build/motorcontroller/firmware.bin"
 
 CAN_DEST_NAME = "firmware_can.bin"
 MOTOR_DEST_NAME = "firmware_motor.bin"
 
-CAN_ADDRESSES = [0x7]
+# CAN_ADDRESSES = [0x7]
+# CAN_ADDRESSES = [0x7, 0x6]
+CAN_ADDRESSES = [0x6, 0x7, 0x8, 0x9]
 
 FLASH_CAN = True
 FLASH_MOTOR = True

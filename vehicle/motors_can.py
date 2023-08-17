@@ -51,10 +51,6 @@ roll them all up in to one location.
 BYPASS_STEERING_LIMITS = True
 
 
-s = isotp.socket()
-s.set_opts(isotp.socket.flags.WAIT_TX_DONE)
-s.bind("can1", isotp.Address(rxid=0x123, txid=0x456))
-
 # This file gets imported by server but we should only import GPIO on raspi.
 if os.uname().machine in ['armv7l','aarch64']:
     import RPi.GPIO as GPIO
@@ -85,16 +81,10 @@ class simulated_GPIO():
     def output(self, *args):
         pass
 
-def reset_can_port(interface):
-    subprocess.run(["ifconfig", interface, "down"])
-    time.sleep(0.2)
-    subprocess.run(["ifconfig", interface, "up"])
-    time.sleep(0.2)
 
 class AcornMotorInterface():
 
     def __init__(self, manual_control=False, simulated_hardware=False):
-
 
         self.motor_connections = [
             corner_actuator.MotorConnection(name=CORNER_NAMES['front_left'], id=0x8,
@@ -156,6 +146,13 @@ class AcornMotorInterface():
                                          buffer=self.in_shm.buf)
         self.motor_input_values[:] = model.MOTOR_SAMPLE_INPUT[:]
 
+    def reset_can_port(self, interface):
+        if not self.simulated_hardware:
+            subprocess.run(["ifconfig", interface, "down"])
+            time.sleep(0.2)
+            subprocess.run(["ifconfig", interface, "up"])
+            time.sleep(0.2)
+
     def ask_if_adjust_steering(self):
         self.square_wave = Process(target=e_stop_square_wave, args=(GPIO,))
         self.square_wave.start()
@@ -210,6 +207,10 @@ class AcornMotorInterface():
 
     def connect_to_motors(self, enable_steering=True, enable_traction=True):
 
+        # print("%%%%%%%%%%%%")
+        # print(self.simulated_hardware)
+        # import sys
+        # sys.exit()
         disable_steering_limits = False
         if BYPASS_STEERING_LIMITS or self.manual_control:
             disable_steering_limits = True
@@ -221,6 +222,7 @@ class AcornMotorInterface():
                                                     enable_traction=motor.enable_traction,
                                                     simulated_hardware=self.simulated_hardware,
                                                     disable_steering_limits=disable_steering_limits)
+
             self.motors.append(corner)
         self.motors_connected = True
 
@@ -240,6 +242,7 @@ class AcornMotorInterface():
                         steering_flipped=False, skip_homing=self.manual_control)
                 print(f"Updating {list(CORNER_NAMES)[drive.name]}")
                 drive.update_actuator(steering, 0.0)
+        corner_actuator.gpio_toggle(self.GPIO)
         for drive in self.motors:
             if drive.enable_traction:
                 drive.initialize_traction()
@@ -273,7 +276,7 @@ class AcornMotorInterface():
             raise e
 
     def run_debug_control(self, enable_steering=True, enable_traction=True):
-        print("RUN_MAIN_MOTORS")
+        print("RUN_MAIN_MOTORS_DEBUG")
         while True:
             try:
                 if not self.motors_connected:
@@ -305,11 +308,14 @@ class AcornMotorInterface():
     def run_main(self):
         existing_motor_error = False
         tick_time = time.time()
+        display_tick_time = time.time()
         print("RUN_MAIN_MOTORS")
         debug_time = time.time()
         debug_tick = 0
         loop_tick = 0
-        reset_can_port("can1")
+        self.reset_can_port("can1")
+        error_count = 0
+        start_time = time.time()
         try:
             while True:
                 # print("loop main")
@@ -329,6 +335,7 @@ class AcornMotorInterface():
                     except Exception as e:
                         print(e)
                         pass
+                        raise e
                 elif not self.motors_initialized:
                     try:
                         print("Try to initialize motors.")
@@ -350,7 +357,12 @@ class AcornMotorInterface():
                         print("Initialized Steering")
                     except RuntimeError:
                         print("Motor problem while adjusting steering.")
-                calc = self.communicate_message(model.MOTOR_ENABLED)
+
+                state_to_send = model.MOTOR_ENABLED
+                for drive in self.motors:
+                    if not drive.controller.motion_allowed:
+                        state_to_send = model.MOTOR_DISABLED
+                calc = self.communicate_message(state_to_send)
 
                 corner_actuator.gpio_toggle(self.GPIO)
 
@@ -368,9 +380,8 @@ class AcornMotorInterface():
                     for drive in self.motors:
                         this_pos, this_vel_cmd = calc[drive.name]
                         # this_pos = math.degrees(this_pos)
-
                         try:
-                            this_vel_cmd *= 100
+                            this_vel_cmd *= 150
                             drive.update_actuator(steering_pos_deg=this_pos, drive_velocity=this_vel_cmd)
                             drive.controller.read_error = False
 
@@ -378,6 +389,7 @@ class AcornMotorInterface():
                             print("Error updating actuator.")
                             print(e)
                             drive.controller.read_error = True
+                            error_count+=1
                         except AttributeError as e:
                             print("Attribute Error while updating actuator.")
                             print(e)
@@ -385,18 +397,32 @@ class AcornMotorInterface():
                                 self.motors_initialized))
                             print("self {}".format(self))
                             drive.controller.read_error = True
+                            error_count+=1
                             raise e
                         except OSError as e:
                             print("OSError while updating actuator.")
                             print("Will reset CAN port.")
                             drive.controller.read_error = True
+                            error_count+=1
                             reset_can = True
-                    for drive in self.motors:
-                        if drive.controller.read_error:
-                            print(f"|  ID:{drive.controller.id} --------------- |", end='')
-                        else:
-                            print(f"| ID:{drive.controller.id}, {drive.controller.voltage:.2f}, {drive.controller.therm_bridge1}, {drive.controller.therm_bridge2} |", end='')
-                    print()
+
+                    if time.time() - display_tick_time > 0.5:
+                        display_tick_time = time.time()
+                        motor_state = "ENABLED"
+                        for drive in self.motors:
+                            if not drive.controller.motion_allowed:
+                                motor_state = "STOPPED"
+                            if drive.controller.read_error:
+                                print(f"|  ID:{drive.controller.id} --------------- |", end='')
+                            else:
+                                print(f"| ID:{drive.controller.id}, {drive.controller.voltage:.2f}, {drive.controller.therm_bridge1}, {drive.controller.therm_bridge2} |", end='')
+                        runtime = time.time() - start_time
+                        print(f" | ERRORS: {error_count} | time: {int(runtime/60)}:{int(runtime%60):02d} | {motor_state}")
+                        for drive in self.motors:
+                            if len(drive.controller.log_messages) > 0:
+                                print(drive.controller.log_messages)
+                            while len(drive.controller.log_messages) > 10:
+                                drive.controller.log_messages.pop(0)
                     if reset_can:
                         print("Setting velocity to zero before resetting CAN port.")
                         for drive in self.motors:
@@ -407,7 +433,7 @@ class AcornMotorInterface():
                             except:
                                 pass
                         print("Resetting can1")
-                        reset_can_port("can1")
+                        self.reset_can_port("can1")
                     self.voltages = []
                     for drive in self.motors:
                         self.voltages.append(drive.controller.voltage)
@@ -420,6 +446,9 @@ class AcornMotorInterface():
                         try:
                             drive.slow_actuator(0.50)
                         except RuntimeError as e:
+                            print("Error updating actuator.")
+                            print(e)
+                        except OSError as e:
                             print("Error updating actuator.")
                             print(e)
                     corner_actuator.toggling_sleep(self.GPIO, 0.15)

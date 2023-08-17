@@ -12,7 +12,7 @@ def flush_serial(stream_center, stream_rear):
     stream_center.reset_output_buffer()
     stream_rear.reset_input_buffer()
     stream_rear.reset_output_buffer()
-stream_center = Serial('/dev/ttySC0', 1000000, timeout=0.10) # Center Receiver
+stream_center = Serial('/dev/ttySC3', 1000000, timeout=0.10) # Center Receiver
 stream_rear = Serial('/dev/ttySC1', 1000000, timeout=0.10) # Rear Receiver
 msg = pyubx2.UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_MEAS", 40)])
 stream_center.write(msg.serialize())
