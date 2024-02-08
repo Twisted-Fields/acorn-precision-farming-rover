@@ -6,9 +6,9 @@ import zmq
 import yaml
 import multiprocessing as mp
 import threading
-from master_process import MainProcess
-from master_process import _CMD_READ_PATH_KEY, _CMD_READ_KEY_REPLY
-from master_process import _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
+from main_process import MainProcess
+from main_process import _CMD_READ_PATH_KEY, _CMD_READ_KEY_REPLY
+from main_process import _CMD_UPDATE_ROBOT, _CMD_ROBOT_COMMAND
 
 
 def zmq_socket(port=None):

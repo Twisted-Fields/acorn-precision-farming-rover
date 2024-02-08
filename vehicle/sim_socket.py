@@ -36,7 +36,7 @@ class SimulatedSocket:
 
     def bind(self, interface, address):
         self.interface = interface
-        self.address = address.txid
+        self.address = address._txid
 
     def send(self, packet):
         self.last_packet = packet
