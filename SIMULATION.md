@@ -39,10 +39,11 @@ hardware and sensors return fake data. This was originally intended primarily
 for integration testing but it has proven useful for navigation software
 development.
 
-now you should be able to open the User Interface in your browser on:
+Now you should be able to open the User Interface in your browser on:
 http://localhost
 
-The UI will be refactored later. But for now just do the following steps:
+The UI will be refactored later. For now use the following steps to load a
+navigation path and run the simulated robot:
 - click `select a path` and then e.g. `aaa_test3`.
 - click `Load Path` on the Right. The Loaded Path Name should appear on the right.
 - click `Clear Autonomy Hold`.
@@ -53,7 +54,7 @@ To get some Debut Output connect to the vehicle container:
 ```
 ./attach_docker_vehicle.sh
 ```
-Multiple processes are running in separate tmux windows. The vehicle has a main
+Multiple processes are running in separate tmux sessions. The vehicle has a main
 process and a separate motor process.
 ```
 /home/acorn # tmux ls
@@ -75,6 +76,18 @@ You can connect to the motors with:
 ```
 tmux a -t motors
 ```
+
+Note that you do not need to type the full tmux session name - just enough
+letters to distinguish between them. Detach from the motors tmux session and
+run:
+```
+tmux a -t mo
+```
+or
+```
+tmux a -t ma
+```
+And you will be connected to the motors or main tmux session, respectively.
 
 Exit out of any tmux windows, and at the root prompt of the container press
 Ctrl+D to exit the docker container without stopping it.
