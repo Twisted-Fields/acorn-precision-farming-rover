@@ -81,17 +81,17 @@ def wifi_process(stop_signal, master_conn, logging, debug):
             wlan1_ip = netifaces.ifaddresses('wlan1')[2][0]['addr']
         except KeyError:
             pass
-        if wlan0_ip and wlan1_ip:
-            logger.info(
-                "Found IP addresses for wlan0 and wlan1 so turning off wlan0.")
-            logger.info("wlan1 IP is {}".format(wlan1_ip))
-            subprocess.check_call("ip link set dev wlan0 down", shell=True)
-            logger.info("Turned off wlan0.")
-        else:
-            logger.info("Two connected wifi adapters present but both not connected " +
-                        "so did not turn off wlan0.")
-            logger.info("wlan0 IP: {}  | wlan1 IP: {}".format(
-                wlan0_ip, wlan1_ip))
+        # if wlan0_ip and wlan1_ip:
+        #     logger.info(
+        #         "Found IP addresses for wlan0 and wlan1 so turning off wlan0.")
+        #     logger.info("wlan1 IP is {}".format(wlan1_ip))
+        #     subprocess.check_call("ip link set dev wlan0 down", shell=True)
+        #     logger.info("Turned off wlan0.")
+        # else:
+        #     logger.info("Two connected wifi adapters present but both not connected " +
+        #                 "so did not turn off wlan0.")
+        #     logger.info("wlan0 IP: {}  | wlan1 IP: {}".format(
+        #         wlan0_ip, wlan1_ip))
         log_counter = 0
         while not stop_signal.is_set():
             linkdata = subprocess.check_output("iw dev wlan1 link", shell=True)
@@ -121,8 +121,10 @@ def wifi_process(stop_signal, master_conn, logging, debug):
                     logger.info(station_name)
                     logger.info("Wifi RSSI: {} dBm".format(signal))
             except Exception as e:
-                print(e)
+                # print("wifi.py prints:")
+                # print(e)
                 # raise e
+                pass
             time.sleep(0.5)
     else:
         logger.info(

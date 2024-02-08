@@ -68,7 +68,7 @@ def request_reply(socket, request_packet, address, error_limit=3):
                     print("Recieve error.")
                     return False
             elif data[0] != address:
-                print("Skipping wrong packet")
+                # print("Skipping wrong packet")
                 data = None
         except KeyboardInterrupt as e:
             raise e
@@ -121,6 +121,9 @@ def init_controller(interface, address):
 interface = "can1"
 
 # import socket
+
+
+
 
 addresses_found = []
 
@@ -186,10 +189,11 @@ try:
         if time.time() - ticktime > 0.1:
             print(f"Rate: {count*10} hz ", end='')
             for controller in controllers:
+                home_value = abs(512-controller.adc2)
                 if controller.read_error:
                     print(f"|  ID:{controller.id} --------------- |", end='')
                 else:
-                    print(f"| ID:{controller.id}, {controller.voltage:.2f}, {controller.therm_bridge1}, {controller.therm_bridge2} |", end='')
+                    print(f"| ID:{controller.id}, {controller.voltage:.2f}, {controller.therm_bridge1}, {home_value} |", end='')
             runtime = time.time() - start_time
             print(f" | ERRORS: {error_count} | time: {int(runtime/60)}:{int(runtime%60):02d}")
             ticktime = time.time()

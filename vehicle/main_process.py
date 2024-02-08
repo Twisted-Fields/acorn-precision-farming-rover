@@ -265,12 +265,14 @@ class MainProcess():
                         if len(msg) == 2:
                             key = msg[0]
                             if key == bytes(pathkey, encoding='ascii'):
-                                return pickle.loads(msg[1])
+                                if msg[1]:
+                                    return pickle.loads(msg[1])
                             else:
                                 self.logger.error("{} and {} dont match".format(key, pathkey))
                         else:
                             self.logger.info(msg)
                 attempts += 1
+            self.logger.error(f"Path loading failed after {attempts} attempts.")
 
     def update_from_remote_control(self, remote_to_main_lock, remote_to_main_string):
         updated_object = False

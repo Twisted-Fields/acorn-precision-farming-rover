@@ -24,11 +24,11 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="3.1108586"
-     inkscape:cx="735.32754"
-     inkscape:cy="315.98993"
-     inkscape:window-width="3766"
+     inkscape:cx="536.02565"
+     inkscape:cy="826.78139"
+     inkscape:window-width="3770"
      inkscape:window-height="2082"
-     inkscape:window-x="1994"
+     inkscape:window-x="1990"
      inkscape:window-y="41"
      inkscape:window-maximized="1"
      inkscape:current-layer="g17554" />
@@ -214,7 +214,7 @@
            style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect3136);fill:#000000;fill-opacity:1;stroke:none"><tspan
              x="629.84766"
              y="563.89844"
-             id="tspan11134">TOP VIEW</tspan></text>
+             id="tspan5208">TOP VIEW</tspan></text>
       </g>
       <rect
          style="fill:#bd0000;fill-opacity:1;stroke:#000000;stroke-width:0.979717"
@@ -240,7 +240,7 @@
        transform="translate(16.849706,-79.266626)">
       <g
          id="g2035-3"
-         transform="matrix(0,-0.5270271,0.5270271,0,357.55111,1168.0795)">
+         transform="matrix(0,-0.5270271,0.5270271,0,325.55111,1168.0795)">
         <rect
            style="fill:none;stroke:#000000;stroke-width:1.4778"
            id="rect850-2-6"
@@ -248,6 +248,15 @@
            height="79.936691"
            x="157.37999"
            y="320.64944"
+           rx="91.999496"
+           ry="56.656399" />
+        <rect
+           style="fill:none;stroke:#000000;stroke-width:1.4778"
+           id="rect850-2-6-3"
+           width="79.936691"
+           height="79.936691"
+           x="77.370667"
+           y="321.02084"
            rx="91.999496"
            ry="56.656399" />
         <rect
@@ -288,14 +297,34 @@
            ry="56.656399" />
       </g>
       <rect
-         style="fill:none;fill-opacity:0.0532929;stroke:#000000;stroke-width:0.778842"
+         style="fill:none;fill-opacity:0.0532929;stroke:#000000;stroke-width:0.83905514;stroke-miterlimit:4;stroke-dasharray:none"
          id="rect1695-6"
-         width="259.56415"
+         width="299.9924"
          height="112.3544"
-         x="-1108.1433"
+         x="-1150.5715"
          y="470.52637"
-         rx="6.79807"
+         rx="7.8568988"
          ry="7.0323863"
+         transform="rotate(-90)" />
+      <rect
+         style="fill:none;fill-opacity:0.0532929;stroke:#000000;stroke-width:0.83149608;stroke-miterlimit:4;stroke-dasharray:none"
+         id="rect1695-6-5"
+         width="23.61231"
+         height="33.028717"
+         x="-874.19141"
+         y="582.88074"
+         rx="0.6184141"
+         ry="2.0673039"
+         transform="rotate(-90)" />
+      <rect
+         style="fill:none;fill-opacity:0.0532929;stroke:#000000;stroke-width:0.831496;stroke-miterlimit:4;stroke-dasharray:none"
+         id="rect1695-6-5-6"
+         width="23.61231"
+         height="33.028717"
+         x="-1150.5715"
+         y="582.88074"
+         rx="0.6184141"
+         ry="2.0673039"
          transform="rotate(-90)" />
       <text
          xml:space="preserve"
@@ -308,6 +337,17 @@
            x="595.9068"
            y="1074.4928"
            style="stroke-width:0.794966">3.3v</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:31.7987px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.794966"
+         x="593.70081"
+         y="1118.5586"
+         id="text2171-5"><tspan
+           sodipodi:role="line"
+           id="tspan2169-3"
+           x="593.70081"
+           y="1118.5586"
+           style="stroke-width:0.794966">Thermistor</tspan></text>
       <text
          xml:space="preserve"
          style="font-style:normal;font-weight:normal;font-size:31.7987px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.794966"
@@ -357,8 +397,17 @@
          id="rect15239"
          width="163.71452"
          height="13.620095"
-         x="367.53357"
+         x="335.53357"
          y="1058.3795"
+         rx="6.0091944"
+         ry="6.0091944" />
+      <rect
+         style="fill:#fafafa;fill-opacity:1;stroke:#000000;stroke-width:0.806334"
+         id="rect15239-67"
+         width="163.71452"
+         height="13.620095"
+         x="335.56158"
+         y="1101.6621"
          rx="6.0091944"
          ry="6.0091944" />
       <rect
@@ -366,7 +415,7 @@
          id="rect15239-0"
          width="163.71452"
          height="13.620095"
-         x="370.46262"
+         x="338.46262"
          y="1015.3626"
          rx="6.0091944"
          ry="6.0091944" />
@@ -375,7 +424,7 @@
          id="rect15239-6"
          width="163.71452"
          height="13.620095"
-         x="372.72971"
+         x="340.72971"
          y="972.33551"
          rx="6.0091944"
          ry="6.0091944" />
@@ -384,7 +433,7 @@
          id="rect15239-2"
          width="163.71452"
          height="13.620095"
-         x="370.71222"
+         x="338.71222"
          y="931.04486"
          rx="6.0091944"
          ry="6.0091944" />
@@ -420,7 +469,7 @@
          id="rect15239-61"
          width="163.71452"
          height="13.620095"
-         x="370.5741"
+         x="338.5741"
          y="887.62793"
          rx="6.0091944"
          ry="6.0091944" />
@@ -551,7 +600,7 @@
          style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect6729);fill:#000000;fill-opacity:1;stroke:none"><tspan
            x="761.1543"
            y="343.61719"
-           id="tspan11136">3.3v</tspan></text>
+           id="tspan5210">3.3v</tspan></text>
       <text
          xml:space="preserve"
          transform="matrix(0.58780055,0,0,0.58780055,208.20419,138.1365)"
@@ -559,7 +608,7 @@
          style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect6729-0);fill:#000000;fill-opacity:1;stroke:none"><tspan
            x="761.1543"
            y="343.61719"
-           id="tspan11138">signal</tspan></text>
+           id="tspan5212">signal</tspan></text>
       <text
          xml:space="preserve"
          transform="matrix(0.58780055,0,0,0.58780055,213.21567,107.72538)"
@@ -567,7 +616,7 @@
          style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect6729-3);fill:#000000;fill-opacity:1;stroke:none"><tspan
            x="761.1543"
            y="343.61719"
-           id="tspan11140">GND</tspan></text>
+           id="tspan5214">GND</tspan></text>
     </g>
     <g
        id="g17421"

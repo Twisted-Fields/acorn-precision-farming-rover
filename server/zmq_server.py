@@ -183,7 +183,7 @@ def handle_command(r, command, key, msg):
         try:
             command_object = pickle.loads(command_encoded)
         except:
-            print(f"Error loading command object with key {command_key}"+ 
+            print(f"Error loading command object with key {command_key}"+
                     "will generate a new command object.")
             command_object = None
 
@@ -219,14 +219,14 @@ def update_robot(r, key, robot):
     if not robot.simulated_data and len(robot.energy_segment_list) > 0:
         key = redis_utils.get_energy_segment_key(key)
         print("UPDATE ENERGY SEGMENT")
-        print(key)
+        # print(key)
         for segment in robot.energy_segment_list:
             this_stamp = segment.start_gps.time_stamp
             if isinstance(this_stamp, datetime.datetime):
                 stamp_localtime = this_stamp.timetuple()
             else:
                 stamp_localtime = time.localtime(this_stamp)
-            print(stamp_localtime)
+            # print(stamp_localtime)
             # print(segment.time_stamp)
             r.rpush(key, pickle.dumps(segment))
         robot.energy_segment_list = []

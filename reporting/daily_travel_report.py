@@ -20,6 +20,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+import sys
+
+from scipy.interpolate import splprep, splev
+sys.path.append('../vehicle')
 from remote_control_process import EnergySegment
 import redis
 import time
@@ -29,10 +33,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mp_colors
-import sys
-
-from scipy.interpolate import splprep, splev
-sys.path.append('../vehicle')
+from datetime import datetime
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -87,12 +88,19 @@ for key in r.scan_iter():
         # report distance
 
         total_meters_traveled = 0
+        today = datetime.now()
+        last_sequence_num = 0
         for idx in range(list_length-1, 0, -1):
             segment = pickle.loads(r.lindex(key, idx))
             this_stamp = segment.start_gps.time_stamp
-            stamp_localtime = time.localtime(this_stamp)
-            if stamp_localtime.tm_year == today.tm_year and stamp_localtime.tm_yday == today.tm_yday - day_index:
+            # stamp_localtime = time.localtime(this_stamp)
+            # print(segment.sequence_num)
+            if segment.sequence_num == last_sequence_num:
+                continue
+            last_sequence_num = segment.sequence_num
+            if this_stamp.year == today.year and this_stamp.day == today.day - day_index:
                 # print(stamp_localtime)
+                # print(segment.sequence_num)
                 total_meters_traveled += segment.distance_sum
                 total_daily_meters[day_index] += segment.distance_sum
             else:

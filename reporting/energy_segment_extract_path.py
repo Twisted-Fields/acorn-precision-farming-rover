@@ -20,20 +20,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+
+import sys
+
+from scipy.interpolate import splprep, splev
+sys.path.append('../vehicle')
 import gps_tools
 from remote_control_process import EnergySegment
 import redis
 import time
+import datetime
 import pickle
 from scipy.interpolate import CubicSpline
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mp_colors
-import sys
 
-from scipy.interpolate import splprep, splev
-sys.path.append('../vehicle')
+from datetime import datetime
+import pytz    # $ pip install pytz
+import tzlocal # $ pip install tzlocal
+
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -58,6 +65,7 @@ r = redis.Redis(
 # self.watt_seconds_per_meter = total_watt_seconds/distance_sum
 # self.height_change = end_gps.height_m - start_gps.height_m
 # self.avg_watts = avg_watts
+
 
 
 for key in r.scan_iter():
@@ -92,63 +100,107 @@ for key in r.scan_iter():
         total_meters_traveled = 0
         counter = 0
         last_stamp = 0
+        last_sequence_num = 0
+        today = datetime.now()
         for idx in range(list_length-1, 0, -2):
             segment = pickle.loads(r.lindex(key, idx))
             this_stamp = segment.start_gps.time_stamp
-            if abs(last_stamp - this_stamp) < 0.1:
-                # remove dupes
+            if segment.sequence_num == last_sequence_num:
                 continue
+            last_sequence_num = segment.sequence_num
             last_stamp = this_stamp
-            stamp_localtime = time.localtime(this_stamp)
-            # print(stamp_localtime)
-            print(this_stamp)
+            # print(dir(this_stamp))
+            # print(this_stamp.day)
+            # if isinstance(this_stamp, datetime):
+            #     # stamp_localtime = datetime_from_utc_to_local(this_stamp)
+            #     local_timezone = tzlocal.get_localzone() # get pytz tzinfo
+            #     utc_time = datetime.strptime("2011-01-21 02:37:21", "%Y-%m-%d %H:%M:%S")
+            #     stamp_localtime = utc_time.replace(tzinfo=pytz.utc).astimezone(local_timezone)
+            # else:
+            #     stamp_localtime = time.localtime(this_stamp)
+            # # print(stamp_localtime)
+            # print(this_stamp)
             # print(segment.subsampled_points)
-            if stamp_localtime.tm_year == today.tm_year:
+            # if stamp_localtime.tm_year == today.tm_year:
+            if this_stamp.year == today.year and this_stamp.day == today.day - day_index:
+
                 segment.subsampled_points.reverse()
-                for point in segment.subsampled_points:
-                    new_path.append(point)
+                new_path.append(segment.subsampled_points[0])
+                # seg_len = len(segment.subsampled_points)
+                # if seg_len>4:
+                #     new_path.append(segment.subsampled_points[0])
+                #     new_path.append(segment.subsampled_points[int(seg_len*1/4)])
+                #     new_path.append(segment.subsampled_points[int(seg_len*2/4)])
+                #     new_path.append(segment.subsampled_points[int(seg_len*3/4)])
+                # else:
+                #     for point in segment.subsampled_points:
+                #         new_path.append(point)
+
+                # for point in segment.subsampled_points:
+                #     try:
+                #         distance = gps_tools.get_distance(point, new_path[-1])
+                #     except:
+                #         distance = 0.11
+                #     if distance > 0.1:
+                #         new_path.append(point)
+                #         break
                 # new_path.append(None)
                 counter += 1
             else:
+                print(this_stamp.day)
                 break
-            if counter > 400:
+            if counter > 4000:
                 break
                 pass
                 # print(total_daily_meters)
                 #print("Traveled {} meters today!".format(total_meters_traveled))
         # sys.exit()
 
-        new_path.reverse()
+        # new_path.reverse()
         #
-        new_path = new_path[-4320:-2200]
+        # new_path = new_path[-6000:]
         print(len(new_path))
-        # new_path = new_path[:100]
-        # print(new_path)
+        # with open('mid_field_raw_samples.pickle', 'wb') as file:
+        #     pickle.dump(new_path, file)
+        # sys.exit()
+        new_path = new_path[0:77]
+        trimmed_path = []
+        trimmed_path.append(new_path[0])
+        for point in new_path:
+            distance = gps_tools.get_distance(point, trimmed_path[-1])
+            if distance > 0.1:
+                trimmed_path.append(point)
+        # print(trimmed_path)
+        # sys.exit()
+        new_path = trimmed_path[1:]
         dict_path = []
-        new = []
-        for idx in range(0, len(new_path), 4):
-            new.append(new_path[idx])
-        new_path = new
+        # new = []
+        # for idx in range(0, len(new_path), 4):
+        #     new.append(new_path[idx])
+        # new_path = new
         # new_path[0]
         last_distance = 0
         print("%%%%%%%%%%%%%%%%%%")
+        idx = 0
         for point in new_path:
             # print(point._asdict())
             try:
                 distance = gps_tools.get_distance(point, new_path[0])
-                if distance < last_distance:
-                    print("EUEHGJKLEHGELJHG")
-                    # last_distance = distance
-                    print(gps_tools.get_distance(point, new_path[0]))
-                last_distance = distance
+                print(f"{distance} | {idx}")
+                idx+=1
+                # if distance < last_distance:
+                #     print("EUEHGJKLEHGELJHG")
+                #     # last_distance = distance
+                #     print(gps_tools.get_distance(point, new_path[0]))
+                # last_distance = distance
                 #
                 dict_path.append(point._asdict())
             except Exception as e:
                 print(e)
                 pass
-        r.set('twistedfields:gpspath:aaa_test:key', pickle.dumps(dict_path))
-        r.set('twistedfields:gpspath:parking_to_upper_field:key',
-              pickle.dumps(dict_path))
+        r.set('twistedfields:gpspath:test_test_test:key', pickle.dumps(dict_path))
+        # r.set('twistedfields:gpspath:parking_to_upper_field:key',
+        #       pickle.dumps(dict_path))
         sys.exit()
 
         #total_meters_traveled += segment.distance_sum

@@ -9,8 +9,12 @@ https://www.raspberrypi.com/documentation/computers/configuration.html#providing
 sudo apt install device-tree-compiler
 
 Serial Overlay:
-sudo dtc -I dts -O dtb -o triple-sc16is752-spi1.dtbo sc16is752-spi1-overlay_triple.dts
-sudo cp triple-sc16is752-spi1.dtbo /boot/overlays
+sudo dtc -I dts -O dtb -o dual-sc16is752-spi1.dtbo sc16is752-spi1-overlay_dual.dts
+sudo cp dual-sc16is752-spi1.dtbo /boot/overlays
+
+New Board:
+sudo dtc -I dts -O dtb -o dual-sc16is752-spi1.dtbo sc16is752-spi1-overlay_dual_board_rev_2.dts
+
 
 GPIO Overlay:
 sudo dtc -I dts -O dtb -o /boot/dt-blob.bin dt-blob-dualcam.dts

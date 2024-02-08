@@ -4,6 +4,10 @@ import time
 
 if os.uname().machine in ['armv7l','aarch64']:
     import RPi.GPIO as GPIO
+    import board
+    from adafruit_lsm6ds.lsm6dsox import LSM6DSOX
+    from adafruit_extended_bus import ExtendedI2C as I2C
+    import adafruit_lis3mdl
 
 clk = 23
 data = 22
@@ -69,10 +73,24 @@ class Display:
         GPIO.output(clk, GPIO.HIGH)
         GPIO.output(data, GPIO.HIGH)
 
+        # while True:
+        #     self.send_data(0x48, 0x01)
+        #     time.sleep(0.1)
+
         self.send_data(0x48, 0x09)
         time.sleep(0.001)
         self.send_data(0x48, 0x11)
         time.sleep(0.001)
+
+    def set_gpio_enable(self, value):
+        if value:
+            GPIO.setup(clk, GPIO.OUT)
+            GPIO.setup(data, GPIO.OUT)
+            GPIO.output(clk, GPIO.HIGH)
+            GPIO.output(data, GPIO.HIGH)
+        else:
+            GPIO.setup(clk, GPIO.I2C)
+            GPIO.setup(data, GPIO.I2C)
 
     def clock_byte(self, value):
         for bitnum in range(7,-1,-1):
@@ -131,6 +149,18 @@ class Display:
 
 if __name__ == '__main__':
     display = Display()
+    display.set_gpio_enable(False)
+    i2c = I2C(6)
+    sox = LSM6DSOX(i2c)
+    sensor = adafruit_lis3mdl.LIS3MDL(i2c)
     while True:
+        display.set_gpio_enable(True)
         display.display_time()
+        display.set_gpio_enable(False)
+        mag_x, mag_y, mag_z = sensor.magnetic
+        print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2"%(sox.acceleration))
+        print("Gyro X:%.2f, Y: %.2f, Z: %.2f radians/s"%(sox.gyro))
+        print('X:{0:10.2f}, Y:{1:10.2f}, Z:{2:10.2f} uT'.format(mag_x, mag_y, mag_z))
+        print('')
+        # time.sleep(1.0)
         time.sleep(0.5)

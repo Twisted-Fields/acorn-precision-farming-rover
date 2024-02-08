@@ -58,6 +58,12 @@ class Direction(Enum):
     BACKWARD = 2
     EITHER = 3
 
+class AccessoryType(Enum):
+    MOWER = 1
+    CAMERA = 2
+    WATER = 3
+    SOIL_PREP = 4
+
 
 GPS_RECORDING_ACTIVATE = "Record"
 GPS_RECORDING_PAUSE = "Pause"

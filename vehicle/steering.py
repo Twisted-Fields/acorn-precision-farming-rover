@@ -167,18 +167,18 @@ def steering_calc(controller):
                 None,  # closest_path_point,
                 math.inf,  # absolute_path_distance,
                 None,  # drive_reverse,
-                None,  # calculated_rotation,
+                None,  # calculated_rotation_degrees,
                 None)  # calculated_strafe)
     closest_path_point, path_point_heading = controller.calc_closest_path_point_and_heading()
     absolute_path_distance = gps_tools.get_distance(controller.gps.last_sample(), closest_path_point)
-    calculated_rotation = path_point_heading - controller.gps.last_sample().azimuth_degrees
+    calculated_rotation_degrees = path_point_heading - controller.gps.last_sample().azimuth_degrees
     # Truncate values to between 0 and 360
-    calculated_rotation %= 360
+    calculated_rotation_degrees %= 360
     # Set value to +/- 180
-    if calculated_rotation > 180:
-        calculated_rotation -= 360
-    controller.logger.debug("calculated_rotation: {}, distance to path: {}".format(
-        calculated_rotation, abs(absolute_path_distance)))
+    if calculated_rotation_degrees > 180:
+        calculated_rotation_degrees -= 360
+    controller.logger.debug("calculated_rotation_degrees: {}, distance to path: {}".format(
+        calculated_rotation_degrees, abs(absolute_path_distance)))
     controller.logger.debug("robot heading {}, path heading {}".format(
         controller.gps.last_sample().azimuth_degrees, path_point_heading))
 
@@ -188,13 +188,13 @@ def steering_calc(controller):
     calculated_strafe = -1 * gps_lateral_distance_error
 
     # Truncate values to between 0 and 360
-    calculated_rotation %= 360
+    calculated_rotation_degrees %= 360
 
     # Set value to +/- 180
-    if calculated_rotation > 180:
-        calculated_rotation -= 360
+    if calculated_rotation_degrees > 180:
+        calculated_rotation_degrees -= 360
 
-    controller.logger.debug("calculated_rotation: {}".format(calculated_rotation))
+    controller.logger.debug("calculated_rotation_degrees: {}".format(calculated_rotation_degrees))
 
     _MAXIMUM_ROTATION_ERROR_DEGREES = 140
 
@@ -203,46 +203,49 @@ def steering_calc(controller):
     drive_solution_okay = (vehicle_dir == Direction.EITHER or
                            path_dir == Direction.EITHER or
                            (vehicle_dir == path_dir and
-                            abs(calculated_rotation) <= _MAXIMUM_ROTATION_ERROR_DEGREES))
+                            abs(calculated_rotation_degrees) <= _MAXIMUM_ROTATION_ERROR_DEGREES))
 
     if vehicle_dir == Direction.BACKWARD:
         controller.driving_direction = -1
     else:
         controller.driving_direction = 1
     if vehicle_dir == Direction.EITHER:
-        if abs(calculated_rotation) > 90:
+        if abs(calculated_rotation_degrees) > 90:
             controller.driving_direction = -1
-            calculated_rotation -= math.copysign(180, calculated_rotation)
+            calculated_rotation_degrees -= math.copysign(180, calculated_rotation_degrees)
         controller.driving_direction *= controller.nav_direction
         calculated_strafe *= controller.nav_direction * controller.driving_direction
     elif vehicle_dir == Direction.FORWARD:
-        if (abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES and
+        if (abs(calculated_rotation_degrees) > _MAXIMUM_ROTATION_ERROR_DEGREES and
                 (path_dir in (Direction.EITHER, Direction.BACKWARD))):
-            calculated_rotation -= math.copysign(180, calculated_rotation)
+            calculated_rotation_degrees -= math.copysign(180, calculated_rotation_degrees)
             calculated_strafe *= -1
             controller.nav_direction = -1
     elif vehicle_dir == Direction.BACKWARD:
-        if abs(calculated_rotation) > _MAXIMUM_ROTATION_ERROR_DEGREES:
+        if abs(calculated_rotation_degrees) > _MAXIMUM_ROTATION_ERROR_DEGREES:
             if (path_dir in (Direction.EITHER, Direction.FORWARD)):
-                calculated_rotation -= math.copysign(180, calculated_rotation)
+                calculated_rotation_degrees -= math.copysign(180, calculated_rotation_degrees)
                 controller.nav_direction = 1
         elif path_dir == Direction.BACKWARD:
             calculated_strafe *= -1
 
     drive_reverse = 1.0
     if (len(controller.nav_path.points) == 2 and path_dir == Direction.EITHER):
-        if abs(calculated_rotation) > 20:
+        if abs(calculated_rotation_degrees) > 20:
             original = calculated_strafe
-            if abs(calculated_rotation) > 40:
+            if abs(calculated_rotation_degrees) > 40:
                 calculated_strafe = 0
                 controller.gps_lateral_error_rate_averaging_list = []
             else:
-                calculated_strafe *= (40 - abs(calculated_rotation)) / 20.0
+                calculated_strafe *= (40 - abs(calculated_rotation_degrees)) / 20.0
             controller.logger.debug("Reduced strafe from {}, to: {}".format(original, calculated_strafe))
         else:
             vehicle_position = (controller.gps.last_sample().lat, controller.gps.last_sample().lon)
+            use_second_pt = True
+            if controller.nav_direction == -1:
+                use_second_pt = False
             drive_reverse = gps_tools.determine_point_move_sign(
-                controller.nav_path.points, vehicle_position)
+                controller.nav_path.points, vehicle_position, use_second_pt)
             # Figure out if we're close to aligned with the
             # target point and reduce forward or reverse
             # velocity if so.
@@ -261,30 +264,38 @@ def steering_calc(controller):
                     drive_reverse *= 0.1
                 elif dist_along_line < 4.0:
                     drive_reverse *= 0.25
-
         controller.logger.debug("rotation {}, strafe: {} direction {}, drive_reverse {}".
-                          format(calculated_rotation, calculated_strafe,
+                          format(calculated_rotation_degrees, calculated_strafe,
                                  controller.driving_direction, drive_reverse))
+    else:
+        # controller.logger.info(f"gps_lateral_distance_error: {gps_lateral_distance_error}")
+        if abs(gps_lateral_distance_error) > controller.nav_path.strafe_priority_distance_m:
+            # Don't drive forward until we are close enough to path.
+            drive_reverse *= 0.1
+            calculated_strafe *= 2.0 # Increase strafe value outside of path bounds.
+
+
+
 
     if not drive_solution_okay:
         controller.autonomy_hold = True
         controller.activate_autonomy = False
         controller.control_state = model.CONTROL_NO_STEERING_SOLUTION
         controller.logger.error("Could not find drive solution. Disabling autonomy.")
-        controller.logger.error("calculated_rotation: {}, vehicle_travel_direction {}, path_following_direction {}"
-                          .format(calculated_rotation, controller.nav_path.
+        controller.logger.error("calculated_rotation_degrees: {}, vehicle_travel_direction {}, path_following_direction {}"
+                          .format(calculated_rotation_degrees, controller.nav_path.
                                   navigation_parameters.vehicle_travel_direction,
                                   controller.nav_path.navigation_parameters.
                                   path_following_direction))
 
     controller.logger.debug(
-        f"calculated_rotation: {calculated_rotation}, "
+        f"calculated_rotation_degrees: {calculated_rotation_degrees}, "
         f"vehicle_travel_direction {controller.nav_path.navigation_parameters.vehicle_travel_direction}, "
         f"path_following_direction {controller.nav_path.navigation_parameters.path_following_direction}, "
         f"controller.nav_direction {controller.nav_direction}, "
         f"controller.driving_direction {controller.driving_direction}")
 
-    gps_path_angle_error = calculated_rotation
+    gps_path_angle_error = calculated_rotation_degrees
     # Accumulate a list of error values for angular and
     # lateral error. This allows averaging of errors
     # and also determination of their rate of change.
@@ -316,10 +327,11 @@ def steering_calc(controller):
             # proper track looping
             controller.last_closest_path_u = -1
 
-    if abs(calculated_rotation) < controller.nav_path.end_angle_degrees and \
+
+    if abs(calculated_rotation_degrees) < controller.nav_path.end_angle_degrees and \
                         end_distance < controller.nav_path.end_distance_m and \
                         not controller.nav_path.closed_loop:
-        controller.logger.info("MET END CONDITIONS {} {}".format(calculated_rotation, absolute_path_distance))
+        controller.logger.info("MET END CONDITIONS {} {}".format(calculated_rotation_degrees, absolute_path_distance))
         if controller.nav_path.navigation_parameters.repeat_path:
             controller.load_path(controller.nav_path, simulation_teleport=False, generate_spline=False)
             controller.load_path_time = time.time()
@@ -337,7 +349,9 @@ def steering_calc(controller):
         controller.gps_angle_error_rate_averaging_list = []
         controller.reloaded_path = True
         return (projected_path_tangent_point, closest_path_point, absolute_path_distance,
-                drive_reverse, calculated_rotation, calculated_strafe)
+                drive_reverse, calculated_rotation_degrees, calculated_strafe)
+    else:
+        controller.logger.debug(f"END CONDITIONS NOT MET: Path end distance: {end_distance} < controller.nav_path.end_distance_m {controller.nav_path.end_distance_m}, Calculated rotation: {abs(calculated_rotation_degrees)} > nav_path.end_angle_degrees {controller.nav_path.end_angle_degrees}")
 
     controller.reloaded_path = False
     controller.logger.debug("controller.gps_path_lateral_error_rate {}, {} / {}".format(
@@ -345,9 +359,9 @@ def steering_calc(controller):
         sum(controller.gps_lateral_error_rate_averaging_list),
         len(controller.gps_lateral_error_rate_averaging_list)))
 
-    controller.next_point_heading = calculated_rotation
+    controller.next_point_heading = calculated_rotation_degrees
     return (projected_path_tangent_point, closest_path_point, absolute_path_distance,
-            drive_reverse, calculated_rotation, calculated_strafe)
+            drive_reverse, calculated_rotation_degrees, calculated_strafe)
 
 
 

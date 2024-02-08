@@ -22,8 +22,12 @@ limitations under the License.
 """
 
 import pickle
+import sys
+sys.path.append('../vehicle')
 from model import RobotCommand
 import datetime
+
+EXCLUDED_KEY = 'acorn_test'
 
 
 def get_energy_segment_key(robot_key):
@@ -101,15 +105,21 @@ def get_dense_path(redis_client=None, robot_key=None):
     list_length = redis_client.llen(key)
     path = []
     today = datetime.datetime.today()
+    last_sequence_num = 0
+    day_index = 0
     for idx in range(list_length - 1, 0, -1):
         segment = pickle.loads(redis_client.lindex(key, idx))
         # print(segment.subsampled_points)
+        if segment.sequence_num == last_sequence_num:
+            continue
+        last_sequence_num = segment.sequence_num
         try:
-            if (today - segment.start_gps.time_stamp.replace(tzinfo=None)).days > 2:
+            this_stamp = segment.start_gps.time_stamp
+            if this_stamp.year == today.year and this_stamp.day == today.day - day_index:
+                path.append(segment.start_gps)
+                path_length = len(segment.subsampled_points)
+            else:
                 return path
-
-            path.append(segment.start_gps)
-            path_length = len(segment.subsampled_points)
             # path.append(segment.subsampled_points[int(path_length/2)])
             # path.append(segment.subsampled_points[int(2 * path_length/3)])
             # for point in segment.subsampled_points:

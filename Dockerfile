@@ -1,6 +1,6 @@
 # This is an auto generated Dockerfile for ros:ros-base
 # generated from docker_images_ros2/create_ros_image.Dockerfile.em
-FROM ros:humble-ros-core-jammy
+FROM ros:iron-ros-core-jammy
 
 # install bootstrap tools
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -26,11 +26,11 @@ RUN colcon mixin add default \
 
 # install ros2 packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-ros-base=0.10.0-1* \
+    ros-iron-ros-base=0.10.0-3* \
     && rm -rf /var/lib/apt/lists/*
 
 # Everything above this line comes from:
-# https://github.com/osrf/docker_images/blob/master/ros/humble/ubuntu/jammy/ros-base/Dockerfile
+# https://github.com/osrf/docker_images/blob/master/ros/iron/ubuntu/jammy/ros-base/Dockerfile
 
 # Below this line, twistedfields additions.
 
@@ -66,3 +66,7 @@ RUN python3 -m pip install adafruit-circuitpython-mcp230xx coloredlogs pyserial_
 RUN apt update && apt install -y libraspberrypi-bin; exit 0 # Only succeeds on raspberry pi but not needed otherwise.
 RUN apt install -y iproute2
 RUN python3 -m pip install utm crccheck
+RUN python3 -m pip install gunicorn
+RUN python3 -m pip install adafruit-circuitpython-lsm6ds pca9536-driver adafruit_extended_bus adafruit-circuitpython-lis3mdl
+# RUN apt install -y software-properties-common
+# RUN add-apt-repository ppa:deadsnakes/ppa && apt update && apt install -y python3.12-distutils python3.12

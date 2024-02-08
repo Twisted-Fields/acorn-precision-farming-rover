@@ -20,6 +20,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 *********************************************************************
 """
+from scipy.interpolate import splprep, splev
+import sys
+sys.path.append('../vehicle')
 from remote_control_process import EnergySegment
 import redis
 import time
@@ -29,16 +32,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mp_colors
-import sys
+from datetime import datetime, timedelta
 
-from scipy.interpolate import splprep, splev
-sys.path.append('../vehicle')
+
+
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
 
 r = redis.Redis(
-    host='acornserver.local',
+    host='localhost',
+        # host='twisted-desktop',
     port=6379)
 
 # r.set('foo', 'bar')
@@ -53,7 +57,8 @@ r = redis.Redis(
 # self.watt_seconds_per_meter = total_watt_seconds/distance_sum
 # self.height_change = end_gps.height_m - start_gps.height_m
 # self.avg_watts = avg_watts
-
+day_index = 1
+start_index = -4000
 
 for key in r.scan_iter():
     # print(key)
@@ -67,27 +72,33 @@ for key in r.scan_iter():
         print(key)
         list_length = r.llen(key)
         print("List Length {}".format(list_length))
-        first_stamp = pickle.loads(r.lindex(key, 0)).start_gps.time_stamp
+        first_stamp = pickle.loads(r.lindex(key, list_length + start_index)).start_gps.time_stamp
         colorby = ""
         watt_seconds = False
-        now = time.time()
-        for idx in range(list_length-2000, list_length):
+        today = datetime.now()
+        last_sequence_num = 0
+        for idx in range(list_length + start_index, list_length):
             segment = pickle.loads(r.lindex(key, idx))
+            if segment.sequence_num == last_sequence_num:
+                continue
+            last_sequence_num = segment.sequence_num
             print((segment.per_motor_watt_average))
+            this_stamp = segment.start_gps.time_stamp
             #print("sequence, {}, watt_seconds_per_meter, {}, meters_per_second, {}".format(segment.sequence_num, segment.watt_seconds_per_meter, segment.meters_per_second))
             # orig_x.append(segment.start_gps.lat)
             # orig_y.append(segment.start_gps.lon)
             # print(segment.start_gps.lat, segment.start_gps.lon)
-            if segment.height_change > -0.15 and segment.watt_seconds_per_meter < 1000 and segment.meters_per_second < 2:
+            if True: #segment.height_change > -0.15 and segment.watt_seconds_per_meter < 1000 and segment.meters_per_second < 2:
                 this_stamp = segment.start_gps.time_stamp
-                if now - this_stamp > 3000:
-                    print(idx)
+                # if not (this_stamp.year == today.year and this_stamp.day == today.day - day_index):
+                #     print(idx)
+                #     continue
+                print(this_stamp)
+                print(first_stamp)
+                age = this_stamp - first_stamp
+                if age > timedelta(days=2, hours=0, minutes=0, seconds=0):
                     continue
 
-                # age = this_stamp - first_stamp
-                # if age > 4000:
-                #     continue
-                #
                 if watt_seconds:
                     orig_y.append(segment.watt_seconds_per_meter)
                 else:

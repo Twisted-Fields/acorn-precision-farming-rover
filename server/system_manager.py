@@ -36,15 +36,20 @@ AUTONOMY_SPEED = 0.2
 _ONLINE_DATA_AGE_MAXIMUM_SEC = 5
 _OFFLINE_DATA_AGE_MINIMUM_SEC = 3600
 
-_ONLINE_SETTLING_TIME_SEC = 25 * 60
+# _ONLINE_SETTLING_TIME_SEC = 25 * 60
+_ONLINE_SETTLING_TIME_SEC = 30
 
-_MAXIMUM_TIME_TO_ATTEMPT_AUTONOMY_SEC = 120 * 60
+_ONE_HOUR_IN_SECONDS = 60 * 60
+
+_MAXIMUM_TIME_TO_ATTEMPT_AUTONOMY_SEC = _ONE_HOUR_IN_SECONDS * 10
 
 _CLEAR_AUTONOMY_HOLD_COMMAND_OBJECT_TIME_SEC = 5
 
 _LONG_PAUSE_SEC = 10
 
 _LOOP_DELAY_SEC = 2
+
+_RESUME_AUTONOMY_MINIMUM_VOLTAGE = 40
 
 
 def main():
@@ -56,8 +61,10 @@ def main():
         keys = redis_utils.get_robot_keys(r)
         for key in keys:
             robot = pickle.loads(r.get(key))
+            if robot.name != "acorn1":
+                continue
             command_object = redis_utils.get_command_object_from_robot_key(r, key)
-
+            
             if command_object.clear_autonomy_hold:
                 if command_object_autonomy_hold_time == 0:
                     command_object_autonomy_hold_time = time.time()
@@ -71,8 +78,8 @@ def main():
                     _CLEAR_AUTONOMY_HOLD_COMMAND_OBJECT_TIME_SEC - (time.time() - command_object_autonomy_hold_time)))
 
             data_age = (datetime.now() - robot.time_stamp).total_seconds()
-            print("Data age: {} , Control State: {}, Autonomy Hold {}, Activate Autonomy {}".format(
-                data_age, robot.control_state, robot.autonomy_hold, robot.activate_autonomy))
+            print("Data age: {}, Voltage: {:.2f}, Control State: {}, Autonomy Hold {}, Activate Autonomy {}".format(
+                data_age, robot.voltage, robot.control_state, robot.autonomy_hold, robot.activate_autonomy))
             if data_age < _ONLINE_DATA_AGE_MAXIMUM_SEC:
                 if not acorn_present:
                     print("Acorn present now")
@@ -84,6 +91,10 @@ def main():
                     if robot.autonomy_hold:
                         if time.time() - acorn_activated_time > _MAXIMUM_TIME_TO_ATTEMPT_AUTONOMY_SEC:
                             print("Exceeded time to attempt autonomy but autonomy hold still active.")
+                            time.sleep(_LONG_PAUSE_SEC)
+                            continue
+                        if robot.voltage < _RESUME_AUTONOMY_MINIMUM_VOLTAGE:
+                            print(f"Could resume autonomy but voltage {robot.voltage:.2f} is below programmed threshold {_RESUME_AUTONOMY_MINIMUM_VOLTAGE} so waiting.")
                             time.sleep(_LONG_PAUSE_SEC)
                             continue
                         print("Clearing Autonomy Hold")
@@ -102,7 +113,7 @@ def main():
                             print("Could activate autonomy but state is \"{}\", not \"{}\".".format(
                                 robot.control_state, CONTROL_ONLINE))
                 else:
-                    print("Acorn is active. Waiting {} seconds for it to settle.".format(
+                    print("Acorn is active. Waiting {:.2f} seconds for it to settle.".format(
                         _ONLINE_SETTLING_TIME_SEC - time_since_activation))
 
             if data_age > _OFFLINE_DATA_AGE_MINIMUM_SEC:

@@ -31,11 +31,18 @@ port_list = []
 for name in port_names:
     port_list.append(Serial(name, BAUD, timeout=0.1))
 
+
+msg = UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_MEAS", 40)])
+msg2 = UBXMessage.config_set(layers=1, transaction=0, cfgData=[("CFG_RATE_NAV", 2)])
+
 reader_list = []
 for port in port_list:
     port.flushInput()
     port.flushOutput()
+    port.write(msg.serialize())
+    port.write(msg2.serialize())
     reader_list.append(UBXReader(port))
+
 
 # ubr0 = UBXReader(stream0)
 # ubr1 = UBXReader(stream1)

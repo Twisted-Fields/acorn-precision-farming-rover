@@ -28,6 +28,7 @@ import math
 from collections import namedtuple
 import numpy as np
 import copy
+import pyubx2
 
 
 _SMOOTH_MULTIPLIER = 0.00000000001
@@ -58,6 +59,10 @@ def calc_path_length(points):
 def check_point(point):
     if isinstance(point, dict):
         point = GpsPoint(point['lat'], point['lon'])
+    elif isinstance(point, pyubx2.UBXMessage):
+        point = GpsPoint(point.lat, point.lon)
+    elif( 2<= len(point) <= 3):
+        point = GpsPoint(point[0], point[1])
     return point
 
 
@@ -83,19 +88,26 @@ def get_closest_point(point, point_list):
     return closest_point, closest_index
 
 
-def determine_point_move_sign(line_points, pt3):
+def determine_point_move_sign(line_points, pt3, use_second_pt):
     """
     Determine which side of pt1 is pt3.
     """
-    pt1 = line_points[0]
-    pt2 = line_points[1]
+    if use_second_pt:
+        pt1 = line_points[1]
+        pt2 = line_points[0]
+        factor = -1
+    else:
+        pt1 = line_points[0]
+        pt2 = line_points[1]
+        factor = 1
+
     pt4 = find_closest_pt_on_line(pt1, pt2, pt3)
     dist1 = get_distance(pt1, pt4)
     dist2 = get_distance(pt2, pt4)
     dist12 = get_distance(pt1, pt2)
     if dist1 < dist2 and dist2 > dist12:
-        return 1
-    return -1
+        return 1 * factor
+    return -1 * factor
 
 
 def find_closest_pt_on_line(pt1, pt2, pt3):
@@ -195,7 +207,9 @@ def offset_row(row, distance, direction, copy_data=False, make_dict=True):
     return new_row
 
 
-def interpolate_points(points, num_points):
+def interpolate_points(points, num_points, make_dict=True):
+    points[0] = check_point(points[0])
+    points[1] = check_point(points[1])
     total_distance = get_distance(points[0], points[1])
     increment_distance = total_distance / num_points
     heading = get_heading(points[0], points[1])
@@ -203,9 +217,22 @@ def interpolate_points(points, num_points):
     interpolated_points = [points[0]]
     for _ in range(num_points):
         new_point = project_point(last_point, heading, increment_distance)
-        interpolated_points.append(new_point._asdict())
+        if make_dict:
+            new_point = new_point._asdict()
+        interpolated_points.append(new_point)
         last_point = new_point
     return interpolated_points
+
+
+def return_midpoint(point1, point2, make_dict=False):
+    point1 = check_point(point1)
+    point2 = check_point(point2)
+    new_lat = (point1.lat + point2.lat)/2.0
+    new_lon = (point1.lon + point2.lon)/2.0
+    new_point = GpsPoint(new_lat, new_lon)
+    if make_dict:
+        new_point = new_point._asdict()
+    return new_point
 
 
 def three_point_turn(points, angle, distance_away, turn_radius, robot_length=2.0, asdict=False):
@@ -230,8 +257,13 @@ def chain_rows(row_list, starting_point, starting_direction, connection_type, fo
 
     for idx in range(len(row_list)):
         row = row_list[idx]
-        if get_distance(last_point, row[0]) > get_distance(last_point, row[-1]):
-            row.reverse()
+        # dist1 = get_distance(last_point, row[0])
+        # dist2 = get_distance(last_point, row[-1])
+        # print(f"{dist1} {dist2}")
+        # if dist1 > dist2:
+        #     row.reverse()
+        #     print("Reversed Row")
+        # print("Did not reverse Row")
 
         row_path = copy.deepcopy(nav_path)
         row_path.points = row
@@ -244,8 +276,12 @@ def chain_rows(row_list, starting_point, starting_direction, connection_type, fo
         angle_reverse = starting_direction
         if get_distance(row[-1], next_row[0]) > get_distance(row[-1], next_row[-1]):
             next_row.reverse()
+            print("Reversed Next Row")
             if len(row_list) > 3:
                 angle_reverse *= -1
+        else:
+            print("Did not reverse next row")
+        print(angle_reverse)
         if connection_type == "three_pt":
             start_points = row[-2], row[-1]
             turn1 = three_point_turn(
@@ -274,4 +310,78 @@ def chain_rows(row_list, starting_point, starting_direction, connection_type, fo
             row_chain.append(connector_path)
             last_point = next_row[0]
 
+        if connection_type == "slip":
+            pass
+
+
     return row_chain
+
+def close_chain(row_list, nav_path, turn_control_vals, path_control_vals, connector_navigation_parameters, forward_navigation_parameters):
+    interpolate_list = []
+
+    row = row_list[-1].points
+    start_points = row[-2], row[-1]
+
+    heading = get_heading(start_points[0], start_points[1])
+    row_aligned_away_pt = project_point(start_points[1], heading, 1.5)
+    latlon_point1 = project_point(row_aligned_away_pt, heading + 90, 0.5)
+    latlon_point2 = project_point(row_aligned_away_pt, heading + 90, 1.0)
+    new_turn = [latlon_point1._asdict(), latlon_point2._asdict()]
+
+    interpolate_list.append(latlon_point2._asdict())
+
+    turn1_path = copy.deepcopy(nav_path)
+    turn1_path.points = new_turn
+    turn1_path.navigation_parameters = connector_navigation_parameters
+    turn1_path.end_dist = 1.0
+    turn1_path.end_angle = 20
+    turn1_path.control_values = turn_control_vals
+
+    row_list.append(turn1_path)
+
+    row = row_list[0].points
+    start_points = row[1], row[0]
+
+    heading = get_heading(start_points[0], start_points[1])
+    row_aligned_away_pt = project_point(start_points[1], heading, 1.5)
+    latlon_point1 = project_point(
+        row_aligned_away_pt, heading + -90, 1.0)
+    latlon_point2 = project_point(
+        row_aligned_away_pt, heading + -90, 0.5)
+    interpolate_list.append(latlon_point2._asdict())
+    new_turn = [latlon_point1._asdict(), latlon_point2._asdict()]
+
+    turn1_path = copy.deepcopy(nav_path)
+    turn1_path.points = new_turn
+    turn1_path.navigation_parameters = connector_navigation_parameters
+    turn1_path.end_dist = 1.0
+    turn1_path.end_angle = 20
+    turn1_path.control_values = turn_control_vals
+
+    # print(interpolate_list)
+    interpolated_path_points = interpolate_points(interpolate_list, 25)
+
+    # print(interpolated_path_points)
+
+    interpolated_path = copy.deepcopy(nav_path)
+    interpolated_path.points = interpolated_path_points
+    interpolated_path.navigation_parameters = forward_navigation_parameters
+    interpolated_path.end_dist = 1.0
+    interpolated_path.end_angle = 20
+    interpolated_path.control_values = path_control_vals
+
+    row_list.append(interpolated_path)
+    row_list.append(turn1_path)
+
+    row = row_list[0].points
+    start_points = row[0], row[1]
+
+    turn1_path = copy.deepcopy(nav_path)
+    turn1_path.points = start_points
+    turn1_path.navigation_parameters = connector_navigation_parameters
+    turn1_path.end_dist = 1.0
+    turn1_path.end_angle = 20
+    turn1_path.control_values = turn_control_vals
+
+    row_list.append(turn1_path)
+    return row_list

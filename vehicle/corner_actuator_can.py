@@ -36,6 +36,7 @@ import model
 from model import CORNER_NAMES
 
 
+
 THERMISTOR_ADC_CHANNEL = 3
 _ADC_PORT_STEERING_POT = 5
 _ADC_PORT_STEERING_HOME = 6
@@ -43,27 +44,38 @@ _ADC_PORT_STEERING_HOME = 6
 
 _VCC = 3.3
 _VOLTAGE_MIDPOINT = _VCC/2
-_POT_VOLTAGE_LOW = _VCC/6
-_POT_VOLTAGE_HIGH = 5*_VCC/6
+_POT_VOLTAGE_LOW = _VCC/8
+_POT_VOLTAGE_HIGH = 7*_VCC/8
 _HOMING_VELOCITY_STEERING_COUNTS = 800
 _HOMING_POT_DEADBAND_VOLTS = 0.2
 _HOMING_POT_HALF_DEADBAND_V = _HOMING_POT_DEADBAND_VOLTS/2
 _FAST_POLLING_SLEEP_S = 0.01
 _SLOW_POLLING_SLEEP_S = 0.5
 
+_SYSTEM_VOLTAGE_HOMING_THRESHOLD = 30
+
 _MAX_HOMING_ATTEMPTS = 4
 _ZERO_VEL_COUNTS_THRESHOLD = 2
 
+# _HOME_SENSOR_ACTIVATION_THRESHOLD = 100
+# _HOME_SENSOR_SKIP_HOMING_THRESHOLD = 380
+# _HOME_SENSOR_ACTIVATION_THRESHOLD = 50
+_HOME_SENSOR_HOMING_THRESHOLD = 120
 
 COMMAND_VALUE_MINIMUM = 0.001
 
+# STEERING_COUNTS_TO_RADIANS = (1024.0*0.43)
+# STEERING_RADIANS_TO_COUNTS = 1.0/STEERING_COUNTS_TO_RADIANS
 
-STEERING_RADIANS_TO_COUNTS = (0.5*41/8)/(2.0*math.pi)
+STEERING_RADIANS_TO_COUNTS = (1024.0*0.43)
+STEERING_COUNTS_TO_RADIANS = 1.0/STEERING_RADIANS_TO_COUNTS
+
+DEFAULT_CAN_REPLY_ERROR_LIMIT = 10
 
 ESTOP_PIN = 6
 
 MotorConnection = collections.namedtuple(
-    'MotorConnection', 'name id port enable_steering enable_traction')
+    'MotorConnection', 'name id port enable_steering enable_traction reverse_drive')
 
 # class PowerSample:
 #     def init(self, volts, amps, duration):
@@ -80,7 +92,8 @@ class CornerActuator:
 
     def __init__(self, name=None, path=None, GPIO=None,
                  connection_definition=None, enable_steering=True, enable_traction=True,
-                 simulated_hardware=False, disable_steering_limits=False):
+                 simulated_hardware=False, disable_steering_limits=False, reverse_drive=False,
+                 logger=None):
 
         if simulated_hardware:
             import sim_socket
@@ -100,10 +113,16 @@ class CornerActuator:
         self.zero_vel_timestamp = time.time()
         self.socket = socket
         self.home_position = 0
+        self.needs_homing = True
         self.rotation_sensor_val = 0
         self.steering_flipped = False
+        self.reverse_drive = reverse_drive
         self.steering_initialized = False
         self.traction_initialized = False
+        self.voltage_ok = False
+        self.logger=logger
+        self.last_voltage_warning_logging_time = time.time()
+        self.external_voltage_ok_signal = False
 
 
 
@@ -121,27 +140,23 @@ class CornerActuator:
             self.position = 0
             self.velocity = 0
 
-    def sample_home_sensor(self):
-        gpio_toggle(self.GPIO)
-        return 0
-
-    def request_reply(self, request_packet, error_limit=10):
+    def request_reply(self, request_packet, error_limit=DEFAULT_CAN_REPLY_ERROR_LIMIT):
         send_ok = False
         errors = 0
         while not send_ok:
             gpio_toggle(self.GPIO)
             try:
                 # hex_string = "".join(" 0x%02x" % b for b in request_packet)
-                # print(f"Send: {address} {hex_string}")
+                # self.logger.info(f"Send: {address} {hex_string}")
                 self.socket.send(request_packet)
                 send_ok = True
-                # print("Send okay.")
+                # self.logger.info("Send okay.")
             except KeyboardInterrupt as e:
                 raise e
             except Exception as e:
                 # raise e
                 traceback.print_exc()
-                print(f"Send Error, controller ID {self.controller.id}")
+                self.logger.info(f"Send Error, controller ID {self.controller.id}")
                 time.sleep(0.004)
                 errors += 1
                 if errors > error_limit:
@@ -151,60 +166,69 @@ class CornerActuator:
     def get_reply(self, error_limit=10):
         errors = 0
         data = None
-        # print("===============================================")
+        # self.logger.info("===============================================")
         while not data:
             gpio_toggle(self.GPIO)
             try:
                 data=self.socket.recv()
                 # if data:
                     # hex_string = "".join(" 0x%02x" % b for b in data)
-                    # print(f"{self.controller.id} recieve returned {hex_string}")
+                    # self.logger.info(f"{self.controller.id} recieve returned {hex_string}")
                 if not data:
-                    print(f"Recieve error (no data) with controller {self.controller.id}")
+                    self.logger.info(f"Recieve error (no data) with controller {self.controller.id}")
                     errors += 1
                     if errors > error_limit:
                         return False
                 elif data[0] != self.controller.id:
-                    # print("Skipping wrong packet")
+                    # self.logger.info("Skipping wrong packet")
                     data = None
             except KeyboardInterrupt as e:
                 raise e
             except Exception:
                 traceback.print_exc()
-                print(f"Recieve error (exception raised) with controller {self.controller.id}")
+                self.logger.info(f"Recieve error (exception raised) with controller {self.controller.id}")
                 return False
         return data
 
-    def ping_request(self):
+    def request_set_steering_zero(self, error_limit=DEFAULT_CAN_REPLY_ERROR_LIMIT):
         gpio_toggle(self.GPIO)
-        reply = self.request_reply(self.controller.simple_ping())
+        reply = self.request_reply(self.controller.set_steering_zero(), error_limit)
         gpio_toggle(self.GPIO)
         if reply:
-            return self.controller.decode_ping_reply(reply, print_result=True)
+            return self.controller.decode_ping_reply(reply, logger=self.logger)
         else:
             return (False, False)
 
-    def log_request(self):
+    def ping_request(self, error_limit=DEFAULT_CAN_REPLY_ERROR_LIMIT):
         gpio_toggle(self.GPIO)
-        reply = self.request_reply(self.controller.log_request())
+        reply = self.request_reply(self.controller.simple_ping(), error_limit)
+        gpio_toggle(self.GPIO)
+        if reply:
+            return self.controller.decode_ping_reply(reply, logger=self.logger)
+        else:
+            return (False, False)
+
+    def log_request(self, error_limit=DEFAULT_CAN_REPLY_ERROR_LIMIT):
+        gpio_toggle(self.GPIO)
+        reply = self.request_reply(self.controller.log_request(),error_limit)
         gpio_toggle(self.GPIO)
         if reply:
             return self.controller.decode_log_reply(reply)
         else:
             return None
 
-    def sample_sensors(self, request_send=True):
+    def sample_sensors(self, request_send=True, error_limit=DEFAULT_CAN_REPLY_ERROR_LIMIT):
         gpio_toggle(self.GPIO)
         data = None
         if request_send:
-            data = self.request_reply(self.controller.sensor_request())
+            data = self.request_reply(self.controller.sensor_request(), error_limit)
         else:
             data = self.get_reply()
         gpio_toggle(self.GPIO)
         if data and self.controller.decode_sensor_reply(data):
             self.rotation_sensor_val = self.controller.adc1 * 3.3/1024
         else:
-            print(f"ERROR: No data on sample_sensors read, controller {self.controller.id}")
+            self.logger.info(f"ERROR: No data on sample_sensors read, controller {self.controller.id}")
 
     def initialize_traction(self):
         self.traction_initialized = True
@@ -212,12 +236,12 @@ class CornerActuator:
 
 
     def check_steering_limits(self):
-        if self.disable_steering_limits:
-            print("{} steering sensor {}".format(
-                list(CORNER_NAMES)[self.name], self.rotation_sensor_val))
+        # if self.disable_steering_limits:
+        #     self.logger.info("{} steering sensor {}".format(
+        #         list(CORNER_NAMES)[self.name], self.rotation_sensor_val))
         if self.rotation_sensor_val < _POT_VOLTAGE_LOW or self.rotation_sensor_val > _POT_VOLTAGE_HIGH:
             if self.disable_steering_limits:
-                print("WARNING POTENTIOMETER VOLTAGE OUT OF RANGE DAMAGE " +
+                self.logger.info("WARNING POTENTIOMETER VOLTAGE OUT OF RANGE DAMAGE " +
                       "MAY OCCUR: {}".format(self.rotation_sensor_val))
             else:
                 raise ValueError(
@@ -227,6 +251,18 @@ class CornerActuator:
         gpio_toggle(self.GPIO)
         # reset contol values
         self.initialize_traction()
+        self.check_homing()
+
+    def check_homing(self):
+        if self.needs_homing == False:
+            return
+        self.sample_sensors()
+        self.voltage_ok = self.controller.voltage > _SYSTEM_VOLTAGE_HOMING_THRESHOLD
+        if self.external_voltage_ok_signal:
+            self.voltage_ok = True
+        if self.controller.motion_allowed and self.voltage_ok:
+            self.home_corner()
+
 
     def initialize_steering(self, steering_flipped=False, skip_homing=False):
         gpio_toggle(self.GPIO)
@@ -235,10 +271,92 @@ class CornerActuator:
         self.enable_steering_control()
         gpio_toggle(self.GPIO)
 
-        # do some homing
+        self.voltage_ok = self.controller.voltage > _SYSTEM_VOLTAGE_HOMING_THRESHOLD
+        if self.external_voltage_ok_signal:
+            self.voltage_ok = True
+
+        if self.controller.motion_allowed and self.voltage_ok:
+            if not skip_homing and self.needs_homing:
+                self.home_corner()
+        else:
+            if self.voltage_ok:
+                self.logger.info("SKIPPING HOMING UNTIL MOTION ALLOWED")
+            else:
+                self.logger.info("SKIPPING HOMING UNTIL SYSTEM VOLTAGE IS HIGHER")
+            self.needs_homing = True
+
 
         self.steering_flipped = steering_flipped
         self.steering_initialized = True
+
+    def home_corner(self, manual=False):
+        self.needs_homing = False # Set first so update_actuator works.
+        max_home_sensor_value = 0
+        max_home_position = 0
+        self.sample_sensors()
+        self.check_steering_limits()
+        OFFSET_DISTANCE_RADIANS = math.radians(45)
+        home_value = abs(512-self.controller.adc2)
+        drive_position = 0
+        offset_value = 0
+        if home_value > _HOME_SENSOR_HOMING_THRESHOLD and not manual:
+            self.logger.info(f"Sensor value {home_value} is sufficient for homing. ")
+            return
+        # if home_value > _HOME_SENSOR_ACTIVATION_THRESHOLD:
+        #     drive_position += OFFSET_DISTANCE_RADIANS/2
+        #     self.update_actuator(drive_position, 0.0)
+        #     self.steering_wait()
+        #     offset_value = -OFFSET_DISTANCE_RADIANS
+        if self.rotation_sensor_val < _VOLTAGE_MIDPOINT:
+            drive_position -= OFFSET_DISTANCE_RADIANS/2
+            self.update_actuator(drive_position, 0.0)
+            self.steering_wait(timeout=6.0, error_threshold=0.02)
+            offset_value = OFFSET_DISTANCE_RADIANS
+        else:
+            drive_position += OFFSET_DISTANCE_RADIANS/2
+            self.update_actuator(drive_position, 0.0)
+            self.steering_wait(timeout=6.0, error_threshold=0.02)
+            offset_value = -OFFSET_DISTANCE_RADIANS
+
+        while True:
+            drive_position += offset_value
+            self.logger.info(f"Homing {list(CORNER_NAMES)[self.name]}")
+            self.logger.info(f"Drive Position moving to {drive_position}")
+            if abs(drive_position) > 3.14*1.25 + offset_value:
+                self.logger.info("ERROR: Full homing rotation with no sensor detected.")
+                raise RuntimeError("Full homing rotation with no sensor detected.")
+            self.update_actuator(drive_position, 0.0)
+
+            tick = 0
+            while not self.is_steering_at_setpoint(error_threshold=0.02):
+                time.sleep(0.01)
+                self.sample_sensors()
+                self.check_steering_limits()
+                home_value = abs(512-self.controller.adc2)
+                if home_value > max_home_sensor_value:
+                    self.logger.info(f"{list(CORNER_NAMES)[self.name]} FOUND_NEW_MAX")
+                    max_home_sensor_value = home_value
+                    max_home_position = self.controller.motor1.encoder_counts * STEERING_COUNTS_TO_RADIANS
+                # self.logger.info(f"Motion Allowed: {self.controller.motion_allowed}")
+                tick+=1
+                if tick>10:
+                    self.logger.info(f"{list(CORNER_NAMES)[self.name]} Home Value: {str(home_value)}, Max Home: {str(max_home_sensor_value)}, Home Position: {str(max_home_position)}")
+                    tick = 0
+            self.logger.info(f"{list(CORNER_NAMES)[self.name]} COMPLETED ROTATION, max sensor val: {max_home_sensor_value}")
+            if max_home_sensor_value > _HOME_SENSOR_HOMING_THRESHOLD:
+                self.logger.info("FOUND HOME")
+                self.home_position = max_home_position
+                self.update_actuator(0.0, 0.0)
+                self.steering_wait(timeout=6.0, error_threshold=0.02)
+                if all(self.request_set_steering_zero()):
+                    self.logger.info("SET HOME POSITION SUCCESS")
+                    self.home_position = 0.0
+                    self.update_actuator(0.0, 0.0)
+                else:
+                    self.logger.info("FAILED TO SET HOME POSITION!")
+                return
+            time.sleep(1)
+
 
     def enable_steering_control(self):
         # after reset, send the steering system initialization values here
@@ -250,24 +368,38 @@ class CornerActuator:
         # check system errors here
         pass
 
-    def update_encoder_data(self):
-        # self.encoder_estimates = (self.steering_axis.encoder.pos_estimate,
-        #                             self.steering_axis.encoder.vel_estimate,
-        #                             self.traction_axis.encoder.pos_estimate,
-        #                             self.traction_axis.encoder.vel_estimate)
-        # gpio_toggle(self.GPIO)
-        pass
+    def is_steering_at_setpoint(self, error_threshold=0.005):
+        steering_error = abs(self.controller.motor1.encoder_counts * STEERING_COUNTS_TO_RADIANS - self.controller.motor1.setpoint)
+        self.logger.info("Steering enc counts: " + str(self.controller.motor1.encoder_counts) + ", Radians: " + str(self.controller.motor1.encoder_counts * STEERING_COUNTS_TO_RADIANS) + ", Setpoint: " + str(self.controller.motor1.setpoint) + f", System voltage {self.controller.voltage}")
+        return steering_error < error_threshold
 
+    def steering_wait(self, timeout=2.0, error_threshold=0.005):
+        start_time = time.time()
+        while not self.is_steering_at_setpoint(error_threshold):
+            gpio_toggle(self.GPIO)
+            time.sleep(0.05)
+            self.sample_sensors()
+            if time.time() - start_time > timeout:
+                raise TimeoutError(f"Steering wait timeout exceeded for corner {list(CORNER_NAMES)[self.name]}")
+        return
 
     def update_actuator(self, steering_pos_deg, drive_velocity, simple_request=False):
-        #print("Update {}".format(self.name))
+        #self.logger.info("Update {}".format(self.name))
         # self.check_steering_limits()
         gpio_toggle(self.GPIO)
+        if self.needs_homing:
+            self.sample_sensors()
+            if time.time() - self.last_voltage_warning_logging_time > 2.0:
+                self.logger.info(f"Corner needs homing, ignoring update_actuator commands. System voltage {self.controller.voltage}")
+                self.last_voltage_warning_logging_time = time.time()
+            return
         if self.steering_flipped:
+            # TODO: shouldn't we also flip steering here?
+            drive_velocity *= -1
+        if self.reverse_drive:
             drive_velocity *= -1
         self.position = steering_pos_deg
         self.velocity = drive_velocity
-        self.update_encoder_data()
         self.log_request()
 
 
@@ -283,12 +415,12 @@ class CornerActuator:
         #             # could reset integrator current here if needed
         #             pass
 
-        self.controller.motor1.setpoint = STEERING_RADIANS_TO_COUNTS * self.position + self.home_position
+        self.controller.motor1.setpoint = self.position + self.home_position
         self.controller.motor2.setpoint = self.velocity
         if(self.enable_traction or self.enable_steering):
             try:
-                # print(self.controller.serialize_motors())
-                # print(f"pos: {self.position}, vel:{self.velocity}")
+                # self.logger.info(self.controller.serialize_motors())
+                # self.logger.info(f"pos: {self.position}, vel:{self.velocity}")
                 gpio_toggle(self.GPIO)
                 if simple_request:
                     self.socket.send(self.controller.serialize_basic(reply_requested=True))
@@ -298,7 +430,7 @@ class CornerActuator:
                     self.sample_sensors(request_send=True)
             except Exception as e:
                 traceback.print_exc()
-                print(f"Send Error in corner {list(CORNER_NAMES)[self.name]}")
+                self.logger.info(f"Send Error in corner {list(CORNER_NAMES)[self.name]}")
                 raise e
 
 

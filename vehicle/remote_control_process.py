@@ -42,9 +42,10 @@ import corner_actuator_can as corner_actuator
 import model
 from model import Direction
 import utils
-import display
+import display_i2c as display
 
 BOARD_VERSION = 2
+
 
 # This file gets imported by server but we should only import GPIO on raspi.
 if os.uname().machine in ['armv7l','aarch64']:
@@ -84,7 +85,7 @@ _CLOSED_LOOP_ENDS_DISTANCE_METERS = 2.0
 
 _MAXIMUM_ALLOWED_DISTANCE_METERS = 2.5
 _MAXIMUM_ALLOWED_ANGLE_ERROR_DEGREES = 120  # 20
-_VOLTAGE_CUTOFF = 20
+_VOLTAGE_CUTOFF = 25
 _VOLTAGE_RESUME_MANUAL_CONTROL = 35
 
 _GPS_ERROR_RETRIES = 3
@@ -151,6 +152,19 @@ class PathControlValues():
     def __str__(self):
         return f"Angular P:{self.angular_p}, Lateral P:{self.lateral_p}, Angular D:{self.angular_d}, Lateral D:{self.lateral_d}"
 
+class AccessoryParameters():
+    def __init__(self, accessory_type):
+        self.accessory_type = accessory_type
+
+class CameraParameters(AccessoryParameters):
+    def __init__(self):
+        super().__init__(model.AccessoryType.CAMERA)
+
+class LawnmowerParameters(AccessoryParameters):
+    def __init__(self, height_percent, power_percent):
+        self.height_percent = height_percent
+        self.power_percent = power_percent
+        super().__init__(model.AccessoryType.MOWER)
 
 
 class NavigationParameters():
@@ -160,7 +174,8 @@ class NavigationParameters():
         self.path_following_direction = path_following_direction
         self.vehicle_travel_direction = vehicle_travel_direction
         self.repeat_path = repeat_path
-
+    def __str__(self):
+        return f"Travel Speed:{self.travel_speed}, Path Following Direction:{self.path_following_direction}, Vehicle Travel Direction:{self.vehicle_travel_direction}, Repeat Path:{self.repeat_path}"
 
 class PathSection():
     def __init__(self,
@@ -170,7 +185,10 @@ class PathSection():
                  max_dist=0,
                  max_angle=0,
                  end_dist=0,
-                 end_angle=0):
+                 end_angle=0,
+                 closed_loop=False,
+                 reset_steering=False,
+                 strafe_priority_distance_m=1.0):
         self.points: list = points
         self.spline: spline_lib.GpsSpline = None
         self.maximum_allowed_distance_meters = max_dist
@@ -179,11 +197,16 @@ class PathSection():
         self.end_distance_m = end_dist
         self.end_angle_degrees = end_angle
         self.navigation_parameters: NavigationParameters = navigation_parameters
-        self.closed_loop = False
+        self.closed_loop = closed_loop
+        self.accessory_parameters: AccessoryParameters = None
+        self.reset_steering = reset_steering  # if true, set steering to zero at start
+        self.strafe_priority_distance_m = strafe_priority_distance_m
 
     def __str__(self):
         str = (f"PathSection is {gps_tools.calc_path_length(self.points):.2f} meters long with {len(self.points)} points.\n")
-        str += f"Control Values: {self.control_values}"
+        str += f"Control Values: {self.control_values}\n"
+        str += f"Num points:{len(self.points)}, Max Dist:{self.maximum_allowed_distance_meters}, Max Angle:{self.maximum_allowed_angle_error_degrees}, End Dist:{self.end_distance_m}, End Angle:{self.end_angle_degrees}\n"
+        str += f"Navigation Parameters: {self.navigation_parameters}"
         return str
 
 
@@ -301,6 +324,10 @@ class RemoteControl():
         else:
             self.display = display.Display()
         self.display.display_voltage(0.0)
+        self.debug_file_name = "debug_file.txt"
+        self.reset_steering_timer = time.time()
+        self.motor_comms_last_checksum = 0
+        self.last_motor_comms_checksum_change = time.time()
 
     def run_setup(self):
         if True or self.simulated_hardware:
@@ -330,7 +357,6 @@ class RemoteControl():
         self.setup_motor_shared_memory()
 
     def setup_motor_shared_memory(self):
-        # set up shared memory for GUI four wheel steeing debugger (sim only).
         motor_output_name = 'motor_output_sharedmem'
         while not os.path.exists('/dev/shm/' + motor_output_name):
             self.logger.warn(f"Waiting for shared memory {motor_output_name}")
@@ -363,6 +389,8 @@ class RemoteControl():
                 self.nav_path.points = self.nav_path.spline.points
             elif len(path.points) == 2:
                 self.nav_path.points = tuple(gps_tools.check_point(p) for p in path.points)
+            if path.reset_steering:
+                self.reset_steering_timer = time.time()
         else:
             # Legacy paths
             nav_spline = spline_lib.GpsSpline(path,
@@ -470,6 +498,8 @@ class RemoteControl():
             prof.enable()
         # print(self.gps.last_sample())
 
+
+
         debug_time = time.time()
         recieved_robot_object = None
         time1 = time.time() - debug_time
@@ -538,6 +568,9 @@ class RemoteControl():
 
         time6 = time.time() - debug_time
 
+        if self.loop_count % _DEFAULT_LOGGING_SKIP_RATE == 0:
+            self.gps.print_sample_history_stats()
+
 
         self.joy.update_value()
         if self.loop_count % _DEFAULT_LOGGING_SKIP_RATE == 0:
@@ -556,7 +589,7 @@ class RemoteControl():
             self.autonomy_hold = True
             self.activate_autonomy = False
             self.control_state = model.CONTROL_OVERRIDE
-        elif self.joy.autonomy_requested == True:
+        elif self.joy.autonomy_requested == True and self.loop_count % _DEFAULT_LOGGING_SKIP_RATE == 0:
             self.gps.flush_serial()
             self.autonomy_hold = False
             self.activate_autonomy = True
@@ -610,6 +643,10 @@ class RemoteControl():
             self.control_state = model.CONTROL_ONLINE
 
         time8 = time.time() - debug_time
+
+        # Activate a brief pause at the end of a track.
+        if time.time() - self.reset_steering_timer < 0.5:
+            zero_output = True
 
         # Activate a brief pause at the end of a track.
         if time.time() - self.load_path_time < _PATH_END_PAUSE_SEC and not zero_output:
@@ -684,9 +721,19 @@ class RemoteControl():
 
         calc = calculate_steering(steer_cmd, self.vel_cmd, strafe_cmd)
 
-        if self.vel_cmd < 0:
+        # if self.vel_cmd < 0:
             # find steering angles that are closest to present steering angles
-            calc = recalculate_steering_values(calc, self.last_calculated_steering)
+        calc = recalculate_steering_values(calc, self.last_calculated_steering)
+
+        # steering_is_zero = True
+        # for key in calc.keys():
+        #     if abs(calc[key][0]) > 0.01:
+        #         steering_is_zero = False
+
+        # if abs(steer_cmd) > 0:
+        #     f = open(self.debug_file_name, "a")
+        #     f.write(f"{calc}\n")
+        #     f.close()
 
         steering_debug = (calc, steer_cmd, self.vel_cmd, strafe_cmd)
 
@@ -699,6 +746,7 @@ class RemoteControl():
             points_to_send = self.nav_path.points
         else:
             points_to_send = []
+
 
         send_data = (self.gps.last_sample(), points_to_send,
                      self.next_point_heading, debug_points,
@@ -732,8 +780,6 @@ class RemoteControl():
 
         if self.joy.activated() and self.autonomy_hold:
             steering_okay, steering_error_string = True, ""
-        elif self.simulated_hardware:
-            steering_okay, steering_error_string = True, ""
         else:
             steering_okay, steering_error_string = compare_steering_values(
                 self.last_calculated_steering, calc)
@@ -748,9 +794,9 @@ class RemoteControl():
         self.last_calculated_steering = calc
 
         # TODO: This hack temporarily disables autonomy via remote for debugging.
-        if not self.joy.activated() and not self.joy.strafe_allowed:
-            calc = calculate_steering(0, 0, 0)
-            self.last_calculated_steering = calc
+        # if not self.joy.activated() and not self.joy.strafe_allowed and not self.simulated_hardware:
+        #     calc = calculate_steering(0, 0, 0)
+        #     self.last_calculated_steering = calc
 
         # If the robot is simulated, estimate movement odometry.
         if self.simulated_hardware:
@@ -960,6 +1006,13 @@ class RemoteControl():
             raise e
             solution_age = _ALLOWED_SOLUTION_AGE_SEC + 9999999
 
+        # TODO: We should not let old data build up. Examine buffer lengths to
+        # determine when we are behind by one sample and automatically catch up.
+        # Do this in the GPS module.
+        if self.gps.last_sample()!= None and self.gps.last_sample().rtk_age > _ALLOWED_RTK_AGE_SEC/2.0:
+            self.gps.flush_serial()
+            self.logger.warning("RTK age approaching limit. Flushed serial to mitigate.")
+
 
         if self.motor_state != model.MOTOR_ENABLED:
             error_messages.append("Motors not enabled so zeroing out autonomy commands.")
@@ -976,10 +1029,10 @@ class RemoteControl():
 
         if not self.gps.is_dual_fix():
             error_messages.append("No GPS fix so zeroing out autonomy commands.")
-            try:
-                print(self.gps.last_sample().status)
-            except:
-                pass
+            # try:
+            #     print(self.gps.last_sample().status)
+            # except:
+            #     pass
             zero_output = True
             self.control_state = model.CONTROL_GPS_STARTUP
             self.resume_motion_timer = time.time()
@@ -989,7 +1042,7 @@ class RemoteControl():
             self.resume_motion_timer = time.time()
             self.control_state = model.CONTROL_AUTONOMY_ERROR_DISTANCE
             error_messages.append(
-                "GPS distance {} meters too far from path so zeroing out autonomy commands."
+                "GPS distance {:.1f} meters too far from path so zeroing out autonomy commands."
                 .format(abs(absolute_path_distance)))
         elif abs(gps_path_angle_error) > self.nav_path.maximum_allowed_angle_error_degrees:
             zero_output = True
@@ -1139,10 +1192,46 @@ class RemoteControl():
                 new_calc.append(calc[key])
             new_calc.append([model.FRESH_MESSAGE,0])
             new_calc = np.array(new_calc)
+            tick_count = 0
             while self.motor_output[0][1] != model.CLEAR_TO_WRITE:
                 time.sleep(model.MOTOR_READ_DELAY_SECONDS)
+                tick_count += 1
+                if tick_count > 2000:
+                    self.logger.error("Excessive wait time on communicate_to_motors_sharedmem wait ready loop.")
+                    return
             self.motor_input[:] = new_calc[:]
             motor_message = self.motor_output[:]
+            # print("#############")
+            # print("#############")
+            # print("#############")
+            # print("#############")
+            # print(motor_message)
+            checksum = 0
+            for section in motor_message:
+                for value in section:
+                    checksum+=value
+            # print(checksum)
+            if checksum == self.motor_comms_last_checksum:
+                if time.time() - self.last_motor_comms_checksum_change > 60:
+                    self.setup_motor_shared_memory()
+                    self.last_motor_comms_checksum_change = time.time()
+                    print("#############")
+                    print("#############")
+                    print("#############")
+                    print("CHECKSUM UNCHANGING!")
+                    print("#############")
+                    print("#############")
+                    print("#############")
+            else:
+                self.last_motor_comms_checksum_change = time.time()
+            self.motor_comms_last_checksum = checksum
+            # print("#############")
+            # print(checksum)
+            # print("#############")
+            # print("#############")
+            # print("#############")
+            # print("#############")
+            # print("#############")
             self.motor_state = int(motor_message[0][0])
             self.motor_encoders = motor_message[-4:]
             # print(self.motor_encoders[0][-2:])
@@ -1153,9 +1242,12 @@ class RemoteControl():
                 if len(self.voltages) > 0:
                     self.voltage_average = sum(self.voltages) / len(self.voltages)
                     self.display.display_voltage(self.voltage_average)
+                self.wattages = []
                 for volt, current in zip(self.voltages,
                                          self.bus_currents):
                     self.total_watts += volt * current
+                    self.wattages.append(volt * current)
+                # self.logger.info(self.wattages)
                 self.logger.debug("Drawing {} Watts.".format(int(self.total_watts)))
 
             if motor_message[3][0] > 0:

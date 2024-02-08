@@ -79,6 +79,10 @@ class MessageType(Enum):
     FIRMWARE_UPDATE_CPU2 = 8
     SIMPLE_PING = 9
     LOG_REQUEST = 10
+    RAW_BRIDGE_COMMAND = 11
+    FIRMWARE_STATUS = 12
+    SET_STEERING_ZERO = 13
+    CLEAR_ERRORS = 14
 
 
 class Motor:
@@ -107,6 +111,9 @@ class MotorController:
             self.therm_motor1 = 0
             self.therm_motor2 = 0
             self.voltage = 0.0
+            self.current = 0.0
+            self.motor_voltage = 0.0
+            self.wattage = 0.0
             self.steering_homed = False
             self.motion_allowed = False
             self.thermal_warning = False
@@ -180,11 +187,46 @@ class MotorController:
             values.extend(MessageType.LOG_REQUEST.value.to_bytes(1, byteorder='big'))
             return values
 
+        def firmware_status_request(self):
+            """
+            Request firmware status.
+            """
+            values = bytearray()
+            values.extend(MessageType.FIRMWARE_STATUS.value.to_bytes(1, byteorder='big'))
+            return values
+
+        def set_steering_zero(self):
+            """
+            Set steering zero.
+            """
+            values = bytearray()
+            values.extend(MessageType.SET_STEERING_ZERO.value.to_bytes(1, byteorder='big'))
+            return values
+
+        def clear_error_codes(self):
+            """
+            Clear error codes.
+            """
+            values = bytearray()
+            values.extend(MessageType.CLEAR_ERRORS.value.to_bytes(1, byteorder='big'))
+            return values
+
         def simple_FOC_pass_through(self, data):
             values = bytearray()
             values.extend(MessageType.SIMPLEFOC_PASS_THROUGH.value.to_bytes(1, byteorder='big'))
             values.extend(data.encode())
             values.extend(int(10).to_bytes(1, 'big')) # Line Feed
+            return values
+
+        def raw_bridge_command(self, bridge_values):
+            values = bytearray()
+            values.extend(MessageType.RAW_BRIDGE_COMMAND.value.to_bytes(1, byteorder='big'))
+            if len(bridge_values) != 6:
+                raise ValueError("Must send six bridge values between 0-255")
+            for bridge_value in bridge_values:
+                if not 0 <= bridge_value <= 255:
+                    raise ValueError("Bridge value out of bounds. Must be 0-255")
+                values.extend(bridge_value.to_bytes(1,'big'))
             return values
 
         def decode_sensor_reply(self, packet):
@@ -198,8 +240,8 @@ class MotorController:
             if packet[1] & 0x7F != MessageType.REQUEST_SENSORS.value:
                 print("DECODE SENSOR PACKET RECEIVED WRONG PACKET TYPE")
                 return False
-            crc = Crc16.calc(packet[:16])
-            if crc != packet[17]<<8 | packet[16]:
+            crc = Crc16.calc(packet[:36])
+            if crc != packet[37]<<8 | packet[36]:
                 print("DECODE SENSOR BAD CRC!")
                 return False
             self.adc1 = packet[3]<<8 | packet[2]
@@ -212,21 +254,38 @@ class MotorController:
             self.therm_motor1 = packet[9]
             self.therm_motor2 = packet[10]
             self.voltage = struct.unpack_from("<f", packet, offset=11)[0]
+            self.current = struct.unpack_from("<f", packet, offset=15)[0]
+            self.motor_voltage = struct.unpack_from("<f", packet, offset=19)[0]
+            self.wattage = self.motor_voltage * self.current
+
+            self.motor2.encoder_counts = struct.unpack_from("<i", packet, offset=23)[0]
+            self.motor1.encoder_counts = struct.unpack_from("<i", packet, offset=27)[0]
+            self.motor2.encoder_velocity = struct.unpack_from("<f", packet, offset=31)[0]
+            self.error_codes = packet[35]
+
             self.check_thermals()
             self.last_packet = packet
             return True
 
-        def decode_ping_reply(self, packet, print_result=False):
+        def decode_ping_reply(self, packet, print_result=False, logger=None):
             if packet[0] != self.id:
-                print(f"PACKET {packet[0]} NOT FOR THIS CONTROLLER ID! {self.id}")
+                if logger==None:
+                    print(f"PACKET {packet[0]} NOT FOR THIS CONTROLLER ID! {self.id}")
+                else:
+                    logger.error(f"PACKET {packet[0]} NOT FOR THIS CONTROLLER ID! {self.id}")
                 return (False, )
             if packet[1] & 0x7F != MessageType.SIMPLE_PING.value:
-                print(f"DECODE PING REPLY {MessageType.SIMPLE_PING.value} RECEIVED WRONG PACKET TYPE {packet[1]& 0x7F}")
+                if logger==None:
+                    print(f"DECODE PING REPLY {MessageType.SIMPLE_PING.value} RECEIVED WRONG PACKET TYPE {packet[1]& 0x7F}")
+                else:
+                    logger.error(f"DECODE PING REPLY {MessageType.SIMPLE_PING.value} RECEIVED WRONG PACKET TYPE {packet[1]& 0x7F}")
                 return (False, )
             can_cpu_ack = (packet[2] & 0xF) > 0
             can_motor_ack = (packet[2] & 0xF0) > 0
             if print_result:
                 print(f"CAN CPU ack: {can_cpu_ack} | Motor CPU ack: {can_motor_ack}")
+            if logger:
+                logger.info(f"CAN CPU ack: {can_cpu_ack} | Motor CPU ack: {can_motor_ack}")
             return (can_cpu_ack, can_motor_ack)
 
         def decode_log_reply(self, packet):

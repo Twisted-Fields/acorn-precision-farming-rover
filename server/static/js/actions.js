@@ -1,6 +1,6 @@
 // actions are triggered by UI events. It mostly involves calling backend API, and as a result, updating the store.
 
-var INTERVAL = 2000;
+var INTERVAL = 1000;
 
 function getRobotData() {
   api("get_herd_data")
@@ -11,7 +11,7 @@ function getRobotData() {
       //loop through herd data from server
       for (const robot of herd) {
         const date = Date.parse(robot.time_stamp);
-        robot.data_age_sec = (new Date() - date) / 1000.0;
+        robot.data_age_sec = (new Date() - date) / 1000.0 - 3600;
 
         // clear autonomy once on page open?
         if (store.have_cleared_autonomy[robot.name] == false) {

@@ -276,7 +276,7 @@ while True:
 
     # buffer, latest_sample = rtk_process.rtk_loop_once_single_receiver(tcp_sock1, buffer, print_gps=(print_gps_counter % 10 == 0), last_sample=latest_sample, logger=logger)
 
-    print_values = (print_gps_counter % 5 == 0)
+    print_values = (print_gps_counter % 10 == 0)
     print_gps_counter += 1
 
     latest_sample = gps_module.new_gps_sample(print_gps=print_values)
@@ -289,6 +289,7 @@ while True:
         if error_counter > 3:
             gps_module.flush_single()
             logger.error("Sample Error. May just need to wait for GPS system to start.")
+            # print(e)
             led_percent(strip, 10, Color(255, 0, 0))
             time.sleep(0.1)
         continue
@@ -317,6 +318,7 @@ while True:
 
         if print_values:
             logger.info(f"Distance: {distance}m | Last 60sec distribution: {total_error}")
+            gps_module.print_sample_history_stats()
         if distance < DISTANCE_LIMIT:
             # if sample_tick > 3:
             #     sample_tick = 0
@@ -336,6 +338,6 @@ while True:
         #     sample_tick = 0
             # subprocess.Popen("aplay /home/pi/error.wav", shell=True)
         led_percent(strip, 10, Color(255, 0, 0))
-        logger.error(latest_sample.status)
+        # logger.error(latest_sample.status)
         time.sleep(0.1)
         # pass

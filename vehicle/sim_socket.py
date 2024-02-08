@@ -44,7 +44,7 @@ class SimulatedSocket:
     def recv(self):
         reply = None
         if self.last_packet[0] == MessageType.REQUEST_SENSORS.value:
-            reply = [0]*18
+            reply = [0]*26
             reply[0] = self.address
             reply[1] = self.last_packet[0] & 0x7F
             reply[2] = 0 # adc1 = 512
@@ -61,10 +61,20 @@ class SimulatedSocket:
             reply[12] = voltage_bytes[1]
             reply[13] = voltage_bytes[2]
             reply[14] = voltage_bytes[3]
-            reply[15] = 0
-            crc = Crc16.calc(reply[:16])
-            reply[16] = crc & 0xFF
-            reply[17] = (crc>>8) & 0xFF
+            current_bytes = struct.pack("<f",2.00)
+            reply[15] = voltage_bytes[0]
+            reply[16] = voltage_bytes[1]
+            reply[17] = voltage_bytes[2]
+            reply[18] = voltage_bytes[3]
+            motor_voltage_bytes = struct.pack("<f",2.00)
+            reply[19] = voltage_bytes[0]
+            reply[20] = voltage_bytes[1]
+            reply[21] = voltage_bytes[2]
+            reply[22] = voltage_bytes[3]
+            reply[23] = 0
+            crc = Crc16.calc(reply[:24])
+            reply[24] = crc & 0xFF
+            reply[25] = (crc>>8) & 0xFF
             reply = bytearray(reply)
             return reply
 

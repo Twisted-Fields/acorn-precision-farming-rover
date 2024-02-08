@@ -1,0 +1,52 @@
+Flashing a compute module and configuring it for Acorn requires several steps
+to be done in series.
+
+Additionally, each update to Raspberry Pi OS may break the bring up process.
+
+First, plug in the module in boot mode and run sudo raspiboot to connect to
+the filesystem.
+
+Run a disk imaging tool to flash the disk image. The latest tested version is:
+Raspberry Pi OS Lite
+  Release date: October 10th 2023
+  System: 64-bit
+  Kernel version: 6.1
+  Debian version: 12 (bookworm)
+  Size: 435MB
+
+After flashing, unplug the unit and plug it back in.
+
+Now run the bringup-cm4 script as the normal non-root user. You may be asked
+to enter the root password. Note that you must pass the desired hostname to the
+script. So if you want the hostname of the pi to be acorn123 then you would
+run the command:
+
+bash bringup-cm4.sh acorn123
+
+Note the rsync command that is given by the script. You will use that shortly.
+
+When completed this command will unmount the CM4. Unplug it, switch the boot
+switch to normal boot, and plug it back in to power. Connect an ethernet
+cable, and after a minute or so, ssh in to the device. The password is acorn.
+
+You may want to copy the ssh id so you don't need to type the password. To do
+this run ssh-copy-id acorn@<hostname> and hit enter. Say yes if needed, and
+then enter the password. Now SSH in normally.
+
+The current raspberry pi image does not seem to automatically expand the
+filesystem, so do that by running the command sudo raspi-config, selecting
+advanced options, and selecting expand filesystem. Now exit the menu and reboot
+the CM4.
+
+At this point you can rsync over the acorn software folder. Use the rsync
+command that was provided by the bringup script above.
+
+Now SSH back in to the CM4 and navigate to /home/acorn/acorn/bringup and run the
+bringup-post-flash-raspberrypi.sh script.
+
+Finally, navigate down to /home/acorn/acorn and run:
+docker-compose -f docker-compose-vehicle.yml build
+Depending on the speed of your internet connection this will take anywhere
+from 10-60 minutes.
+If all went well, you should now be able to run ./run_docker_vehicle.sh
+and start the docker container. Setup is now complete!

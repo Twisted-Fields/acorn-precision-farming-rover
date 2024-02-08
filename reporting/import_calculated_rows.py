@@ -45,7 +45,7 @@ _SMOOTH_MULTIPLIER = 0.00000000001
 #     port=6379)
 
 r = redis.Redis(
-    host='192.168.1.170',
+    host='127.0.0.1',
     port=6379)
 
 
@@ -118,7 +118,7 @@ for track in lat_lon_tracks:
     # print(track)
     # sys.exit()
     # print(len(track))
-    if len(track) > 40:
+    if len(track) > 2:
         print(tracknum)
         next_track = []
         for point in track:
@@ -133,5 +133,5 @@ for track in lat_lon_tracks:
         tracknum += 1
     print("#################")
 
-r.set('twistedfields:gpspath:autogen_3_complete:key',
+r.set('twistedfields:gpspath:aa_test_test_test:key',
       pickle.dumps(track_set_complete))

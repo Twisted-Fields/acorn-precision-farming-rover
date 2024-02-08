@@ -31,30 +31,32 @@ s = isotp.socket()
 s.set_opts(isotp.socket.flags.WAIT_TX_DONE, frame_txtime=250000,tx_stmin=250000)
 s.bind("can1", isotp.Address(rxid=0x1, txid=ADDRESS))
 
-def send_file(filename, update_type):
+def send_file(destination_name, filename, update_type):
 
     fileContent = bytearray()
     with open(filename, mode='rb') as file: # b is important -> binary
         fileContent = list(file.read())
 
-    print("start")
-    for i in range(10):
-        print(hex(fileContent[i]))
+    print(f'Flashing {destination_name} CPU...')
+    for i in range(4):
+        print(f'{hex(fileContent[i])}... ')
 
     fileContent.insert(0, update_type)
 
     try:
         s.send(bytearray(fileContent))
     except Exception as e:
+        print(f"Send Error flashing {destination_name} CPU..")
+        print(e)
         raise e
-        print("Send Error")
 
+print(f"Flashing controller with address {ADDRESS}...")
 
 if FLASH_MOTOR:
-    send_file(MOTOR_DEST_NAME, FIRMWARE_UPDATE_CPU2)
+    send_file("motor", MOTOR_DEST_NAME, FIRMWARE_UPDATE_CPU2)
     print()
     if FLASH_CAN:
         time.sleep(2)
 
 if FLASH_CAN:
-    send_file(CAN_DEST_NAME, FIRMWARE_UPDATE)
+    send_file("CAN", CAN_DEST_NAME, FIRMWARE_UPDATE)

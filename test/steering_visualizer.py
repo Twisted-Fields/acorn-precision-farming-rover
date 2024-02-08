@@ -30,7 +30,6 @@ import pygame as py
 import serial
 import time
 import math
-from odrive.utils import dump_errors
 from evdev import InputDevice, list_devices, categorize, ecodes, KeyEvent
 from steering import calculate_steering, recalculate_steering_values
 import redis
@@ -140,7 +139,7 @@ if _DATA_SOURCE == _JOYSTICK:
     remote_control = RemoteControl()
     remote_control.run_setup()
 
-WINDOW_SCALING = 1.5
+WINDOW_SCALING = 1.0
 
 # define constants
 WIDTH = int(1000 * WINDOW_SCALING)
@@ -250,7 +249,16 @@ while running:
 
 
     if _DATA_SOURCE == _DATABASE:
-        robot = pickle.loads(r.get(robot_key))
+
+        try:
+            robot = pickle.loads(r.get(robot_key))
+        except:
+            try:
+                r = redis.Redis(
+                    host='localhost',
+                    port=6379)
+            except:
+                pass
         try:
             calc, steer_cmd, vel_cmd, strafe_cmd = robot.steering_debug
 

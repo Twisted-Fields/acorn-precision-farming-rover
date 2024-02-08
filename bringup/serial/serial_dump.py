@@ -6,9 +6,9 @@ import time
 # cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
 # 1500000
 
-BAUD = 921600
+BAUD = 115200
 
-ser0 = serial.Serial('/dev/ttySC1', BAUD, timeout=1.5)
+ser0 = serial.Serial('/dev/ttyAMA2', BAUD, timeout=1.5)
 print(ser0.name)
 
 try:

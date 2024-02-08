@@ -96,23 +96,27 @@ pathsection_list = []
 robot_list = []
 gpspolygon_list = []
 for key in r.scan_iter():
+    # if 'acorn_test' in key.decode('utf-8') and 'robot' in key.decode('utf-8'):
+    #     r.delete(key)
     key_list.append(key.decode('utf-8'))
     split_key = key.decode('utf-8').split(":")
     if len(split_key[0]) > 0:
         site_list.append(split_key[0])
     if split_key[1]=="robot":
         robot_list.append(split_key[2])
-    if split_key[1]=="gpspolygon":
+    elif split_key[1]=="gpspolygon":
         gpspolygon_list.append(split_key[2])
-    if split_key[1]=="gpspath":
+    elif split_key[1]=="gpspath":
         if HIDE_AUTOGEN_PATHS and "autogen" in split_key[2]:
             continue
         path = pickle.loads(r.get(key))
         if isinstance(path[0], PathSection):
             pathsection_list.append(split_key[2])
         path_list.append(split_key[2])
-        # print(type(pickle.loads(r.get(key))))
 
+        # print(type(pickle.loads(r.get(key))))
+# for key in key_list:
+#     print(key)
 site_list = list(set(site_list))
 robot_list = list(set(robot_list))
 gpspolygon_list = list(set(gpspolygon_list))
@@ -161,6 +165,7 @@ selection = int(input("Enter selection: "))
 if(selection==1):
     if isinstance(path[0], PathSection):
         for item in path:
+            print("--------------------------------------------------")
             print(item)
     else:
         print(path[0])
