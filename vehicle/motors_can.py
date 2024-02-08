@@ -383,6 +383,8 @@ class AcornMotorInterface():
                 time.sleep(1)
 
     def check_serial_input_voltage(self):
+        if self.simulated_hardware:
+            return True, 45.1
         msg = None
         value = 0
         try:
@@ -415,7 +417,8 @@ class AcornMotorInterface():
         error_count = 0
         start_time = time.time()
         input_voltage_okay = False
-        self.serial = serial.Serial('/dev/ttyAMA2', BAUD, timeout=1.5)
+        if not self.simulated_hardware:
+            self.serial = serial.Serial('/dev/ttyAMA2', BAUD, timeout=1.5)
         self.define_motors()
 
         while True:

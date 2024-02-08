@@ -41,16 +41,19 @@ class SimulatedSocket:
     def send(self, packet):
         self.last_packet = packet
 
+    def close(self):
+        pass
+
     def recv(self):
         reply = None
         if self.last_packet[0] == MessageType.REQUEST_SENSORS.value:
-            reply = [0]*26
+            reply = [0]*38
             reply[0] = self.address
             reply[1] = self.last_packet[0] & 0x7F
             reply[2] = 0 # adc1 = 512
             reply[3] = 2 # adc1 = 512
-            reply[4] = 0 # adc2 = 512
-            reply[5] = 2 # adc2 = 512
+            reply[4] = 0xD0 # adc2 = 720 (for homing)
+            reply[5] = 2 # adc2 = 720 (for homing)
             reply[6] = 0b0100 # motion allowed = true, aux1 and aux2 = 0
             reply[7] = 25 # therm_bridge1
             reply[8] = 25 # therm_bridge2
@@ -72,12 +75,16 @@ class SimulatedSocket:
             reply[21] = voltage_bytes[2]
             reply[22] = voltage_bytes[3]
             reply[23] = 0
-            crc = Crc16.calc(reply[:24])
-            reply[24] = crc & 0xFF
-            reply[25] = (crc>>8) & 0xFF
+            crc = Crc16.calc(reply[:36])
+            reply[36] = crc & 0xFF
+            reply[37] = (crc>>8) & 0xFF
             reply = bytearray(reply)
-            return reply
-
+        if self.last_packet[0] == MessageType.SIMPLE_PING.value:
+            reply = [0]*3
+            reply[0] = self.address
+            reply[1] = MessageType.SIMPLE_PING.value
+            reply[2] = 0x11
+            reply = bytearray(reply)
         if self.last_packet[0] == MessageType.LOG_REQUEST.value:
             reply = [self.address]
             reply.append(self.last_packet[0] & 0x7F)
