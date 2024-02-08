@@ -30,6 +30,9 @@ jobs:
       - name: Run tests
         run: python3 -m pytest -s
 
+      - name: Workaround for codecov issue 263
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE" 
+
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
