@@ -107,11 +107,11 @@ docker container.
 
 Now run:
 ```
-python3 vehicle/master_process.py --sim
+python3 vehicle/main_process.py --sim
 ```
 or:
 ```
-python3 vehicle/master_process.py --sim --debug
+python3 vehicle/main_process.py --sim --debug
 ```
 When you are making changes to the vehicle code, often this is how you will want
 to run things. Instead of restarting the entire simulation environment, you can
