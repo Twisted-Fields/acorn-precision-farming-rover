@@ -257,6 +257,7 @@ class RemoteControl():
         self.activate_autonomy = False
         self.autonomy_velocity = 0
         self.resume_motion_timer = 0
+        self.reloaded_path = False
         self.logger = logging.getLogger('main.remote')
         utils.config_logging(self.logger, debug)
         if _USE_SBUS_JOYSTICK and not simulated_hardware:
