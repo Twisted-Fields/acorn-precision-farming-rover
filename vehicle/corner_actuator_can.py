@@ -36,6 +36,8 @@ import model
 from model import CORNER_NAMES
 
 
+INDUCTION_STEERING_SENSOR = True
+SHOULD_SYSTEM_USE_HOMING = INDUCTION_STEERING_SENSOR == False
 
 THERMISTOR_ADC_CHANNEL = 3
 _ADC_PORT_STEERING_POT = 5
@@ -113,7 +115,7 @@ class CornerActuator:
         self.zero_vel_timestamp = time.time()
         self.socket = socket
         self.home_position = 0
-        self.needs_homing = True
+        self.needs_homing = SHOULD_SYSTEM_USE_HOMING
         self.rotation_sensor_val = 0
         self.steering_flipped = False
         self.reverse_drive = reverse_drive
@@ -230,6 +232,14 @@ class CornerActuator:
         else:
             self.logger.info(f"ERROR: No data on sample_sensors read, controller {self.controller.id}")
 
+    def set_home_position(self, home_position, error_limit=2):
+        # intetionally not running GPIO toggle so this can be set without enabling motors
+        reply = self.request_reply(self.controller.set_steering_home(home_position), error_limit)
+        if reply:
+            return self.controller.decode_ping_reply(reply, print_result=False)
+        else:
+            return (False, False)
+
     def initialize_traction(self):
         self.traction_initialized = True
         gpio_toggle(self.GPIO)
@@ -271,7 +281,7 @@ class CornerActuator:
         self.enable_steering_control()
         gpio_toggle(self.GPIO)
 
-        self.voltage_ok = self.controller.voltage > _SYSTEM_VOLTAGE_HOMING_THRESHOLD
+        self.voltage_ok = True #self.controller.voltage > _SYSTEM_VOLTAGE_HOMING_THRESHOLD
         if self.external_voltage_ok_signal:
             self.voltage_ok = True
 
@@ -283,13 +293,15 @@ class CornerActuator:
                 self.logger.info("SKIPPING HOMING UNTIL MOTION ALLOWED")
             else:
                 self.logger.info("SKIPPING HOMING UNTIL SYSTEM VOLTAGE IS HIGHER")
-            self.needs_homing = True
+            self.needs_homing = SHOULD_SYSTEM_USE_HOMING
 
 
         self.steering_flipped = steering_flipped
         self.steering_initialized = True
 
     def home_corner(self, manual=False):
+        if not SHOULD_SYSTEM_USE_HOMING:
+            return
         self.needs_homing = False # Set first so update_actuator works.
         max_home_sensor_value = 0
         max_home_position = 0
@@ -403,6 +415,7 @@ class CornerActuator:
         self.log_request()
 
 
+
         # TODO: on previous robot this code reset integrator current after
         # a few seconds. May not be needed on V2 robot.
         # if abs(self.velocity) > _ZERO_VEL_COUNTS_THRESHOLD:
@@ -428,6 +441,12 @@ class CornerActuator:
                 else:
                     self.socket.send(self.controller.serialize_motors())
                     self.sample_sensors(request_send=True)
+                if self.controller.error_codes != 0:
+                    self.logger.info(f"Corner {list(CORNER_NAMES)[self.name]} returned error codes {self.controller.error_codes}")
+                    if self.controller.error_codes & motor_controller.ERROR_CODE_INDUCTION_ENCODER_OFFLINE != 0:
+                        self.logger.error(f"Corner {list(CORNER_NAMES)[self.name]} reports encoder error! Cannot initialize corner.")
+                    else:
+                        self.socket.send(self.controller.clear_error_codes())
             except Exception as e:
                 traceback.print_exc()
                 self.logger.info(f"Send Error in corner {list(CORNER_NAMES)[self.name]}")

@@ -11,6 +11,8 @@
                startup_state = "inactive";
                function = "input";
             }; // pin
+            pin@p0  { function = "i2c0";   termination = "pull_up"; }; // I2C 0 SDA
+            pin@p1  { function = "i2c0";   termination = "pull_up"; }; // I2C 0 SCL
             pin@p2  { function = "i2c3";   termination = "pull_up"; }; // I2C 3 SDA
             pin@p3  { function = "i2c3";   termination = "pull_up"; }; // I2C 3 SCL
             pin@p4 { function = "uart3";  termination = "no_pulling"; drive_strength_mA = < 8 >; }; // TX uart3

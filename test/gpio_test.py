@@ -9,6 +9,8 @@ with SMBus(6) as bus:
     pin.mode = PinMode.output  # or use "output"
     while True:
         pin.write(True)
-        time.sleep(1)
+        print("Off")
+        time.sleep(5)
         pin.write(False)
-        time.sleep(1)
+        print("On")
+        time.sleep(5)

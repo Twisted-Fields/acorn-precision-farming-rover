@@ -68,6 +68,7 @@ RUN apt install -y iproute2
 RUN python3 -m pip install utm crccheck
 RUN python3 -m pip install gunicorn
 RUN python3 -m pip install adafruit-circuitpython-lsm6ds pca9536-driver adafruit_extended_bus adafruit-circuitpython-lis3mdl
+RUN python3 -m pip install adafruit-circuitpython-ads1x15
 # RUN apt install -y software-properties-common
 # RUN add-apt-repository ppa:deadsnakes/ppa && apt update && apt install -y python3.12-distutils python3.12
 LABEL org.opencontainers.image.source=https://github.com/Twisted-Fields/acorn-precision-farming-rover

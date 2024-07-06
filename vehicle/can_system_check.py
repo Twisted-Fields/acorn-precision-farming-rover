@@ -84,6 +84,15 @@ def ping_request(socket, controller, error_limit=2):
     else:
         return (False, False)
 
+
+def set_home(socket, controller, home_position, error_limit=2):
+    reply = request_reply(socket, controller.set_steering_home(home_position), controller.id, error_limit)
+    if reply:
+        return controller.decode_ping_reply(reply, print_result=False)
+    else:
+        return (False, False)
+
+
 def log_request(socket, controller, error_limit=2):
     reply = request_reply(socket, controller.log_request(), controller.id, error_limit)
     # print(reply)
@@ -172,20 +181,27 @@ try:
         count += 1
         for s, controller in zip(sockets, controllers):
             # time.sleep(0.0002)
-            # if sensor_request(s, controller):
-            #     controller.read_error = False
-            #     if controller.thermal_warning:
-            #         print("THERMAL WARNING!!!")
-            #     if controller.thermal_shutdown:
-            #         print("THERMAL SHUTDOWN!!!")
-            # else:
-            #     controller.read_error = True
-            #     error_count +=1
-            #     print("READ_ERROR")
-            log_reply = log_request(s,controller)
-            if log_reply:
-                # print(len(log_reply))
-                print(log_reply)
+            if sensor_request(s, controller):
+                controller.read_error = False
+                if controller.thermal_warning:
+                    print("THERMAL WARNING!!!")
+                if controller.thermal_shutdown:
+                    print("THERMAL SHUTDOWN!!!")
+            else:
+                controller.read_error = True
+                error_count +=1
+                print("READ_ERROR")
+
+            #if controller.id==8:
+            #    result = set_home(s,controller,-1.57)
+            #else:
+            #    result = set_home(s, controller, 0)
+            # print(result)
+            # log_reply = log_request(s,controller)
+            # if log_reply:
+            #     # print(len(log_reply))
+            #     print(log_reply)
+        # time.sleep(0.5)
         if time.time() - ticktime > 0.1:
             print(f"Rate: {count*10} hz ", end='')
             for controller in controllers:
@@ -193,7 +209,7 @@ try:
                 if controller.read_error:
                     print(f"|  ID:{controller.id} --------------- |", end='')
                 else:
-                    print(f"| ID:{controller.id}, {controller.voltage:.2f}, {controller.therm_bridge1}, {home_value} |", end='')
+                    print(f"| ID:{controller.id}, {controller.voltage:.2f}, angle: {controller.motor1.steering_angle_radians}, {home_value} |", end='')
             runtime = time.time() - start_time
             print(f" | ERRORS: {error_count} | time: {int(runtime/60)}:{int(runtime%60):02d}")
             ticktime = time.time()

@@ -17,7 +17,7 @@ sudo dtc -I dts -O dtb -o dual-sc16is752-spi1.dtbo sc16is752-spi1-overlay_dual_b
 
 
 GPIO Overlay:
-sudo dtc -I dts -O dtb -o /boot/dt-blob.bin dt-blob-dualcam.dts
+sudo dtc -I dts -O dtb -o /boot/firmware/dt-blob.bin dt-blob-dualcam.dts
 
 
 config.txt:

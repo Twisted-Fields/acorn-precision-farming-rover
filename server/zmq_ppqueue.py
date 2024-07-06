@@ -23,7 +23,7 @@ limitations under the License.
 
 # Modified from example file
 # Paranoid Pirate queue by  Daniel Lundin <dln(at)eintr(dot)org>
-#
+# https://zguide.zeromq.org/docs/chapter4/#Robust-Reliable-Queuing-Paranoid-Pirate-Pattern
 
 from collections import OrderedDict
 import time

@@ -56,6 +56,8 @@ if os.uname().machine in ['armv7l','aarch64']:
 
 # COUNTS_PER_REVOLUTION = corner_actuator.COUNTS_PER_REVOLUTION
 
+IGNORE_SERVER_COMMUNICATIONS_ERRORS = True
+
 ACCELERATION_COUNTS_SEC = 0.5
 
 _RESUME_MOTION_WARNING_TIME_SEC = 4
@@ -126,6 +128,8 @@ _USE_SBUS_JOYSTICK = True
 
 _DEBUG_STEERING = False
 _RUN_PROFILER = False
+
+SYSTEM_HAS_GPS = False
 
 
 
@@ -264,7 +268,10 @@ class RemoteControl():
             self.joy = JoystickSBUS(self.logger, simulated_hardware)
         else:
             self.joy = Joystick(simulated_hardware)
-        self.gps = gps.GPS(self.logger, self.simulated_hardware)
+        fake_gps = False
+        if simulated_hardware or SYSTEM_HAS_GPS == False:
+            fake_gps = True
+        self.gps = gps.GPS(self.logger, fake_gps)
         self.default_navigation_parameters = NavigationParameters(travel_speed=_DEFAULT_TRAVEL_SPEED,
                                                                   path_following_direction=Direction.EITHER,
                                                                   vehicle_travel_direction=Direction.EITHER,
@@ -390,8 +397,11 @@ class RemoteControl():
                 self.nav_path.points = self.nav_path.spline.points
             elif len(path.points) == 2:
                 self.nav_path.points = tuple(gps_tools.check_point(p) for p in path.points)
-            if path.reset_steering:
-                self.reset_steering_timer = time.time()
+            try:
+                if path.reset_steering:
+                    self.reset_steering_timer = time.time()
+            except:
+                self.logger.error("Path does not have reset_steering attribute.")
         else:
             # Legacy paths
             nav_spline = spline_lib.GpsSpline(path,
@@ -475,7 +485,7 @@ class RemoteControl():
 
 
         # Get real or simulated GPS data.
-        if self.simulated_hardware:
+        if self.simulated_hardware or SYSTEM_HAS_GPS == False:
             if self.loop_count % GPS_PRINT_INTERVAL == 0:
                 self.gps.dump()
             s = self.gps.last_sample()
@@ -547,7 +557,7 @@ class RemoteControl():
         time5 = 0
         gps_sample_valid = False
         sample = self.gps.last_sample()
-        if sample is not None:
+        if sample is not None and SYSTEM_HAS_GPS == True:
             gps_sample_valid = True
             vehicle_front = gps_tools.project_point(sample, sample.azimuth_degrees, 2.0)
             vehicle_rear = gps_tools.project_point(sample, sample.azimuth_degrees, -2.0)
@@ -722,9 +732,9 @@ class RemoteControl():
 
         calc = calculate_steering(steer_cmd, self.vel_cmd, strafe_cmd)
 
-        # if self.vel_cmd < 0:
+        if self.vel_cmd < 0:
             # find steering angles that are closest to present steering angles
-        calc = recalculate_steering_values(calc, self.last_calculated_steering)
+            calc = recalculate_steering_values(calc, self.last_calculated_steering)
 
         # steering_is_zero = True
         # for key in calc.keys():
@@ -1070,7 +1080,7 @@ class RemoteControl():
             error_messages.append("RTK solution too old so zeroing out autonomy commands.")
         # self.logger.error(f"solution_age: {solution_age}")
 
-        if time.time() - self.robot_object.last_server_communication_stamp > SERVER_COMMUNICATION_DELAY_LIMIT_SEC:
+        if time.time() - self.robot_object.last_server_communication_stamp > SERVER_COMMUNICATION_DELAY_LIMIT_SEC and IGNORE_SERVER_COMMUNICATIONS_ERRORS == False:
             zero_output = True
             self.resume_motion_timer = time.time()
             error_messages.append(

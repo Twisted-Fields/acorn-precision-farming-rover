@@ -10,7 +10,7 @@ sudo apt install can-utils
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 sudo usermod -aG docker acorn
-sudo apt -y install vim libffi-dev libssl-dev python3-dev python3-pip python3-venv docker-compose python3-crccheck
+sudo apt -y install vim libffi-dev libssl-dev python3-dev python3-pip python3-venv docker-compose python3-crccheck ntpdate i2c-tools
 sudo pip3 install --break-system-packages --root-user-action=ignore can-isotp
 echo "Now run docker-compose -f docker-compose-vehicle.yml build in the acorn directory."
 newgrp docker

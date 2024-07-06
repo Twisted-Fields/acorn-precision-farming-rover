@@ -9,7 +9,7 @@ MOTOR_SUBPATH = ".pio/build/motorcontroller/firmware.bin"
 CAN_DEST_NAME = "firmware_can.bin"
 MOTOR_DEST_NAME = "firmware_motor.bin"
 
-# CAN_ADDRESSES = [0x7]
+# CAN_ADDRESSES = [0x6]
 # CAN_ADDRESSES = [0x7, 0x6]
 CAN_ADDRESSES = [0x6, 0x7, 0x8, 0x9]
 

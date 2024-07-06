@@ -29,8 +29,14 @@ from model import Direction
 import time
 from utils import AppendFIFO
 
-wheel_base_width = 1.5
-wheel_base_length = 1.830
+
+# Woody
+wheel_base_width = 1.83
+wheel_base_length = 2.2
+
+# Acorn
+# wheel_base_width = 1.5
+# wheel_base_length = 1.830
 wheel_radius_ = 0.4
 M_PI_2 = math.pi/2.0
 _ABSOLUTE_STEERING_LIMIT = math.pi * 2.0

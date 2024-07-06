@@ -38,27 +38,10 @@ import isotp
 import motor_controller as mot
 import logging
 from utils import config_logging
-import serial
 import random
 import traceback
 import sys
-
-
-BAUD = 115200
-
-#
-# try:
-#     while True:
-#
-#         print(msg)
-# except Exception as e:
-#     raise e
-#     print("SERIAL EXCEPTION")
-#
-# ser0.close()
-
-
-
+import voltage_monitor
 
 """
 TODO: lots of conversion factors in this codebase for steering and drive.
@@ -67,7 +50,7 @@ roll them all up in to one location.
 
 
 BYPASS_STEERING_LIMITS = False
-
+PRINT_REMOTE_LOG_MESSAGES = False
 MAX_VALID_SPEED_COMMAND = 200
 
 
@@ -89,9 +72,11 @@ _LEFT_KEYCODE = '\x1b[D'
 _RIGHT_KEYCODE = '\x1b[C'
 _DOWN_KEYCODE = '\x1b[B'
 
-_SHUT_DOWN_MOTORS_COMMS_DELAY_S = 1.0
+_SHUT_DOWN_MOTORS_COMMS_DELAY_S = 3.0
 _ERROR_RECOVERY_DELAY_S = 5
 _ACCELERATION_COUNTS_SEC = 0.5
+
+_SAFE_STARTUP_VOLTAGE = 15
 
 
 class simulated_GPIO():
@@ -107,12 +92,12 @@ class AcornMotorInterface():
     def __init__(self, manual_control=False, simulated_hardware=False, debug=False):
 
         self.motor_connections = [
-            corner_actuator.MotorConnection(name=CORNER_NAMES['front_left'], id=0x8,
-                             port="can1", enable_steering=True, enable_traction=True, reverse_drive=False),
+            corner_actuator.MotorConnection(name=CORNER_NAMES['front_left'], id=0x6,
+                             port="can1", enable_steering=True, enable_traction=True, reverse_drive=True),
             corner_actuator.MotorConnection(name=CORNER_NAMES['front_right'], id=0x7,
-                             port="can1", enable_steering=True, enable_traction=True, reverse_drive=False),
-            corner_actuator.MotorConnection(name=CORNER_NAMES['rear_left'], id=0x6,
-                             port="can1", enable_steering=True, enable_traction=True, reverse_drive=False),
+                             port="can1", enable_steering=True, enable_traction=True, reverse_drive=True),
+            corner_actuator.MotorConnection(name=CORNER_NAMES['rear_left'], id=0x8,
+                             port="can1", enable_steering=True, enable_traction=True, reverse_drive=True),
             corner_actuator.MotorConnection(name=CORNER_NAMES['rear_right'], id=0x9,
                              port="can1", enable_steering=True, enable_traction=True, reverse_drive=True)
         ]
@@ -140,6 +125,7 @@ class AcornMotorInterface():
         else:
             self.GPIO = GPIO
             self.setup_GPIO(self.GPIO)
+            self.voltage_monitor = voltage_monitor.VoltageSampler()
 
     def setup_shared_memory(self):
         self.output_shm_name = 'motor_output_sharedmem'
@@ -252,6 +238,8 @@ class AcornMotorInterface():
 
 
     def define_motors(self, enable_steering=True, enable_traction=True):
+        if len(self.motors) == len(self.motor_connections):
+            return
         disable_steering_limits = False
         if BYPASS_STEERING_LIMITS or self.manual_control:
             disable_steering_limits = True
@@ -279,13 +267,33 @@ class AcornMotorInterface():
         self.motors_connected = False
         ping_success = True
         for drive in self.motors:
-            self.logger.info(f"Pinging {list(CORNER_NAMES)[drive.name]}")
-            reply = drive.ping_request(error_limit=0)
-            if all(reply):
-                self.logger.info(f"Success with ping {list(CORNER_NAMES)[drive.name]}")
-            else:
-                self.logger.error(f"Failure {reply} when pinging {list(CORNER_NAMES)[drive.name]}")
-                ping_success = False
+            errors = 0
+            success = False
+            while not success:
+                self.logger.info(f"Pinging {list(CORNER_NAMES)[drive.name]}")
+                reply = drive.ping_request(error_limit=0)
+                if all(reply):
+                    self.logger.info(f"Success with ping {list(CORNER_NAMES)[drive.name]}")
+                    success = True
+                else:
+                    errors +=1
+                    self.logger.error(f"Failure {reply} when pinging {list(CORNER_NAMES)[drive.name]}")
+                    time.sleep(0.2)
+                if errors > 5:
+                    ping_success = False
+                    success = True # HACK MAKE THIS WHOLE ROUTINE BETTER
+                    break
+                if drive.controller.id==8:
+                    position = -1.57
+                else:
+                    position = 0
+                result = drive.set_home_position(position)
+                if all(result):
+                    self.logger.info(f"Set home success {list(CORNER_NAMES)[drive.name]} at position {position}")
+                else:
+                    self.logger.error(f"Failed to set home for {list(CORNER_NAMES)[drive.name]} at position {position}")
+
+
         self.motors_connected = ping_success
         return ping_success
 
@@ -357,8 +365,8 @@ class AcornMotorInterface():
                         self.logger.info("CONNECTED TO MOTORS")
                     else:
                         self.logger.error("FAILED TO CONNECT TO MOTORS. RETRYING...")
-                        self.deallocate_motors()
-                        self.reset_can_port("can1")
+                        # self.deallocate_motors()
+                        # self.reset_can_port("can1")
                         time.sleep(5)
                 elif not self.motors_initialized:
                     try:
@@ -382,28 +390,28 @@ class AcornMotorInterface():
                 self.logger.info(e)
                 time.sleep(1)
 
-    def check_serial_input_voltage(self):
-        if self.simulated_hardware:
-            return True, 45.1
-        msg = None
-        value = 0
-        try:
-            while self.serial.in_waiting:
-                msg = self.serial.readline()
-                # print(msg)
-            if msg:
-                value = int(msg.strip())
-                value = 3.3 * value/1024.0
-                value = value * 100.0/4.9
-                self.logger.info(f"Read: {value:.2f} volts")
-                if value > 15:
-                    self.logger.info("Input Voltage okay. Connecting to motors.")
-                    return True, value
-                time.sleep(1)
-        except Exception as e:
-            # print(e)
-            pass
-        return False, value
+    # def check_serial_input_voltage(self):
+    #     if self.simulated_hardware:
+    #         return True, 45.1
+    #     msg = None
+    #     value = 0
+    #     try:
+    #         while self.serial.in_waiting:
+    #             msg = self.serial.readline()
+    #             # print(msg)
+    #         if msg:
+    #             value = int(msg.strip())
+    #             value = 3.3 * value/1024.0
+    #             value = value * 100.0/4.9
+    #             self.logger.info(f"Read: {value:.2f} volts")
+    #             if value > 15:
+    #                 self.logger.info("Input Voltage okay. Connecting to motors.")
+    #                 return True, value
+    #             time.sleep(1)
+    #     except Exception as e:
+    #         # print(e)
+    #         pass
+    #     return False, value
 
     def run_main(self):
         existing_motor_error = False
@@ -417,8 +425,6 @@ class AcornMotorInterface():
         error_count = 0
         start_time = time.time()
         input_voltage_okay = False
-        if not self.simulated_hardware:
-            self.serial = serial.Serial('/dev/ttyAMA2', BAUD, timeout=1.5)
         self.define_motors()
 
         while True:
@@ -435,7 +441,13 @@ class AcornMotorInterface():
                     self.setup_shared_memory()
                 if not input_voltage_okay:
                     # print("Start read serial.")
-                    input_voltage_okay, voltage = self.check_serial_input_voltage()
+                    voltage = self.voltage_monitor.return_one_sample()
+                    input_voltage_okay = voltage > _SAFE_STARTUP_VOLTAGE
+                    if input_voltage_okay:
+                        self.logger.info(f"Input voltage {voltage} good.")
+                    else:
+                        self.logger.error(f"Input voltage {voltage} too low.")
+                        time.sleep(1)
                     # input_voltage_okay = True
                     # voltage = 41.1
                     # print(f"Done read serial. {input_voltage_okay} {voltage}")
@@ -456,9 +468,9 @@ class AcornMotorInterface():
                         self.logger.info("CONNECTED TO MOTORS")
                     else:
                         self.logger.error("FAILED TO CONNECT TO MOTORS. RETRYING...")
-                        self.deallocate_motors()
-                        self.reset_can_port("can1")
-                        time.sleep(5)
+                        # self.deallocate_motors()
+                        # self.reset_can_port("can1")
+                        time.sleep(2)
                 elif not self.motors_initialized:
                     try:
                         self.logger.info("Try to initialize motors.")
@@ -515,7 +527,7 @@ class AcornMotorInterface():
                         this_pos, this_vel_cmd = calc[drive.name]
                         # this_pos = math.degrees(this_pos)
                         try:
-                            this_vel_cmd *= 150
+                            this_vel_cmd *= 100
                             drive.update_actuator(steering_pos_deg=this_pos, drive_velocity=this_vel_cmd)
                             if abs(this_vel_cmd) > MAX_VALID_SPEED_COMMAND:
                                 self.logger.error(f"INVALID SPEED COMMAND: {this_vel_cmd} exceeds limit of {MAX_VALID_SPEED_COMMAND}")
@@ -556,11 +568,12 @@ class AcornMotorInterface():
                         runtime = time.time() - start_time
                         output_string += f" | ERRORS: {error_count} | time: {int(runtime/60)}:{int(runtime%60):02d} | {motor_state}"
                         self.logger.info(output_string)
-                        for drive in self.motors:
-                            if len(drive.controller.log_messages) > 0:
-                                self.logger.info(drive.controller.log_messages)
-                            while len(drive.controller.log_messages) > 10:
-                                drive.controller.log_messages.pop(0)
+                        if PRINT_REMOTE_LOG_MESSAGES:
+                            for drive in self.motors:
+                                if len(drive.controller.log_messages) > 0:
+                                    self.logger.info(drive.controller.log_messages)
+                                while len(drive.controller.log_messages) > 10:
+                                    drive.controller.log_messages.pop(0)
                     if reset_can:
                         self.logger.info("Setting velocity to zero before resetting CAN port.")
                         for drive in self.motors:

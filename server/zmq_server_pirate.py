@@ -22,6 +22,8 @@ limitations under the License.
 """
 # Modified from example file
 # Paranoid Pirate Worker by  Daniel Lundin <dln(at)eintr(dot)org>
+# https://zguide.zeromq.org/docs/chapter4/#Robust-Reliable-Queuing-Paranoid-Pirate-Pattern
+
 
 from random import randint
 import time

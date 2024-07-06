@@ -68,6 +68,11 @@ THERMAL_WARNING_LIMIT = 60 # low for testing
 THERMAL_SHUTDOWN_LIMIT = 100 # TODO: test
 LOGGING_DIVIDER = '#'
 
+ERROR_CODE_MOTOR1_OVERSPEED = 0x01
+ERROR_CODE_INVALID_SPEED_COMMAND = 0x02
+ERROR_CODE_INCONSISTENT_COMMS = 0x04
+ERROR_CODE_INDUCTION_ENCODER_OFFLINE = 0x08
+
 class MessageType(Enum):
     SEND_COMPLETE_SETTINGS = 1
     REQUEST_COMPLETE_SETTINGS = 2
@@ -81,7 +86,7 @@ class MessageType(Enum):
     LOG_REQUEST = 10
     RAW_BRIDGE_COMMAND = 11
     FIRMWARE_STATUS = 12
-    SET_STEERING_ZERO = 13
+    SET_STEERING_HOME = 13
     CLEAR_ERRORS = 14
 
 
@@ -115,6 +120,7 @@ class MotorController:
             self.motor_voltage = 0.0
             self.wattage = 0.0
             self.steering_homed = False
+            self.home_position = 0.0
             self.motion_allowed = False
             self.thermal_warning = False
             self.thermal_shutdown = False
@@ -195,12 +201,13 @@ class MotorController:
             values.extend(MessageType.FIRMWARE_STATUS.value.to_bytes(1, byteorder='big'))
             return values
 
-        def set_steering_zero(self):
+        def set_steering_home(self, home_position):
             """
-            Set steering zero.
+            Set steering home.
             """
             values = bytearray()
-            values.extend(MessageType.SET_STEERING_ZERO.value.to_bytes(1, byteorder='big'))
+            values.extend(MessageType.SET_STEERING_HOME.value.to_bytes(1, byteorder='big'))
+            values.extend(struct.pack("<f", home_position))
             return values
 
         def clear_error_codes(self):
@@ -259,7 +266,7 @@ class MotorController:
             self.wattage = self.motor_voltage * self.current
 
             self.motor2.encoder_counts = struct.unpack_from("<i", packet, offset=23)[0]
-            self.motor1.encoder_counts = struct.unpack_from("<i", packet, offset=27)[0]
+            self.motor1.steering_angle_radians = struct.unpack_from("<f", packet, offset=27)[0]
             self.motor2.encoder_velocity = struct.unpack_from("<f", packet, offset=31)[0]
             self.error_codes = packet[35]
 
